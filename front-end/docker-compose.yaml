@@ -1,0 +1,19 @@
+name: solicitacao-eng-mecanica-front
+services:
+  frontend-solicitacao-eng-mecanica:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+    container_name: solicitacao-eng-mecanica-frontend
+    restart: always
+    ports:
+      - '3143:80'
+    networks:
+      - solicitacao-eng-mecanica-network
+
+networks:
+  solicitacao-eng-mecanica-network:
+    external: true
+    name: solicitacao-eng-mecanica-network

@@ -1,0 +1,391 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Unit {
+  PEDERTRACTOR
+  TRACTOR
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  RESPONSIBLE
+  LEADER
+}
+
+enum PillarCode {
+  SAFETY
+  PRODUCTIVITY
+  QUALITY_5S
+  ABSENTEEISM
+  REVENUE
+}
+
+enum IndicatorScope {
+  INDIVIDUAL
+  SECTOR
+  COMPANY
+}
+
+enum CalculationType {
+  ZERO_OCCURRENCE
+  THRESHOLD
+  FORMULA
+  MANUAL
+}
+
+enum CycleStatus {
+  DRAFT
+  OPEN
+  CALCULATED
+  UNDER_REVIEW
+  HOMOLOGATED
+  LOCKED
+}
+
+enum AccidentType {
+  WITH_LEAVE
+  WITHOUT_LEAVE
+  FREQUENCY
+}
+
+enum AccidentStatus {
+  IMPORTED
+  PENDING_REVIEW
+  VALIDATED
+  REJECTED
+  CANCELLED
+}
+
+enum ResultStatus {
+  PROVISIONAL
+  VALIDATED
+  HOMOLOGATED
+}
+
+enum SourceSystem {
+  CIPA
+  MANUAL
+  PEDERTRACTOR
+}
+
+model User {
+  id           String @id @default(uuid())
+  employeeId   String @unique
+  name         String
+  unit         Unit
+  cardNumber   String
+  passwordHash String
+
+  role   UserRole @default(USER)
+  active Boolean  @default(true)
+
+  costCenter String?
+
+  mustChangePassword Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees             Employee[]
+  safetyAccidentReviews SafetyAccident[] @relation("AccidentReviewer")
+  p5AuditLogs           P5AuditLog[]
+  pillarAssignments     UserPillarAssignment[]
+
+  @@unique([cardNumber, unit])
+  @@index([role])
+  @@index([unit])
+}
+
+model UserPillarAssignment {
+  id         String     @id @default(uuid())
+  userId     String
+  pillarCode PillarCode
+  createdAt  DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pillarCode])
+  @@index([userId])
+  @@index([pillarCode])
+}
+
+model Sector {
+  id         String  @id @default(uuid())
+  externalId String  @unique
+  code       String?
+  name       String
+  unit       Unit?
+  active     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees    Employee[]
+  participants CycleParticipant[]
+  accidents    SafetyAccident[]
+  indicatorResults IndicatorResult[]
+
+  @@index([unit])
+  @@index([active])
+}
+
+model Employee {
+  id           String  @id @default(uuid())
+  externalId   String  @unique
+  employeeId   String  @unique
+  name         String
+  unit         Unit
+  active       Boolean @default(true)
+  currentSectorId String?
+  userId       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  currentSector Sector?  @relation(fields: [currentSectorId], references: [id])
+  user          User?    @relation(fields: [userId], references: [id])
+  participants  CycleParticipant[]
+  accidents     SafetyAccident[]
+  indicatorResults IndicatorResult[]
+
+  @@index([unit])
+  @@index([active])
+  @@index([currentSectorId])
+  @@index([userId])
+}
+
+model ProgramYear {
+  id            String   @id @default(uuid())
+  year          Int      @unique
+  name          String
+  startsAt      DateTime
+  endsAt        DateTime
+  active        Boolean  @default(true)
+  /// Template de regras de pontuação do ano (próximo ciclo herda).
+  scoringConfig Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pillars PillarConfig[]
+  cycles  MonthlyCycle[]
+}
+
+model PillarConfig {
+  id            String     @id @default(uuid())
+  programYearId String
+  code          PillarCode
+  name          String
+  maxPoints     Decimal    @db.Decimal(10, 2)
+  active        Boolean    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  programYear ProgramYear @relation(fields: [programYearId], references: [id])
+  indicators  IndicatorConfig[]
+  employeePillarScores EmployeePillarScore[]
+
+  @@unique([programYearId, code])
+  @@index([programYearId])
+}
+
+model IndicatorConfig {
+  id                 String          @id @default(uuid())
+  pillarId           String
+  code               String
+  name               String
+  scope              IndicatorScope
+  calculationType    CalculationType
+  maxInternalPoints  Decimal         @db.Decimal(10, 2)
+  target             Decimal?        @db.Decimal(10, 2)
+  targetOperator     String?
+  sourceSystem       SourceSystem
+  ruleConfig         Json?
+  active             Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pillar  PillarConfig      @relation(fields: [pillarId], references: [id])
+  results IndicatorResult[]
+
+  @@unique([pillarId, code])
+  @@index([pillarId])
+}
+
+model MonthlyCycle {
+  id             String      @id @default(uuid())
+  programYearId  String
+  month          Int
+  year           Int
+  status         CycleStatus @default(DRAFT)
+  openedAt       DateTime?
+  calculatedAt   DateTime?
+  submittedAt    DateTime?
+  homologatedAt  DateTime?
+  lockedAt       DateTime?
+  /// Snapshot das regras de pontuação aplicadas neste ciclo.
+  scoringConfig  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  programYear  ProgramYear         @relation(fields: [programYearId], references: [id])
+  participants CycleParticipant[]
+  accidents    SafetyAccident[]
+  indicatorResults IndicatorResult[]
+  auditLogs    P5AuditLog[]
+
+  @@unique([programYearId, year, month])
+  @@index([status])
+  @@index([year, month])
+}
+
+model CycleParticipant {
+  id                    String  @id @default(uuid())
+  cycleId               String
+  employeeId            String
+  sectorId              String
+  employeeNameSnapshot  String
+  sectorNameSnapshot    String
+  unitSnapshot          Unit
+  activeInCycle         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  cycle    MonthlyCycle @relation(fields: [cycleId], references: [id])
+  employee Employee     @relation(fields: [employeeId], references: [id])
+  sector   Sector       @relation(fields: [sectorId], references: [id])
+  pillarScores  EmployeePillarScore[]
+  monthlyScore  EmployeeMonthlyScore?
+
+  @@unique([cycleId, employeeId])
+  @@index([cycleId])
+  @@index([sectorId])
+}
+
+model SafetyAccident {
+  id               String         @id @default(uuid())
+  cycleId          String
+  sourceSystem     SourceSystem
+  externalId       String
+  employeeId       String?
+  sectorId         String
+  accidentType     AccidentType
+  occurredAt       DateTime
+  daysAway         Int?
+  description      String?
+  status           AccidentStatus @default(IMPORTED)
+  rawPayload       Json?
+  importedAt       DateTime       @default(now())
+  lastSyncedAt     DateTime       @default(now())
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  rejectionReason  String?
+  sourceChangedAt  DateTime?
+  cancelledAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cycle      MonthlyCycle @relation(fields: [cycleId], references: [id])
+  employee   Employee?    @relation(fields: [employeeId], references: [id])
+  sector     Sector       @relation(fields: [sectorId], references: [id])
+  reviewedBy User?        @relation("AccidentReviewer", fields: [reviewedByUserId], references: [id])
+
+  @@unique([sourceSystem, externalId])
+  @@index([cycleId])
+  @@index([sectorId])
+  @@index([status])
+  @@index([accidentType])
+  @@index([cycleId, status, accidentType])
+}
+
+model IndicatorResult {
+  id                      String         @id @default(uuid())
+  cycleId                 String
+  indicatorId             String
+  scope                   IndicatorScope
+  scopeKey                String
+  sectorId                String?
+  employeeId              String?
+  rawValue                Decimal?       @db.Decimal(10, 2)
+  targetValue             Decimal?       @db.Decimal(10, 2)
+  preservedInternalPoints Decimal        @db.Decimal(10, 2)
+  weightedP5Points        Decimal        @db.Decimal(10, 2)
+  status                  ResultStatus   @default(PROVISIONAL)
+  calculationDetails      Json?
+  calculatedAt            DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cycle     MonthlyCycle    @relation(fields: [cycleId], references: [id])
+  indicator IndicatorConfig @relation(fields: [indicatorId], references: [id])
+  sector    Sector?         @relation(fields: [sectorId], references: [id])
+  employee  Employee?       @relation(fields: [employeeId], references: [id])
+
+  @@unique([cycleId, indicatorId, scope, scopeKey])
+  @@index([cycleId])
+  @@index([sectorId])
+}
+
+model EmployeePillarScore {
+  id                String       @id @default(uuid())
+  participantId     String
+  pillarId          String
+  internalScore     Decimal      @db.Decimal(10, 2)
+  weightedPoints    Decimal      @db.Decimal(10, 2)
+  status            ResultStatus @default(PROVISIONAL)
+  calculationDetails Json?
+  calculatedAt      DateTime
+  updatedAt         DateTime     @updatedAt
+
+  participant CycleParticipant @relation(fields: [participantId], references: [id])
+  pillar      PillarConfig     @relation(fields: [pillarId], references: [id])
+
+  @@unique([participantId, pillarId])
+  @@index([participantId])
+}
+
+model EmployeeMonthlyScore {
+  id            String       @id @default(uuid())
+  participantId String       @unique
+  totalPoints   Decimal      @db.Decimal(10, 2)
+  status        ResultStatus @default(PROVISIONAL)
+  isPartial     Boolean      @default(true)
+  calculatedPillars Json?
+  pendingPillars    Json?
+  calculatedAt  DateTime
+  updatedAt     DateTime     @updatedAt
+
+  participant CycleParticipant @relation(fields: [participantId], references: [id])
+}
+
+model P5AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  cycleId    String?
+  before     Json?
+  after      Json?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user  User?         @relation(fields: [userId], references: [id])
+  cycle MonthlyCycle? @relation(fields: [cycleId], references: [id])
+
+  @@index([cycleId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
