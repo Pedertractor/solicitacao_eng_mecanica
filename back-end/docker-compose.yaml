@@ -26,6 +26,8 @@ services:
       - POSTGRES_DB=solicitacao_eng_mecanica_dev
     volumes:
       - solicitacao_eng_mecanica_postgres_data:/var/lib/postgresql/data
+    networks:
+      - solicitacao-eng-mecanica-network
 
 volumes:
   solicitacao_eng_mecanica_postgres_data:
