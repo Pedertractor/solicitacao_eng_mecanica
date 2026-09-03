@@ -30,6 +30,9 @@ services:
 volumes:
   solicitacao_eng_mecanica_postgres_data:
     name: solicitacao_eng_mecanica_postgres_data
+
+  solicitacao_eng_mecanica_uploads:
+    name: solicitacao_eng_mecanica_uploads
 networks:
   solicitacao-eng-mecanica-network:
     name: solicitacao-eng-mecanica-network
