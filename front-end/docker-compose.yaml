@@ -1,4 +1,4 @@
-name: solicitacao-eng-mecanica-front
+name: solicitacao-eng-mecanica
 services:
   frontend-solicitacao-eng-mecanica:
     build:
@@ -9,7 +9,7 @@ services:
     container_name: solicitacao-eng-mecanica-frontend
     restart: always
     ports:
-      - '3143:80'
+      - '5024:80'
     networks:
       - solicitacao-eng-mecanica-network
 

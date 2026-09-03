@@ -1,25 +1,25 @@
 name: solicitacao-eng-mecanica
 services:
-  # api-solicitacao-eng-mecanica:
-  #   build: .
-  #   container_name: solicitacao-eng-mecanica-back-end
-  #   restart: always
-  #   ports:
-  #     - 3142:3142
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     - solicitacao-eng-mecanica-database
-  #   networks:
-  #     - solicitacao-eng-mecanica-network
-  #   volumes:
-  #     - solicitacao_eng_mecanica_uploads:/usr/src/app/uploads
+  api-solicitacao-eng-mecanica:
+    build: .
+    container_name: solicitacao-eng-mecanica-back-end
+    restart: always
+    ports:
+      - 5025:3142
+    env_file:
+      - .env
+    depends_on:
+      - solicitacao-eng-mecanica-database
+    networks:
+      - solicitacao-eng-mecanica-network
+    volumes:
+      - solicitacao_eng_mecanica_uploads:/usr/src/app/uploads
 
   solicitacao-eng-mecanica-database:
     image: postgres:16
     container_name: solicitacao-eng-mecanica-database
     ports:
-      - 5437:5432
+      - 5026:5432
     environment:
       - POSTGRES_USER=docker
       - POSTGRES_PASSWORD=docker
@@ -29,3 +29,7 @@ services:
 
 volumes:
   solicitacao_eng_mecanica_postgres_data:
+    name: solicitacao_eng_mecanica_postgres_data
+networks:
+  solicitacao-eng-mecanica-network:
+    name: solicitacao-eng-mecanica-network
