@@ -2,32 +2,8 @@ import { env } from '../env/index.js';
 import { HttpError } from '../https/errors/index.js';
 import type { $Enums } from '../generated/prisma/client.js';
 import type { PedertractorEmployee } from '../types/pedertractor-employee.js';
-import type { ApiBaseEmployeeListResponse } from '../types/api-base-employee-list.js';
 
 export class ApiPedertractorEmployee {
-  async listEmployees(): Promise<ApiBaseEmployeeListResponse> {
-    const response = await fetch(`${env.API_PEDERTRACTOR_URL}/employee/get`, {
-      method: 'GET',
-      headers: {
-        nameApplication: env.APPNAME,
-        key: env.APPKEY,
-      },
-    });
-
-    if (response.status !== 200) {
-      throw new HttpError(
-        `Não foi possível listar colaboradores na API corporativa. Status: ${response.status}`,
-        response.status,
-      );
-    }
-
-    const data = await response.json();
-    const formattedData = Array.isArray(data)
-      ? (data as ApiBaseEmployeeListResponse)
-      : [];
-    return formattedData.filter((employee) => employee.status === true);
-  }
-
   async getEmployee({
     cardNumber,
     unit,

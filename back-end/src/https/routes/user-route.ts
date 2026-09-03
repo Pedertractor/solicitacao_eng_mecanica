@@ -15,14 +15,7 @@ import { authMiddleware } from '../../middlewares/auth-middleware.js';
 import { roleMiddleware } from '../../middlewares/auth-role-middleware.js';
 
 const unitEnum = ['PEDERTRACTOR', 'TRACTOR'] as const;
-const userRoleEnum = ['USER', 'ADMIN', 'RESPONSIBLE', 'LEADER'] as const;
-const pillarCodeEnum = [
-  'SAFETY',
-  'PRODUCTIVITY',
-  'QUALITY_5S',
-  'ABSENTEEISM',
-  'REVENUE',
-] as const;
+const userRoleEnum = ['USER', 'ADMIN'] as const;
 
 const userSchema = {
   type: 'object',
@@ -43,11 +36,6 @@ const userSchema = {
     active: {
       type: 'boolean',
       description: 'Usuário ativo no sistema',
-    },
-    assignedPillarCodes: {
-      type: 'array',
-      description: 'Pilares atribuídos (apenas RESPONSIBLE)',
-      items: { type: 'string', enum: pillarCodeEnum },
     },
     createdAt: {
       type: 'string',
@@ -132,12 +120,6 @@ export async function userRoutes(app: FastifyInstance) {
               type: 'string',
               enum: userRoleEnum,
               description: 'Papel do usuário',
-            },
-            pillarCodes: {
-              type: 'array',
-              description:
-                'Pilares de responsabilidade (obrigatório se role = RESPONSIBLE)',
-              items: { type: 'string', enum: pillarCodeEnum },
             },
           },
         },
@@ -349,12 +331,6 @@ export async function userRoutes(app: FastifyInstance) {
           required: ['role'],
           properties: {
             role: { type: 'string', enum: userRoleEnum },
-            pillarCodes: {
-              type: 'array',
-              description:
-                'Pilares de responsabilidade (obrigatório se role = RESPONSIBLE)',
-              items: { type: 'string', enum: pillarCodeEnum },
-            },
           },
         },
         response: {

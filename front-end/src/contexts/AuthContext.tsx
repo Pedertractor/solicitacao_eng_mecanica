@@ -56,12 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser((previous) => {
         const identityChanged =
           previous != null &&
-          (previous.id !== data.user.id ||
-            previous.role !== data.user.role ||
-            JSON.stringify(previous.assignedPillarCodes ?? []) !==
-              JSON.stringify(data.user.assignedPillarCodes ?? []));
+          (previous.id !== data.user.id || previous.role !== data.user.role);
         if (identityChanged) {
-          void queryClient.invalidateQueries({ queryKey: ['p5'] });
+          void queryClient.invalidateQueries({ queryKey: ['solicitations'] });
         }
         return data.user;
       });
@@ -74,12 +71,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const token = getStoredToken();
-    if (!token) {
-      setAuthReady(true);
-      return;
-    }
-    setAuthReady(false);
-    void refreshUser().finally(() => setAuthReady(true));
+    if (!token) return;
+
+    let cancelled = false;
+    const timerId = window.setTimeout(() => {
+      void refreshUser().finally(() => {
+        if (!cancelled) setAuthReady(true);
+      });
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
   }, [refreshUser]);
 
   useEffect(() => {

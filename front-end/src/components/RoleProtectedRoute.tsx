@@ -21,7 +21,7 @@ export function RoleProtectedRoute() {
     );
   }
 
-  if (!canRoleAccessPath(user.role, location.pathname, user.assignedPillarCodes)) {
+  if (!canRoleAccessPath(user.role, location.pathname)) {
     return (
       <Navigate
         to={ROUTES.HOME}

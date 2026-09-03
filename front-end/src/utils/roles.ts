@@ -1,9 +1,8 @@
-import type { UserRole } from '@/types/auth';
-
-export const formattedRoles: Record<UserRole, string> = {
-  USER: 'usuário',
-  ADMIN: 'admin',
-  RESPONSIBLE: 'responsável',
-  LEADER: 'líder',
+export const formattedRoles: Record<string, string> = {
+  USER: 'Usuário',
+  ADMIN: 'Admin',
 };
-
+
+export function roleLabel(role: string): string {
+  return formattedRoles[role] ?? role;
+}

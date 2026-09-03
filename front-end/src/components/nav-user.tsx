@@ -1,6 +1,8 @@
-import { ChevronsUpDown, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronsUpDown, LogOut, Unplug } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { IntegrationsDialog } from '@/components/IntegrationsDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -32,6 +34,7 @@ export function NavUser({
   const { isMobile } = useSidebar();
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -81,12 +84,21 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setIntegrationsOpen(true)}>
+              <Unplug />
+              Integrações
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
               Sair
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <IntegrationsDialog
+          open={integrationsOpen}
+          onOpenChange={setIntegrationsOpen}
+        />
       </SidebarMenuItem>
     </SidebarMenu>
   );

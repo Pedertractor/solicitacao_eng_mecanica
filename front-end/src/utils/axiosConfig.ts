@@ -6,7 +6,7 @@ import axios, {
 import { toast } from 'sonner';
 import { clearAuthStorage, getStoredToken } from '@/utils/auth-storage';
 
-const api_url = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:3333';
+const api_url = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:3142';
 
 const instance = axios.create({
   baseURL: `${api_url}/api`,

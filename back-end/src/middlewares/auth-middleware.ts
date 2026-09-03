@@ -34,6 +34,5 @@ export async function authMiddleware(
   request.user = {
     sub: principal.id,
     role: principal.role,
-    assignedPillarCodes: principal.assignedPillarCodes,
   };
 }

@@ -16,25 +16,19 @@ import {
 import { ROUTES } from '@/routes/constants';
 
 function breadcrumbLabel(pathname: string): string {
-  if (pathname === ROUTES.HOME || pathname === '') return 'Programa P5';
-  if (pathname.startsWith(ROUTES.SIMULACAO)) return 'Simulação';
+  if (pathname === ROUTES.HOME || pathname === '') return 'Solicitações';
+  if (pathname.startsWith(ROUTES.SOLICITACOES + '/')) return 'Detalhe';
+  if (pathname.startsWith(ROUTES.SOLICITACOES)) return 'Solicitações';
   if (pathname.startsWith(ROUTES.USUARIOS_NOVO)) return 'Novo usuário';
   if (pathname.startsWith(ROUTES.USUARIOS)) return 'Usuários';
-  if (pathname.includes('/seguranca')) return 'P5 · Segurança';
-  if (pathname.startsWith(ROUTES.P5_CONFIGURACOES)) return 'P5 · Configurações';
-  if (pathname.startsWith(ROUTES.P5_CICLOS) && pathname !== ROUTES.P5_CICLOS) {
-    return 'P5 · Ciclo';
-  }
-  if (pathname.startsWith(ROUTES.P5_CICLOS)) return 'P5 · Ciclos';
-  if (pathname.startsWith(ROUTES.P5)) return 'Programa P5';
-  return 'Project P5';
+  return 'Eng. Mecânica';
 }
 
 export function MainLayout() {
   const { pathname } = useLocation();
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <AppSidebar />
       <SidebarInset className='min-w-0'>
         <header className='flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12'>

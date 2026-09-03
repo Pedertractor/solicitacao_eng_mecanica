@@ -7,8 +7,6 @@ import { userApi } from '@/services/user';
 import { ROUTES } from '@/routes/constants';
 import { UNIT, type Unit, type UserRole } from '@/types/auth';
 import { ROLE_OPTIONS } from '@/pages/Usuarios/userFormConstants';
-import { PillarMultiSelect } from '@/pages/Usuarios/PillarMultiSelect';
-import type { PillarCode } from '@/config/pillars';
 import { useAuth } from '@/contexts/useAuth';
 import {
   canAssignAdminRoleOnRegister,
@@ -45,8 +43,13 @@ export function NewUserPage() {
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [employeeName, setEmployeeName] = useState<string | null>(null);
-  const [role, setRole] = useState<UserRole>('USER');
-  const [pillarCodes, setPillarCodes] = useState<PillarCode[]>([]);
+  const [roleDraft, setRoleDraft] = useState<UserRole>('USER');
+  const role =
+    authUser &&
+    !canAssignAdminRoleOnRegister(authUser.role) &&
+    roleDraft === 'ADMIN'
+      ? 'USER'
+      : roleDraft;
   const [validateError, setValidateError] = useState<string | null>(null);
   const [validateLoading, setValidateLoading] = useState(false);
   const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,27 +75,13 @@ export function NewUserPage() {
   }, [cardNumber, unit]);
 
   useEffect(() => {
-    if (!cardNumber.trim()) {
-      setEmployeeName(null);
-      setValidateError(null);
-      return;
-    }
     if (validateTimeoutRef.current) clearTimeout(validateTimeoutRef.current);
-    validateTimeoutRef.current = setTimeout(validateEmployee, 500);
+    const delay = cardNumber.trim() ? 500 : 0;
+    validateTimeoutRef.current = setTimeout(validateEmployee, delay);
     return () => {
       if (validateTimeoutRef.current) clearTimeout(validateTimeoutRef.current);
     };
   }, [cardNumber, unit, validateEmployee]);
-
-  useEffect(() => {
-    if (
-      authUser &&
-      !canAssignAdminRoleOnRegister(authUser.role) &&
-      role === 'ADMIN'
-    ) {
-      setRole('USER');
-    }
-  }, [authUser, role]);
 
   const registerMutation = useMutation({
     mutationFn: () =>
@@ -100,7 +89,6 @@ export function NewUserPage() {
         cardNumber: cardNumberForApi(cardNumber),
         unit,
         role,
-        ...(role === 'RESPONSIBLE' ? { pillarCodes } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -115,10 +103,6 @@ export function NewUserPage() {
       toast.error(
         'Informe cartão e unidade e aguarde a validação do colaborador.',
       );
-      return;
-    }
-    if (role === 'RESPONSIBLE' && pillarCodes.length === 0) {
-      toast.error('Selecione ao menos um pilar para o responsável.');
       return;
     }
     registerMutation.mutate();
@@ -146,8 +130,8 @@ export function NewUserPage() {
         <CardHeader>
           <CardTitle>Configurar novo usuário</CardTitle>
           <CardDescription>
-            Crie um novo usuário para utilizar o Project P5. Uma senha padrão
-            será gerada; o usuário deverá alterá-la no primeiro login.
+            Crie um usuário admin/usuário para o painel. A senha padrão é o
+            cartão; o usuário deverá alterá-la no primeiro login.
           </CardDescription>
         </CardHeader>
 
@@ -201,13 +185,7 @@ export function NewUserPage() {
               <Label htmlFor='role'>Função do usuário</Label>
               <Select
                 value={role}
-                onValueChange={(v) => {
-                  const nextRole = v as UserRole;
-                  setRole(nextRole);
-                  if (nextRole !== 'RESPONSIBLE') {
-                    setPillarCodes([]);
-                  }
-                }}
+                onValueChange={(v) => setRoleDraft(v as UserRole)}
               >
                 <SelectTrigger id='role' className='w-full'>
                   <SelectValue />
@@ -222,20 +200,6 @@ export function NewUserPage() {
               </Select>
             </div>
 
-            {role === 'RESPONSIBLE' ? (
-              <div className='space-y-2'>
-                <Label>Pilares de responsabilidade</Label>
-                <PillarMultiSelect
-                  idPrefix='new-pillar'
-                  value={pillarCodes}
-                  onChange={setPillarCodes}
-                />
-                <p className='text-xs text-muted-foreground'>
-                  O responsável visualiza todos os dados dos pilares selecionados.
-                </p>
-              </div>
-            ) : null}
-
             {validateLoading && (
               <p className='flex items-center gap-2 text-sm text-muted-foreground'>
                 <Loader2 className='h-4 w-4 animate-spin' />
@@ -248,10 +212,6 @@ export function NewUserPage() {
                 <div>
                   <p className='font-medium'>
                     Colaborador encontrado com sucesso, pronto para registro!
-                  </p>
-                  <p className='mt-1 text-xs opacity-90'>
-                    As informações dos funcionários são validadas em comparação
-                    com o diretório corporativo.
                   </p>
                 </div>
               </div>
@@ -280,10 +240,6 @@ export function NewUserPage() {
             </Button>
           </CardFooter>
         </form>
-
-        <p className='px-6 pb-6 text-center text-xs text-muted-foreground'>
-          APENAS ADMIN PODE CRIAR USUÁRIO
-        </p>
       </Card>
     </div>
   );

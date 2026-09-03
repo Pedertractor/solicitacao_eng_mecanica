@@ -1,9 +1,7 @@
-import type { PillarCode } from '@/config/pillars';
-
 export const UNIT = ['PEDERTRACTOR', 'TRACTOR'] as const;
 export type Unit = (typeof UNIT)[number];
 
-export type UserRole = 'USER' | 'ADMIN' | 'RESPONSIBLE' | 'LEADER';
+export type UserRole = 'USER' | 'ADMIN';
 
 export interface AuthUser {
   id: string;
@@ -11,7 +9,6 @@ export interface AuthUser {
   unit: Unit;
   name: string | null;
   role: UserRole;
-  assignedPillarCodes?: PillarCode[];
   /** Indica que o usuário deve trocar a senha (ex.: primeiro login) */
   mustChangePassword?: boolean;
   active?: boolean;
@@ -25,7 +22,6 @@ export interface ListUser {
   unit: Unit;
   role: UserRole;
   active: boolean;
-  assignedPillarCodes?: PillarCode[];
   createdAt: string;
 }
 
@@ -39,4 +35,3 @@ export interface LoginResponse {
   user: AuthUser;
   token: string;
 }
-

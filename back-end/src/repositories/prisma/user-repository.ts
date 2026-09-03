@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   $Enums,
   Prisma,
@@ -41,7 +40,6 @@ export class UserPrismaRepository {
     });
   }
 
-  /** Retorna usuário sem passwordHash (uso em listagens/detalhes). */
   async findByUnitAndCardNumber({
     cardNumber,
     unit,
@@ -60,7 +58,6 @@ export class UserPrismaRepository {
     });
   }
 
-  /** Apenas para autenticação (login); retorna usuário com passwordHash. */
   async findByUnitAndCardNumberForAuth({
     cardNumber,
     unit,
@@ -123,31 +120,6 @@ export class UserPrismaRepository {
       where: { id: userId },
       data: { role },
       select: userSafeSelect,
-    });
-  }
-
-  async findAssignedPillarCodes(userId: string): Promise<$Enums.PillarCode[]> {
-    const rows = await this.prisma.userPillarAssignment.findMany({
-      where: { userId },
-      select: { pillarCode: true },
-      orderBy: { pillarCode: 'asc' },
-    });
-    return rows.map((row) => row.pillarCode);
-  }
-
-  async replacePillarAssignments(
-    userId: string,
-    pillarCodes: $Enums.PillarCode[],
-  ): Promise<void> {
-    await this.prisma.userPillarAssignment.deleteMany({ where: { userId } });
-    if (pillarCodes.length === 0) return;
-    // createMany não aplica @default(uuid()) do client — id precisa ser explícito.
-    await this.prisma.userPillarAssignment.createMany({
-      data: pillarCodes.map((pillarCode) => ({
-        id: randomUUID(),
-        userId,
-        pillarCode,
-      })),
     });
   }
 }

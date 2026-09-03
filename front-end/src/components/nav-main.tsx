@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 import { ChevronRightIcon } from 'lucide-animated';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -33,8 +33,23 @@ import {
 
 const SIDEBAR_ICON_SIZE = 16;
 
+function useSidebarIconHover(icon: SidebarIcon) {
+  const ref = useRef<AnimatedIconHandle>(null);
+  const Icon = icon;
+  const onMouseEnter = useCallback(() => {
+    ref.current?.startAnimation();
+  }, []);
+  const onMouseLeave = useCallback(() => {
+    ref.current?.stopAnimation();
+  }, []);
+  const iconNode = (
+    <Icon ref={ref} size={SIDEBAR_ICON_SIZE} className='shrink-0' />
+  );
+  return { iconNode, onMouseEnter, onMouseLeave };
+}
+
 function IconHoverTarget({
-  icon: Icon,
+  icon,
   children,
 }: {
   icon: SidebarIcon;
@@ -46,17 +61,15 @@ function IconHoverTarget({
     };
   }) => ReactNode;
 }) {
-  const ref = useRef<AnimatedIconHandle>(null);
+  const { iconNode, onMouseEnter, onMouseLeave } = useSidebarIconHover(icon);
 
   return (
     <>
       {children({
-        icon: (
-          <Icon ref={ref} size={SIDEBAR_ICON_SIZE} className='shrink-0' />
-        ),
+        icon: iconNode,
         hoverProps: {
-          onMouseEnter: () => ref.current?.startAnimation(),
-          onMouseLeave: () => ref.current?.stopAnimation(),
+          onMouseEnter,
+          onMouseLeave,
         },
       })}
     </>

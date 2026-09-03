@@ -1,4 +1,3 @@
-import type { PillarCode } from '@/config/pillars';
 import type { AuthUser, ListUser, Unit, UserRole } from '@/types/auth';
 import api from '@/utils/axiosConfig';
 
@@ -11,13 +10,11 @@ export interface UserDetail {
   role: UserRole;
   mustChangePassword: boolean;
   active?: boolean;
-  assignedPillarCodes?: PillarCode[];
   createdAt?: string;
 }
 
 export interface UpdateUserByAdminPayload {
   role: UserRole;
-  pillarCodes?: PillarCode[];
 }
 
 const BASE = '/users';
@@ -31,7 +28,6 @@ export interface RegisterUserPayload {
   cardNumber: string;
   unit: Unit;
   role: UserRole;
-  pillarCodes?: PillarCode[];
   /** Senha padrão gerada no backend; usuário altera no primeiro login */
   password?: string;
   active?: boolean;

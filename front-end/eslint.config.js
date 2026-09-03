@@ -21,17 +21,16 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/utils/p5-number.ts'],
+    files: ['src/components/ui/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "CallExpression[callee.property.name='toFixed']",
-          message:
-            'Use formatPoints/formatPercent de @/utils/p5-number em vez de toFixed.',
-        },
-      ],
+      'react-refresh/only-export-components': 'off',
+      'react-hooks/purity': 'off',
+    },
+  },
+  {
+    files: ['src/pages/Solicitacao/PublicSolicitationShell.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

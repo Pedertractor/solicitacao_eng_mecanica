@@ -11,7 +11,6 @@ declare module '@fastify/jwt' {
     user: {
       sub: string;
       role: $Enums.UserRole;
-      assignedPillarCodes?: $Enums.PillarCode[];
     };
   }
 }

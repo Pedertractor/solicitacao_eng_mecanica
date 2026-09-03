@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { GalleryVerticalEndIcon } from 'lucide-animated';
+import { CogIcon } from 'lucide-animated';
 
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -19,7 +19,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
 
   const navItems = user
-    ? getSidebarNavItemsForRole(user.role, user.assignedPillarCodes).map((item) => ({
+    ? getSidebarNavItemsForRole(user.role).map((item) => ({
         title: item.label,
         url: item.path,
         icon: item.icon,
@@ -38,7 +38,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         .slice(0, 2)
         .join('')
         .toUpperCase()
-    : 'P5';
+    : 'EM';
 
   return (
     <Sidebar collapsible='icon' {...props}>
@@ -46,8 +46,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher
           teams={[
             {
-              name: 'Project P5',
-              logo: GalleryVerticalEndIcon,
+              name: 'Eng. Mecânica',
+              logo: CogIcon,
               plan: user?.role ? formattedRoles[user.role] : 'App',
             },
           ]}

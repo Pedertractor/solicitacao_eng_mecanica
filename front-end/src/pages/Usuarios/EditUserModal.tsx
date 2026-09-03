@@ -5,8 +5,6 @@ import { Loader2 } from 'lucide-react';
 import { userApi, type UserDetail } from '@/services/user';
 import type { ListUser, UserRole } from '@/types/auth';
 import { ROLE_OPTIONS } from '@/pages/Usuarios/userFormConstants';
-import { PillarMultiSelect } from '@/pages/Usuarios/PillarMultiSelect';
-import type { PillarCode } from '@/config/pillars';
 import { useAuth } from '@/contexts/useAuth';
 import { canResetUserPassword } from '@/config/permissions';
 import {
@@ -54,9 +52,6 @@ function EditUserFormBody({
   const queryClient = useQueryClient();
   const { user: authUser } = useAuth();
   const [role, setRole] = useState<UserRole>(detail.role);
-  const [pillarCodes, setPillarCodes] = useState<PillarCode[]>(
-    detail.assignedPillarCodes ?? [],
-  );
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   const isCurrentUser = authUser?.id === detail.id;
@@ -75,17 +70,12 @@ function EditUserFormBody({
   }, [canAssignAdminRole, detail.role]);
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      userApi.updateByAdmin(detail.id, {
-        role,
-        ...(role === 'RESPONSIBLE' ? { pillarCodes } : {}),
-      }),
+    mutationFn: () => userApi.updateByAdmin(detail.id, { role }),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('Usuário atualizado.');
       onClose();
     },
-    // Erros HTTP são tratados pelo interceptor do axios (toast); evita mensagem duplicada.
   });
 
   const resetPasswordMutation = useMutation({
@@ -105,10 +95,6 @@ function EditUserFormBody({
       className='space-y-5'
       onSubmit={(e) => {
         e.preventDefault();
-        if (role === 'RESPONSIBLE' && pillarCodes.length === 0) {
-          toast.error('Selecione ao menos um pilar para o responsável.');
-          return;
-        }
         updateMutation.mutate();
       }}
     >
@@ -171,20 +157,6 @@ function EditUserFormBody({
         ) : null}
       </div>
 
-      {role === 'RESPONSIBLE' ? (
-        <div className='space-y-2'>
-          <Label>Pilares de responsabilidade</Label>
-          <PillarMultiSelect
-            idPrefix='edit-pillar'
-            value={pillarCodes}
-            onChange={setPillarCodes}
-          />
-          <p className='text-xs text-muted-foreground'>
-            O responsável visualiza todos os dados dos pilares selecionados.
-          </p>
-        </div>
-      ) : null}
-
       {canResetPassword ? (
         <div className='rounded-lg border bg-muted/40 p-4'>
           <p className='text-sm font-semibold'>Redefinir senha</p>
@@ -200,45 +172,6 @@ function EditUserFormBody({
           >
             Redefinir senha
           </Button>
-
-          <AlertDialog
-            open={resetConfirmOpen}
-            onOpenChange={setResetConfirmOpen}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Redefinir senha de {detail.name}?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  A senha atual deixará de funcionar. A senha temporária será o
-                  número do cartão ({detail.cardNumber}) e o usuário precisará
-                  criar uma nova senha ao entrar.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel type='button'>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  type='button'
-                  disabled={resetPasswordMutation.isPending}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    resetPasswordMutation.mutate();
-                  }}
-                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                >
-                  {resetPasswordMutation.isPending ? (
-                    <>
-                      <Loader2 className='animate-spin' />
-                      Redefinindo...
-                    </>
-                  ) : (
-                    'Confirmar redefinição'
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       ) : null}
 
@@ -246,60 +179,64 @@ function EditUserFormBody({
         <Button type='button' variant='outline' onClick={onClose}>
           Cancelar
         </Button>
-        <Button
-          type='submit'
-          disabled={isCurrentUser || updateMutation.isPending}
-        >
+        <Button type='submit' disabled={updateMutation.isPending || isCurrentUser}>
           {updateMutation.isPending ? (
             <>
-              <Loader2 className='animate-spin' />
-              Salvando...
+              <Loader2 className='animate-spin' /> Salvando…
             </>
           ) : (
-            'Salvar alterações'
+            'Salvar'
           )}
         </Button>
       </DialogFooter>
+
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Redefinir senha?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A senha de {detail.name} voltará a ser o número do cartão.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => resetPasswordMutation.mutate()}
+              disabled={resetPasswordMutation.isPending}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }
 
 export function EditUserModal({ user, open, onClose }: Props) {
-  const { data: detail, isLoading: detailLoading } = useQuery({
+  const detailQuery = useQuery({
     queryKey: ['users', user?.id],
     queryFn: () => userApi.getById(user!.id),
-    enabled: open && !!user,
+    enabled: open && Boolean(user?.id),
   });
 
   return (
-    <Dialog
-      open={open && !!user}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-    >
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-2xl'>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className='max-w-lg'>
         <DialogHeader>
           <DialogTitle>Editar usuário</DialogTitle>
           <DialogDescription>
-            Altere a função do usuário. Cartão e unidade não podem ser alterados
-            aqui.
+            Altere a função ou redefina a senha do usuário.
           </DialogDescription>
         </DialogHeader>
-
-        {detailLoading && (
-          <div className='flex justify-center py-12'>
-            <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+        {detailQuery.isLoading && (
+          <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+            <Loader2 className='size-4 animate-spin' /> Carregando…
           </div>
         )}
-
-        {!detailLoading && detail && (
-          <EditUserFormBody
-            key={detail.id}
-            detail={detail}
-            onClose={onClose}
-          />
-        )}
+        {detailQuery.data ? (
+          <EditUserFormBody detail={detailQuery.data} onClose={onClose} />
+        ) : null}
       </DialogContent>
     </Dialog>
   );

@@ -17,7 +17,7 @@ async function main() {
       },
     },
     create: {
-      name: 'Admin Local P5',
+      name: 'Admin Local',
       employeeId: `local-${CARD}`,
       unit: UNIT,
       cardNumber: CARD,
@@ -31,7 +31,7 @@ async function main() {
       active: true,
       passwordHash,
       mustChangePassword: false,
-      name: 'Admin Local P5',
+      name: 'Admin Local',
     },
   });
 

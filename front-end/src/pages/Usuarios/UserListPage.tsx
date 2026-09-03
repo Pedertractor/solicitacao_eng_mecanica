@@ -5,8 +5,6 @@ import { Plus, Search } from 'lucide-react';
 import { userApi } from '@/services/user';
 import { ROUTES } from '@/routes/constants';
 import type { ListUser, UserRole } from '@/types/auth';
-import { pillarLabel } from '@/config/pillars';
-import type { PillarCode } from '@/config/pillars';
 import { useAuth } from '@/contexts/useAuth';
 import {
   canCreateUser,
@@ -32,8 +30,6 @@ const PAGE_SIZE = 10;
 const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'ADMIN',
   USER: 'USUÁRIO',
-  RESPONSIBLE: 'RESPONSÁVEL',
-  LEADER: 'LÍDER',
 };
 
 function getInitials(name: string): string {
@@ -146,7 +142,6 @@ export function UserListPage() {
                     <TableHead>Cartão</TableHead>
                     <TableHead>Unidade</TableHead>
                     <TableHead>Função</TableHead>
-                    <TableHead>Pilares</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -191,21 +186,6 @@ export function UserListPage() {
           </>
         )}
       </Card>
-    </div>
-  );
-}
-
-function PillarBadges({ codes }: { codes?: PillarCode[] }) {
-  if (!codes?.length) {
-    return <span className='text-xs text-muted-foreground'>—</span>;
-  }
-  return (
-    <div className='flex flex-wrap gap-1'>
-      {codes.map((code) => (
-        <Badge key={code} variant='outline' className='text-[10px]'>
-          {pillarLabel(code)}
-        </Badge>
-      ))}
     </div>
   );
 }
@@ -266,9 +246,6 @@ function UserRow({
         <RoleBadge role={user.role} />
       </TableCell>
       <TableCell>
-        <PillarBadges codes={user.assignedPillarCodes} />
-      </TableCell>
-      <TableCell>
         <ActiveBadge active={user.active} />
       </TableCell>
     </TableRow>
@@ -316,7 +293,6 @@ function UserCard({
       </div>
       <div className='mt-3 flex flex-wrap items-center gap-2'>
         <RoleBadge role={user.role} />
-        <PillarBadges codes={user.assignedPillarCodes} />
         <ActiveBadge active={user.active} />
         <span className='text-xs text-muted-foreground'>{user.unit}</span>
       </div>

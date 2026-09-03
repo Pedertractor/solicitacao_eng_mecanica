@@ -1,23 +1,14 @@
 import Fastify from 'fastify';
 import jwt from '@fastify/jwt';
 import cors from '@fastify/cors';
-import multipart from '@fastify/multipart';
-import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { join } from 'node:path';
-import {
-  MAX_MULTIPART_BODY_BYTES,
-  MAX_RECEIPT_FILE_BYTES,
-} from './constants/receipt-upload-limits.js';
 import { env } from './env/index.js';
 import { apiErrorHandler } from './https/errors/error-handler.js';
 import { mainRoutes } from './https/routes/main-route.js';
 import { healthRoutes } from './https/routes/health-route.js';
 
-export const app = Fastify({
-  bodyLimit: MAX_MULTIPART_BODY_BYTES,
-});
+export const app = Fastify();
 
 app.register(cors, {
   origin: true,
@@ -25,7 +16,6 @@ app.register(cors, {
   allowedHeaders: ['Content-Type', 'Authorization'],
 });
 
-//preciso posteriormente dividir em outro arquivo essas configurações
 app.register(jwt, {
   secret: env.JWT_SECRET,
   sign: {
@@ -33,24 +23,13 @@ app.register(jwt, {
   },
 });
 
-app.register(multipart, {
-  limits: {
-    fileSize: MAX_RECEIPT_FILE_BYTES,
-  },
-});
-
-app.register(fastifyStatic, {
-  root: join(process.cwd(), 'uploads'),
-  prefix: '/uploads/',
-});
-
-// Swagger/OpenAPI deve ser registrado ANTES das rotas para descobri-las (https://github.com/fastify/fastify-swagger)
 app.register(swagger, {
   openapi: {
     openapi: '3.0.0',
     info: {
-      title: 'Project P5 API',
-      description: 'API do Project P5 — autenticação, usuários e Programa P5',
+      title: 'Solicitação Eng. Mecânica API',
+      description:
+        'API de solicitações públicas e painel administrativo',
       version: '1.0.0',
     },
     servers: [
@@ -59,7 +38,10 @@ app.register(swagger, {
     tags: [
       { name: 'health', description: 'Health check' },
       { name: 'users', description: 'Autenticação e gestão de usuários' },
-      { name: 'p5', description: 'Programa P5 — ciclos, segurança e configurações' },
+      {
+        name: 'solicitations',
+        description: 'Solicitações públicas e gestão admin',
+      },
     ],
     components: {
       securitySchemes: {
