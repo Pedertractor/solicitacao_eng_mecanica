@@ -12,6 +12,11 @@ const envSchema = z.object({
   API_PEDERTRACTOR_URL: z.string(),
   KAIRO_API_URL: z.string().optional(),
   KAIRO_CREDENTIALS_SECRET: z.string().optional(),
+  CORREIO: z.string(),
+  EMAIL_AUTOMACAO: z.string().email(),
+  PASSWORD_AUTOMACAO: z.string().min(1),
+  PORT_CORREIO: z.string().default('587'),
+  PUBLIC_FRONTEND_URL: z.string().url(),
 });
 
 const _env = envSchema.safeParse(process.env);

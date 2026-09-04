@@ -14,9 +14,9 @@ async function runSync() {
   try {
     const service = new SolicitationService();
     const result = await service.syncPendingFromKairo();
-    if (result.completed > 0) {
+    if (result.completed > 0 || result.deleted > 0) {
       console.log(
-        `[kairo-sync] Verificadas ${result.checked}; concluídas ${result.completed}`,
+        `[kairo-sync] Verificadas ${result.checked}; concluídas ${result.completed}; excluídas ${result.deleted}`,
       );
     }
   } catch (error) {

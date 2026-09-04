@@ -33,7 +33,7 @@ const UNIT_LABELS = {
 } as const;
 
 const FLOW_STEPS: {
-  status: Exclude<SolicitationStatus, 'CANCELLED'>;
+  status: Exclude<SolicitationStatus, 'CANCELLED' | 'DELETED'>;
   label: string;
 }[] = [
   { status: 'PENDING', label: 'Pendente' },
@@ -42,7 +42,10 @@ const FLOW_STEPS: {
   { status: 'COMPLETED', label: 'Concluída' },
 ];
 
-const FLOW_ORDER: Record<Exclude<SolicitationStatus, 'CANCELLED'>, number> = {
+const FLOW_ORDER: Record<
+  Exclude<SolicitationStatus, 'CANCELLED' | 'DELETED'>,
+  number
+> = {
   PENDING: 0,
   IN_REVIEW: 1,
   APPROVED: 2,
@@ -226,12 +229,16 @@ export function PublicSolicitationTrackPage() {
 }
 
 function StatusStepper({ status }: { status: SolicitationStatus }) {
-  if (status === 'CANCELLED') {
+  if (status === 'CANCELLED' || status === 'DELETED') {
     return (
       <div className='flex min-w-0 items-start gap-3 rounded-md border border-border bg-muted/40 px-4 py-3'>
         <XCircle className='mt-0.5 size-5 shrink-0 text-muted-foreground' />
         <div className='min-w-0 overflow-hidden'>
-          <p className='text-sm font-medium'>Solicitação cancelada</p>
+          <p className='text-sm font-medium'>
+            {status === 'DELETED'
+              ? 'Solicitação excluída'
+              : 'Solicitação cancelada'}
+          </p>
           <p className={cn('text-muted-foreground text-sm', breakableTextClass)}>
             Esta solicitação foi encerrada e não seguirá no fluxo.
           </p>

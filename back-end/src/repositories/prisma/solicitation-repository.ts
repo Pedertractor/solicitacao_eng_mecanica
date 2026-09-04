@@ -14,6 +14,7 @@ export class SolicitationPrismaRepository {
   async create(data: {
     employeeId: string;
     requesterName: string;
+    requesterEmail: string;
     cardNumber: string;
     unit: $Enums.Unit;
     costCenter: string;
@@ -52,14 +53,23 @@ export class SolicitationPrismaRepository {
     status?: $Enums.SolicitationStatus;
     page: number;
     pageSize: number;
+    sortBy?:
+      | 'createdAt'
+      | 'requesterName'
+      | 'sectorName'
+      | 'title'
+      | 'status';
+    sortOrder?: 'asc' | 'desc';
   }): Promise<{ items: Solicitation[]; total: number }> {
     const where = input.status ? { status: input.status } : {};
     const skip = (input.page - 1) * input.pageSize;
+    const sortBy = input.sortBy ?? 'createdAt';
+    const sortOrder = input.sortOrder ?? 'desc';
 
     const [items, total] = await Promise.all([
       this.prisma.solicitation.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortBy]: sortOrder },
         skip,
         take: input.pageSize,
       }),
@@ -77,6 +87,22 @@ export class SolicitationPrismaRepository {
     return await this.prisma.solicitation.findUnique({
       where: { trackingCode },
     });
+  }
+
+  async findLatestRequesterEmail(
+    cardNumber: string,
+    unit: $Enums.Unit,
+  ): Promise<string | null> {
+    const row = await this.prisma.solicitation.findFirst({
+      where: {
+        cardNumber,
+        unit,
+        requesterEmail: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { requesterEmail: true },
+    });
+    return row?.requesterEmail ?? null;
   }
 
   async updateStatus(
@@ -154,6 +180,30 @@ export class SolicitationPrismaRepository {
     });
   }
 
+  async markDeleted(
+    id: string,
+    data: {
+      deletedByUserId?: string | null;
+      deletedByName: string;
+      deletedFrom: $Enums.SolicitationDeletionSource;
+    },
+  ): Promise<Solicitation> {
+    return await this.prisma.solicitation.update({
+      where: { id },
+      data: {
+        status: $Enums.SolicitationStatus.DELETED,
+        deletedAt: new Date(),
+        deletedByUserId: data.deletedByUserId ?? null,
+        deletedByName: data.deletedByName,
+        deletedFrom: data.deletedFrom,
+        statusUpdatedAt: new Date(),
+        ...(data.deletedByUserId
+          ? { statusUpdatedByUserId: data.deletedByUserId }
+          : {}),
+      },
+    });
+  }
+
   async findPendingKairoSync(): Promise<Solicitation[]> {
     return await this.prisma.solicitation.findMany({
       where: {
@@ -163,6 +213,7 @@ export class SolicitationPrismaRepository {
           notIn: [
             $Enums.SolicitationStatus.COMPLETED,
             $Enums.SolicitationStatus.CANCELLED,
+            $Enums.SolicitationStatus.DELETED,
           ],
         },
       },

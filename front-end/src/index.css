@@ -73,7 +73,7 @@
   }
 
   body {
-    @apply min-h-screen bg-background text-sm text-foreground antialiased;
+    @apply min-h-screen overflow-x-hidden bg-background text-sm text-foreground antialiased;
   }
 
   h1 {

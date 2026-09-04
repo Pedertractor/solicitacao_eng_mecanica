@@ -43,6 +43,9 @@ export type KairoActivity = {
   teamId: string;
   title: string;
   status?: KairoCardStatus;
+  deletedAt?: string | null;
+  deletedByName?: string | null;
+  integrationSource?: string | null;
 };
 
 export type KairoProject = {
@@ -50,7 +53,12 @@ export type KairoProject = {
   teamId: string;
   title: string;
   status?: KairoCardStatus;
+  deletedAt?: string | null;
+  deletedByName?: string | null;
+  integrationSource?: string | null;
 };
+
+export const KAIRO_INTEGRATION_SOURCE = 'solicitacao-eng-mecanica';
 
 function requireBaseUrl(): string {
   const base = env.KAIRO_API_URL?.trim();
@@ -131,7 +139,12 @@ export class KairoClient {
 
   async createActivity(
     teamId: string,
-    input: { title: string; description?: string; tagId?: string },
+    input: {
+      title: string;
+      description?: string;
+      tagId?: string;
+      integrationSource?: string;
+    },
   ) {
     return kairoFetch<{ activity: KairoActivity }>(
       `/integrations/v1/teams/${encodeURIComponent(teamId)}/activities`,
@@ -145,7 +158,12 @@ export class KairoClient {
 
   async createProject(
     teamId: string,
-    input: { title: string; description?: string; estimatedHours?: number },
+    input: {
+      title: string;
+      description?: string;
+      estimatedHours?: number;
+      integrationSource?: string;
+    },
   ) {
     return kairoFetch<{ project: KairoProject }>(
       `/integrations/v1/teams/${encodeURIComponent(teamId)}/projects`,
@@ -154,6 +172,22 @@ export class KairoClient {
         method: 'POST',
         body: JSON.stringify(input),
       },
+    );
+  }
+
+  async deleteActivity(teamId: string, activityId: string) {
+    return kairoFetch<{ activity: KairoActivity }>(
+      `/integrations/v1/teams/${encodeURIComponent(teamId)}/activities/${encodeURIComponent(activityId)}`,
+      this.apiKey,
+      { method: 'DELETE' },
+    );
+  }
+
+  async deleteProject(teamId: string, projectId: string) {
+    return kairoFetch<{ project: KairoProject }>(
+      `/integrations/v1/teams/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(projectId)}`,
+      this.apiKey,
+      { method: 'DELETE' },
     );
   }
 }

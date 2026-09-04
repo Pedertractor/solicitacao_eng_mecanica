@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { PlatformPageShell } from '@/components/platform-backdrop';
 import { useAuth } from '@/contexts/useAuth';
 import { ROUTES } from '@/routes/constants';
 import { canRoleAccessPath } from '@/config/roleAccess';
@@ -9,9 +10,12 @@ export function RoleProtectedRoute() {
 
   if (!isAuthReady) {
     return (
-      <div className='flex h-screen items-center justify-center bg-background'>
+      <PlatformPageShell
+        className='items-center justify-center'
+        contentClassName='items-center justify-center'
+      >
         <p className='text-muted-foreground'>A carregar…</p>
-      </div>
+      </PlatformPageShell>
     );
   }
 

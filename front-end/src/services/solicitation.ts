@@ -6,7 +6,10 @@ export type SolicitationStatus =
   | 'IN_REVIEW'
   | 'APPROVED'
   | 'COMPLETED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'DELETED';
+
+export type SolicitationDeletionSource = 'SOLICITATION_APP' | 'KAIRO';
 
 export type SolicitationClient =
   | 'CATERPILLAR'
@@ -61,6 +64,7 @@ export interface Solicitation {
   trackingCode: string;
   employeeId: string;
   requesterName: string;
+  requesterEmail: string | null;
   cardNumber: string;
   unit: Unit;
   costCenter: string;
@@ -81,6 +85,10 @@ export interface Solicitation {
   kairoTeamId: string | null;
   kairoSyncedAt: string | null;
   kairoSyncedByUserId: string | null;
+  deletedAt: string | null;
+  deletedByUserId: string | null;
+  deletedByName: string | null;
+  deletedFrom: SolicitationDeletionSource | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -104,6 +112,7 @@ export interface ValidateRequesterResponse {
   status: boolean;
   cardNumber: string;
   unit: Unit;
+  email: string | null;
 }
 
 export interface SectorByCostCenter {
@@ -121,6 +130,7 @@ export interface CreateSolicitationPayload {
   pillarOrLocation: string;
   title: string;
   description: string;
+  requesterEmail: string;
 }
 
 export interface UpdateSolicitationReviewPayload {
@@ -131,10 +141,21 @@ export interface UpdateSolicitationReviewPayload {
   approve?: boolean;
 }
 
+export type SolicitationSortField =
+  | 'createdAt'
+  | 'requesterName'
+  | 'sectorName'
+  | 'title'
+  | 'status';
+
+export type SortOrder = 'asc' | 'desc';
+
 export interface SolicitationListParams {
   status?: SolicitationStatus;
   page?: number;
   pageSize?: number;
+  sortBy?: SolicitationSortField;
+  sortOrder?: SortOrder;
 }
 
 export interface SolicitationListResponse {
@@ -188,6 +209,8 @@ export const solicitationApi = {
         ...(params.status ? { status: params.status } : {}),
         ...(params.page ? { page: params.page } : {}),
         ...(params.pageSize ? { pageSize: params.pageSize } : {}),
+        ...(params.sortBy ? { sortBy: params.sortBy } : {}),
+        ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
       },
     });
     return data;
@@ -270,13 +293,21 @@ export const solicitationApi = {
   async syncPendingFromKairo(): Promise<{
     checked: number;
     completed: number;
+    deleted: number;
   }> {
-    const { data } = await api.post<{ checked: number; completed: number }>(
-      `${BASE}/sync-kairo-pending`,
-      {},
-      { skipErrorToast: true },
-    );
+    const { data } = await api.post<{
+      checked: number;
+      completed: number;
+      deleted: number;
+    }>(`${BASE}/sync-kairo-pending`, {}, { skipErrorToast: true });
     return data;
+  },
+
+  async delete(id: string): Promise<Solicitation> {
+    const { data } = await api.delete<{ solicitation: Solicitation }>(
+      `${BASE}/${id}`,
+    );
+    return data.solicitation;
   },
 };
 
@@ -286,6 +317,15 @@ export const SOLICITATION_STATUS_LABELS: Record<SolicitationStatus, string> = {
   APPROVED: 'Aprovado',
   COMPLETED: 'Concluído',
   CANCELLED: 'Cancelada',
+  DELETED: 'Excluída',
+};
+
+export const SOLICITATION_DELETION_SOURCE_LABELS: Record<
+  SolicitationDeletionSource,
+  string
+> = {
+  SOLICITATION_APP: 'Sistema de solicitações',
+  KAIRO: 'Kairo',
 };
 
 export const SOLICITATION_CLIENT_LABELS: Record<SolicitationClient, string> = {

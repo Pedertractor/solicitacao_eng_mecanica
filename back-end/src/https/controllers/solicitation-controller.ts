@@ -41,6 +41,7 @@ export async function createSolicitation(
     pillarOrLocation: z.string().min(1, 'Pilar/local é obrigatório'),
     title: z.string().min(1, 'Título é obrigatório'),
     description: z.string().min(1, 'Descrição é obrigatória'),
+    requesterEmail: z.email('E-mail inválido'),
   });
   const body = bodySchema.parse(request.body);
   const service = new SolicitationService();
@@ -56,12 +57,18 @@ export async function listSolicitations(
     status: z.enum($Enums.SolicitationStatus).optional(),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(10),
+    sortBy: z
+      .enum(['createdAt', 'requesterName', 'sectorName', 'title', 'status'])
+      .default('createdAt'),
+    sortOrder: z.enum(['asc', 'desc']).default('desc'),
   });
   const query = querySchema.parse(request.query);
   const service = new SolicitationService();
   const result = await service.list({
     page: query.page,
     pageSize: query.pageSize,
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
     ...(query.status !== undefined ? { status: query.status } : {}),
   });
   return reply.status(200).send(result);
@@ -216,4 +223,17 @@ export async function syncPendingSolicitationsFromKairo(
   const service = new SolicitationService();
   const result = await service.syncPendingFromKairo();
   return reply.status(200).send(result);
+}
+
+export async function deleteSolicitation(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const service = new SolicitationService();
+  const solicitation = await service.delete(id, request.user.sub);
+  return reply.status(200).send({ solicitation });
 }

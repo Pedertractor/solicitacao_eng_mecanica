@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 
 import { AppSidebar } from '@/components/app-sidebar';
+import { PlatformPageShell } from '@/components/platform-backdrop';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,16 +22,17 @@ function breadcrumbLabel(pathname: string): string {
   if (pathname.startsWith(ROUTES.SOLICITACOES)) return 'Solicitações';
   if (pathname.startsWith(ROUTES.USUARIOS_NOVO)) return 'Novo usuário';
   if (pathname.startsWith(ROUTES.USUARIOS)) return 'Usuários';
-  return 'Eng. Mecânica';
+  return 'Solicitação Engenharia Mecânica';
 }
 
 export function MainLayout() {
   const { pathname } = useLocation();
 
   return (
-    <SidebarProvider defaultOpen={false}>
-      <AppSidebar />
-      <SidebarInset className='min-w-0'>
+    <PlatformPageShell>
+      <SidebarProvider defaultOpen={false} className='min-h-svh w-full'>
+        <AppSidebar />
+        <SidebarInset className='min-w-0 bg-transparent'>
         <header className='flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12'>
           <div className='flex items-center gap-2 px-4'>
             <SidebarTrigger className='-ml-1' />
@@ -50,7 +52,8 @@ export function MainLayout() {
         <div className='flex min-w-0 flex-1 flex-col gap-4 p-4 pt-0'>
           <Outlet />
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </PlatformPageShell>
   );
 }

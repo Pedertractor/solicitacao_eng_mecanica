@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Check, CircleCheck, Copy, Pencil } from 'lucide-react';
+import { ArrowLeft, Check, CircleCheck, Copy, Pencil, Trash2 } from 'lucide-react';
 import {
   CheckIcon,
   StampIcon,
@@ -15,6 +15,7 @@ import { KairoIcon } from '@/components/kairo-icon';
 import {
   SOLICITATION_ACTIVITY_TYPE_LABELS,
   SOLICITATION_CLIENT_LABELS,
+  SOLICITATION_DELETION_SOURCE_LABELS,
   SOLICITATION_PRIORITY_LABELS,
   SOLICITATION_PRODUCT_TYPE_LABELS,
   SOLICITATION_STATUS_LABELS,
@@ -29,6 +30,16 @@ import {
 import { ROUTES, solicitationTrackPath } from '@/routes/constants';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Card,
   CardContent,
@@ -52,6 +63,18 @@ const NONE = '__none__';
 const REVIEW_ICON_SIZE = 16;
 const APPROVED_BUTTON_CLASS =
   'border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white';
+const OPEN_STATUSES: SolicitationStatus[] = [
+  'PENDING',
+  'IN_REVIEW',
+  'APPROVED',
+];
+const EDITABLE_STATUSES: SolicitationStatus[] = [
+  'PENDING',
+  'IN_REVIEW',
+  'APPROVED',
+  'COMPLETED',
+  'CANCELLED',
+];
 
 function trackAbsoluteUrl(trackingCode: string) {
   return `${window.location.origin}${solicitationTrackPath(trackingCode)}`;
@@ -66,6 +89,7 @@ export function SolicitationDetailPage() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const [kairoDialogOpen, setKairoDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [trackLinkCopied, setTrackLinkCopied] = useState(false);
   const kairoOpenTimeoutRef = useRef<number | null>(null);
 
@@ -119,7 +143,8 @@ export function SolicitationDetailPage() {
       !query.data ||
       !query.data.kairoCardId ||
       query.data.status === 'COMPLETED' ||
-      query.data.status === 'CANCELLED'
+      query.data.status === 'CANCELLED' ||
+      query.data.status === 'DELETED'
     ) {
       return;
     }
@@ -130,7 +155,10 @@ export function SolicitationDetailPage() {
         const updated = await solicitationApi.syncFromKairo(id);
         if (cancelled) return;
         queryClient.setQueryData(['solicitation', id], updated);
-        if (updated.status === 'COMPLETED') {
+        if (
+          updated.status === 'COMPLETED' ||
+          updated.status === 'DELETED'
+        ) {
           queryClient.invalidateQueries({ queryKey: ['solicitations'] });
         }
       } catch {
@@ -153,7 +181,18 @@ export function SolicitationDetailPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => solicitationApi.delete(id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['solicitation', id], updated);
+      queryClient.invalidateQueries({ queryKey: ['solicitations'] });
+      setDeleteConfirmOpen(false);
+      toast.success('Solicitação excluída.');
+    },
+  });
+
   const item = query.data;
+  const canDelete = item ? OPEN_STATUSES.includes(item.status) : false;
 
   return (
     <div className="min-w-0 max-w-full space-y-4 md:p-6">
@@ -179,13 +218,43 @@ export function SolicitationDetailPage() {
                   })}
                 </CardDescription>
               </div>
-              <EditableSolicitationStatus
-                status={item.status}
-                disabled={statusMutation.isPending}
-                onStatusChange={(status) => statusMutation.mutate(status)}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <EditableSolicitationStatus
+                  status={item.status}
+                  disabled={
+                    statusMutation.isPending || item.status === 'DELETED'
+                  }
+                  onStatusChange={(status) => statusMutation.mutate(status)}
+                />
+                {canDelete ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                  >
+                    <Trash2 className="mr-1.5 size-3.5" />
+                    Excluir
+                  </Button>
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent className="grid min-w-0 max-w-full gap-4 md:grid-cols-2">
+              {item.status === 'DELETED' ? (
+                <div className="min-w-0 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 md:col-span-2 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+                  <p className="font-medium">Solicitação excluída</p>
+                  <p className="mt-1 text-muted-foreground dark:text-red-200/80">
+                    Por {item.deletedByName ?? '—'}
+                    {item.deletedFrom
+                      ? ` · via ${SOLICITATION_DELETION_SOURCE_LABELS[item.deletedFrom]}`
+                      : ''}
+                    {item.deletedAt
+                      ? ` · ${format(new Date(item.deletedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
+                      : ''}
+                  </p>
+                </div>
+              ) : null}
               <div className="min-w-0 md:col-span-2">
                 <div className="text-muted-foreground text-xs uppercase tracking-wide">
                   Protocolo
@@ -229,6 +298,10 @@ export function SolicitationDetailPage() {
               </div>
               <Field label="Solicitante" value={item.requesterName} />
               <Field
+                label="E-mail"
+                value={item.requesterEmail ?? '—'}
+              />
+              <Field
                 label="Cartão / Unidade"
                 value={`${item.cardNumber} · ${item.unit}`}
               />
@@ -254,6 +327,38 @@ export function SolicitationDetailPage() {
             onOpenChange={setKairoDialogOpen}
             solicitation={item}
           />
+
+          <AlertDialog
+            open={deleteConfirmOpen}
+            onOpenChange={setDeleteConfirmOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir solicitação?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  A solicitação permanecerá no histórico como excluída.
+                  {item.kairoCardId
+                    ? ' O card correspondente no Kairo também será excluído.'
+                    : ''}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleteMutation.isPending}>
+                  Cancelar
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                  disabled={deleteMutation.isPending}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    deleteMutation.mutate();
+                  }}
+                >
+                  {deleteMutation.isPending ? 'Excluindo…' : 'Excluir'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>
@@ -274,8 +379,11 @@ function SolicitationReviewPanel({
   const queryClient = useQueryClient();
   const saveIconRef = useRef<CheckIconHandle>(null);
   const approveIconRef = useRef<StampIconHandle>(null);
+  const isDeleted = item.status === 'DELETED';
   const isApproved =
-    item.status === 'APPROVED' || item.status === 'COMPLETED';
+    item.status === 'APPROVED' ||
+    item.status === 'COMPLETED' ||
+    isDeleted;
   const sentToKairo = Boolean(item.kairoCardId);
 
   const [client, setClient] = useState<SolicitationClient | null>(item.client);
@@ -313,9 +421,11 @@ function SolicitationReviewPanel({
       <CardHeader>
         <CardTitle>Revisão</CardTitle>
         <CardDescription>
-          {isApproved
-            ? 'Solicitação aprovada. Os campos de classificação não podem mais ser editados.'
-            : 'Preencha os campos para classificar a solicitação. Aprovar exige todos preenchidos.'}
+          {isDeleted
+            ? 'Solicitação excluída. Os dados de classificação foram preservados no histórico.'
+            : isApproved
+              ? 'Solicitação aprovada. Os campos de classificação não podem mais ser editados.'
+              : 'Preencha os campos para classificar a solicitação. Aprovar exige todos preenchidos.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -369,31 +479,35 @@ function SolicitationReviewPanel({
           )}
           {isApproved ? (
             <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onOpenKairo}
-              >
-                <KairoIcon className="size-4" />
-                Kairo
-                {sentToKairo && (
-                  <CircleCheck
-                    className="size-4 text-emerald-600"
-                    aria-label="Enviado ao Kairo"
-                  />
-                )}
-              </Button>
-              <Button
-                type="button"
-                disabled
-                className={cn(
-                  APPROVED_BUTTON_CLASS,
-                  'disabled:opacity-100',
-                )}
-              >
-                <Check className="size-4" />
-                Aprovado
-              </Button>
+              {!isDeleted ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onOpenKairo}
+                >
+                  <KairoIcon className="size-4" />
+                  Kairo
+                  {sentToKairo && (
+                    <CircleCheck
+                      className="size-4 text-emerald-600"
+                      aria-label="Enviado ao Kairo"
+                    />
+                  )}
+                </Button>
+              ) : null}
+              {!isDeleted ? (
+                <Button
+                  type="button"
+                  disabled
+                  className={cn(
+                    APPROVED_BUTTON_CLASS,
+                    'disabled:opacity-100',
+                  )}
+                >
+                  <Check className="size-4" />
+                  Aprovado
+                </Button>
+              ) : null}
             </>
           ) : (
             <Button
@@ -445,9 +559,7 @@ function EditableSolicitationStatus({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {(
-            Object.keys(SOLICITATION_STATUS_LABELS) as SolicitationStatus[]
-          ).map((option) => (
+          {EDITABLE_STATUSES.map((option) => (
             <SelectItem key={option} value={option}>
               {SOLICITATION_STATUS_LABELS[option]}
             </SelectItem>
@@ -460,16 +572,18 @@ function EditableSolicitationStatus({
   return (
     <div className="flex items-center gap-1">
       <SolicitationStatusBadge status={status} />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={disabled}
-        aria-label="Editar status"
-        onClick={() => setEditing(true)}
-      >
-        <Pencil className="size-3.5" />
-      </Button>
+      {status !== 'DELETED' ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label="Editar status"
+          onClick={() => setEditing(true)}
+        >
+          <Pencil className="size-3.5" />
+        </Button>
+      ) : null}
     </div>
   );
 }

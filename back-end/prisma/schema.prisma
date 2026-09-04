@@ -23,6 +23,12 @@ enum SolicitationStatus {
   APPROVED
   COMPLETED
   CANCELLED
+  DELETED
+}
+
+enum SolicitationDeletionSource {
+  SOLICITATION_APP
+  KAIRO
 }
 
 enum SolicitationClient {
@@ -98,6 +104,7 @@ model User {
 
   statusUpdates Solicitation[] @relation("SolicitationStatusUpdater")
   kairoSyncs    Solicitation[] @relation("SolicitationKairoSyncer")
+  deletions     Solicitation[] @relation("SolicitationDeletedBy")
   kairoCredential UserKairoCredential?
 
   @@unique([cardNumber, unit])
@@ -124,6 +131,7 @@ model Solicitation {
 
   employeeId     String
   requesterName  String
+  requesterEmail String?
   cardNumber     String
   unit           Unit
 
@@ -150,14 +158,21 @@ model Solicitation {
   kairoSyncedAt        DateTime?
   kairoSyncedByUserId  String?
 
+  deletedAt       DateTime?
+  deletedByUserId String?
+  deletedByName   String?
+  deletedFrom     SolicitationDeletionSource?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   statusUpdatedBy User? @relation("SolicitationStatusUpdater", fields: [statusUpdatedByUserId], references: [id])
   kairoSyncedBy   User? @relation("SolicitationKairoSyncer", fields: [kairoSyncedByUserId], references: [id])
+  deletedBy       User? @relation("SolicitationDeletedBy", fields: [deletedByUserId], references: [id])
 
   @@index([status])
   @@index([createdAt])
   @@index([cardNumber, unit])
   @@index([costCenter])
+  @@index([deletedAt])
 }

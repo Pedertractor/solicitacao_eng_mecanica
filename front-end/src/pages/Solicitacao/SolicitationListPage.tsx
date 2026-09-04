@@ -8,7 +8,9 @@ import {
   SOLICITATION_STATUS_LABELS,
   solicitationApi,
   type Solicitation,
+  type SolicitationSortField,
   type SolicitationStatus,
+  type SortOrder,
 } from '@/services/solicitation';
 import { solicitationDetailPath } from '@/routes/constants';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
@@ -30,8 +32,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TablePagination } from '@/components/ui/table-pagination';
+import { SortableTableHead } from '@/components/ui/sortable-table-head';
 const STATUS_FILTER_ALL = 'ALL';
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 function SolicitationDetailAction({ id }: { id: string }) {
   const iconRef = useRef<SearchIconHandle>(null);
@@ -118,19 +121,33 @@ export function SolicitationListPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>(STATUS_FILTER_ALL);
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SolicitationSortField>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const syncStartedRef = useRef(false);
 
   const query = useQuery({
-    queryKey: ['solicitations', statusFilter, page],
+    queryKey: ['solicitations', statusFilter, page, sortBy, sortOrder],
     queryFn: () =>
       solicitationApi.list({
         page,
         pageSize: PAGE_SIZE,
+        sortBy,
+        sortOrder,
         ...(statusFilter === STATUS_FILTER_ALL
           ? {}
           : { status: statusFilter as SolicitationStatus }),
       }),
   });
+
+  function handleSort(field: SolicitationSortField) {
+    setPage(1);
+    if (sortBy === field) {
+      setSortOrder((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortBy(field);
+    setSortOrder(field === 'createdAt' ? 'desc' : 'asc');
+  }
 
   useEffect(() => {
     if (syncStartedRef.current) return;
@@ -215,11 +232,43 @@ export function SolicitationListPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[140px]">Data</TableHead>
-                    <TableHead>Solicitante</TableHead>
-                    <TableHead>Setor</TableHead>
-                    <TableHead>Título</TableHead>
-                    <TableHead className="w-[120px]">Status</TableHead>
+                    <SortableTableHead
+                      label="Data"
+                      field="createdAt"
+                      activeField={sortBy}
+                      activeOrder={sortOrder}
+                      onSort={handleSort}
+                      className="w-[140px]"
+                    />
+                    <SortableTableHead
+                      label="Solicitante"
+                      field="requesterName"
+                      activeField={sortBy}
+                      activeOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                    <SortableTableHead
+                      label="Setor"
+                      field="sectorName"
+                      activeField={sortBy}
+                      activeOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                    <SortableTableHead
+                      label="Título"
+                      field="title"
+                      activeField={sortBy}
+                      activeOrder={sortOrder}
+                      onSort={handleSort}
+                    />
+                    <SortableTableHead
+                      label="Status"
+                      field="status"
+                      activeField={sortBy}
+                      activeOrder={sortOrder}
+                      onSort={handleSort}
+                      className="w-[120px]"
+                    />
                     <TableHead className="w-12" aria-hidden />
                   </TableRow>
                 </TableHeader>

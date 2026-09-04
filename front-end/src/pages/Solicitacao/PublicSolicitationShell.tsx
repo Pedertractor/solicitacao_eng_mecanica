@@ -1,4 +1,8 @@
 import { Shield } from 'lucide-react';
+import {
+  PlatformBackdrop,
+  platformBackdropClass,
+} from '@/components/platform-backdrop';
 import { cn } from '@/lib/utils';
 
 export const publicSolicitationCardClass =
@@ -6,9 +10,8 @@ export const publicSolicitationCardClass =
 
 export const publicSolicitationTicketCardClass = publicSolicitationCardClass;
 
-/** Cor de fundo da página — usada nos recortes para efeito vazado. */
-export const publicSolicitationBackdropClass =
-  'bg-gradient-to-br from-slate-100 via-background to-slate-50/90';
+/** @deprecated Use platformBackdropClass from @/components/platform-backdrop */
+export const publicSolicitationBackdropClass = platformBackdropClass;
 
 type TicketPerforationProps = {
   className?: string;
@@ -23,7 +26,7 @@ function TicketNotch({ side }: { side: 'left' | 'right' }) {
     <div
       className={cn(
         TICKET_NOTCH_CLASS,
-        publicSolicitationBackdropClass,
+        platformBackdropClass,
         isLeft ? '-ml-px rounded-r-full' : '-mr-px rounded-l-full',
       )}
       aria-hidden
@@ -95,29 +98,7 @@ export function PublicSolicitationShell({
         className,
       )}
     >
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-0',
-          publicSolicitationBackdropClass,
-        )}
-        aria-hidden
-      />
-      <div
-        className='pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_55%_at_50%_-5%,hsl(var(--primary)/0.09),transparent_65%)]'
-        aria-hidden
-      />
-      <div
-        className='pointer-events-none absolute -left-28 top-[12%] size-[22rem] rounded-full bg-primary/[0.05] blur-3xl'
-        aria-hidden
-      />
-      <div
-        className='pointer-events-none absolute -right-20 bottom-[8%] size-[26rem] rounded-full bg-sky-400/[0.07] blur-3xl'
-        aria-hidden
-      />
-      <div
-        className='pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] bg-size-[2.5rem_2.5rem] mask-[radial-gradient(ellipse_75%_65%_at_50%_42%,#000_25%,transparent_100%)]'
-        aria-hidden
-      />
+      <PlatformBackdrop />
 
       <div
         className={cn(

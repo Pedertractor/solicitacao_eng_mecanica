@@ -4,6 +4,7 @@ import { authMiddleware } from '../../middlewares/auth-middleware.js';
 import { roleMiddleware } from '../../middlewares/auth-role-middleware.js';
 import {
   createSolicitation,
+  deleteSolicitation,
   getSectorByCostCenter,
   getSolicitationById,
   getSolicitationByTrackingCode,
@@ -24,7 +25,9 @@ const statusEnum = [
   'APPROVED',
   'COMPLETED',
   'CANCELLED',
+  'DELETED',
 ] as const;
+const deletionSourceEnum = ['SOLICITATION_APP', 'KAIRO'] as const;
 
 const clientEnum = [
   'CATERPILLAR',
@@ -85,6 +88,7 @@ const solicitationSchema = {
     trackingCode: { type: 'string' },
     employeeId: { type: 'string' },
     requesterName: { type: 'string' },
+    requesterEmail: { type: ['string', 'null'] },
     cardNumber: { type: 'string' },
     unit: { type: 'string', enum: unitEnum },
     costCenter: { type: 'string' },
@@ -111,6 +115,13 @@ const solicitationSchema = {
     kairoTeamId: { type: ['string', 'null'] },
     kairoSyncedAt: { type: ['string', 'null'], format: 'date-time' },
     kairoSyncedByUserId: { type: ['string', 'null'] },
+    deletedAt: { type: ['string', 'null'], format: 'date-time' },
+    deletedByUserId: { type: ['string', 'null'] },
+    deletedByName: { type: ['string', 'null'] },
+    deletedFrom: {
+      type: ['string', 'null'],
+      enum: [...deletionSourceEnum, null],
+    },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -163,6 +174,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
               status: { type: 'boolean' },
               cardNumber: { type: 'string' },
               unit: { type: 'string', enum: unitEnum },
+              email: { type: ['string', 'null'] },
             },
           },
           400: errorResponseSchema,
@@ -218,6 +230,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
             'pillarOrLocation',
             'title',
             'description',
+            'requesterEmail',
           ],
           properties: {
             cardNumber: { type: 'string', minLength: 1 },
@@ -226,6 +239,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
             pillarOrLocation: { type: 'string', minLength: 1 },
             title: { type: 'string', minLength: 1 },
             description: { type: 'string', minLength: 1 },
+            requesterEmail: { type: 'string', format: 'email' },
           },
         },
         response: {
@@ -281,6 +295,20 @@ export async function solicitationRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             status: { type: 'string', enum: statusEnum },
+            page: { type: 'integer', minimum: 1, default: 1 },
+            pageSize: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
+            sortBy: {
+              type: 'string',
+              enum: [
+                'createdAt',
+                'requesterName',
+                'sectorName',
+                'title',
+                'status',
+              ],
+              default: 'createdAt',
+            },
+            sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
           },
         },
         response: {
@@ -291,7 +319,18 @@ export async function solicitationRoutes(app: FastifyInstance) {
                 type: 'array',
                 items: solicitationSchema,
               },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'integer' },
+                  pageSize: { type: 'integer' },
+                  total: { type: 'integer' },
+                  totalPages: { type: 'integer' },
+                },
+                required: ['page', 'pageSize', 'total', 'totalPages'],
+              },
             },
+            required: ['solicitations', 'pagination'],
           },
         },
       },
@@ -314,6 +353,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
             properties: {
               checked: { type: 'number' },
               completed: { type: 'number' },
+              deleted: { type: 'number' },
             },
           },
         },
@@ -349,6 +389,36 @@ export async function solicitationRoutes(app: FastifyInstance) {
       },
     },
     getSolicitationById,
+  );
+
+  app.delete(
+    '/:id',
+    {
+      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Excluir solicitação aberta (admin)',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              solicitation: solicitationSchema,
+            },
+          },
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+        },
+      },
+    },
+    deleteSolicitation,
   );
 
   app.post(
@@ -449,7 +519,16 @@ export async function solicitationRoutes(app: FastifyInstance) {
           type: 'object',
           required: ['status'],
           properties: {
-            status: { type: 'string', enum: statusEnum },
+            status: {
+              type: 'string',
+              enum: [
+                'PENDING',
+                'IN_REVIEW',
+                'APPROVED',
+                'COMPLETED',
+                'CANCELLED',
+              ],
+            },
           },
         },
         response: {

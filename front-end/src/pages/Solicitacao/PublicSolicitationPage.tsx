@@ -19,8 +19,6 @@ import {
 import { type Unit } from '@/types/auth';
 import {
   cardNumberForApi,
-  displayCardNumber,
-  parseCardNumberInput,
 } from '@/utils/card-number-input';
 import { solicitationTrackPath } from '@/routes/constants';
 import { Button } from '@/components/ui/button';
@@ -77,8 +75,15 @@ const UNIT_OPTIONS: { value: Unit; label: string }[] = [
   { value: 'TRACTOR', label: 'T' },
 ];
 
+const CARD_NUMBER_LENGTH = 4;
+
+function isCompleteCardNumber(value: string) {
+  return value.length === CARD_NUMBER_LENGTH && /^\d+$/.test(value);
+}
+
 type FieldErrors = {
   cardNumber?: string;
+  requesterEmail?: string;
   costCenter?: string;
   pillarOrLocation?: string;
   title?: string;
@@ -98,6 +103,7 @@ export function PublicSolicitationPage() {
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [requesterName, setRequesterName] = useState<string | null>(null);
+  const [requesterEmail, setRequesterEmail] = useState('');
   const [requesterError, setRequesterError] = useState<string | null>(null);
   const [requesterLoading, setRequesterLoading] = useState(false);
 
@@ -114,13 +120,13 @@ export function PublicSolicitationPage() {
   const [trackLinkCopied, setTrackLinkCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const cardDigitCountRef = useRef(0);
   const sectorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearIconRef = useRef<AnimatedIconHandle>(null);
   const sendIconRef = useRef<SendIconHandle>(null);
   const validateRequester = useCallback(async () => {
-    if (cardDigitCountRef.current !== 4) {
+    if (!isCompleteCardNumber(cardNumber)) {
       setRequesterName(null);
+      setRequesterEmail('');
       setRequesterError(null);
       return false;
     }
@@ -128,6 +134,7 @@ export function PublicSolicitationPage() {
     const card = cardNumberForApi(cardNumber);
     if (!card) {
       setRequesterName(null);
+      setRequesterEmail('');
       setRequesterError(null);
       return false;
     }
@@ -135,12 +142,15 @@ export function PublicSolicitationPage() {
     setRequesterLoading(true);
     setRequesterError(null);
     setRequesterName(null);
+    setRequesterEmail('');
     try {
       const result = await solicitationApi.validateRequester(card, unit);
       setRequesterName(result.name);
+      setRequesterEmail(result.email?.trim() ?? '');
       return true;
     } catch {
       setRequesterName(null);
+      setRequesterEmail('');
       setRequesterError('Colaborador não encontrado ou inativo.');
       return false;
     } finally {
@@ -155,9 +165,9 @@ export function PublicSolicitationPage() {
   }, [validateRequester]);
 
   useEffect(() => {
-    if (cardDigitCountRef.current !== 4) return;
+    if (!isCompleteCardNumber(cardNumber)) return;
     void validateRequesterRef.current();
-  }, [unit]);
+  }, [cardNumber, unit]);
 
   const lookupSector = useCallback(async () => {
     const cc = costCenter.trim();
@@ -198,6 +208,7 @@ export function PublicSolicitationPage() {
         pillarOrLocation: pillarOrLocation.trim(),
         title: title.trim(),
         description: description.trim(),
+        requesterEmail: requesterEmail.trim(),
       }),
     onSuccess: (solicitation) => {
       setSubmittedSolicitation(solicitation);
@@ -215,10 +226,10 @@ export function PublicSolicitationPage() {
   };
 
   const resetFormFields = () => {
-    cardDigitCountRef.current = 0;
     setCardNumber('');
     setUnit('PEDERTRACTOR');
     setRequesterName(null);
+    setRequesterEmail('');
     setRequesterError(null);
     setRequesterLoading(false);
     setCostCenter('');
@@ -240,7 +251,7 @@ export function PublicSolicitationPage() {
 
     let requesterValidated = Boolean(requesterName);
     if (
-      cardDigitCountRef.current === 4 &&
+      isCompleteCardNumber(cardNumber) &&
       !requesterValidated &&
       !requesterLoading
     ) {
@@ -250,7 +261,7 @@ export function PublicSolicitationPage() {
     const errors: FieldErrors = {};
 
     if (!requesterValidated) {
-      if (cardDigitCountRef.current !== 4 || !cardNumberForApi(cardNumber)) {
+      if (!isCompleteCardNumber(cardNumber) || !cardNumberForApi(cardNumber)) {
         errors.cardNumber = 'Informe o número do cartão.';
       } else if (requesterLoading) {
         errors.cardNumber = 'Aguarde a validação do cartão.';
@@ -258,6 +269,13 @@ export function PublicSolicitationPage() {
         errors.cardNumber =
           requesterError ?? 'Colaborador não encontrado ou inativo.';
       }
+    }
+
+    const emailTrimmed = requesterEmail.trim();
+    if (!emailTrimmed) {
+      errors.requesterEmail = 'Informe o e-mail.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      errors.requesterEmail = 'E-mail inválido.';
     }
 
     if (!sectorName) {
@@ -407,19 +425,16 @@ export function PublicSolicitationPage() {
                   <Input
                     id='cardNumber'
                     inputMode='numeric'
-                    value={displayCardNumber(cardNumber)}
+                    maxLength={CARD_NUMBER_LENGTH}
+                    value={cardNumber}
                     onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, '').slice(-4);
-                      cardDigitCountRef.current = digits.length;
                       clearFieldError('cardNumber');
                       setRequesterName(null);
+                      setRequesterEmail('');
                       setRequesterError(null);
-                      setCardNumber(parseCardNumberInput(e.target.value));
-                    }}
-                    onBlur={() => {
-                      if (cardDigitCountRef.current === 4) {
-                        void validateRequester();
-                      }
+                      setCardNumber(
+                        e.target.value.replace(/\D/g, '').slice(0, CARD_NUMBER_LENGTH),
+                      );
                     }}
                     placeholder='0000'
                     disabled={requesterLoading}
@@ -439,7 +454,12 @@ export function PublicSolicitationPage() {
                         aria-pressed={unit === value}
                         aria-label={value}
                         disabled={requesterLoading}
-                        onClick={() => setUnit(value)}
+                        onClick={() => {
+                          setRequesterName(null);
+                          setRequesterEmail('');
+                          setRequesterError(null);
+                          setUnit(value);
+                        }}
                       >
                         {label}
                       </Button>
@@ -483,6 +503,27 @@ export function PublicSolicitationPage() {
                     />
                   )}
                 </div>
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='requesterEmail'>E-mail</Label>
+                <Input
+                  id='requesterEmail'
+                  type='email'
+                  autoComplete='email'
+                  value={requesterEmail}
+                  onChange={(e) => {
+                    clearFieldError('requesterEmail');
+                    setRequesterEmail(e.target.value);
+                  }}
+                  placeholder='seu.email@empresa.com'
+                  disabled={requesterLoading || !requesterName}
+                  aria-invalid={!!fieldErrors.requesterEmail}
+                />
+                {fieldErrors.requesterEmail && (
+                  <p className='text-sm text-destructive'>
+                    {fieldErrors.requesterEmail}
+                  </p>
+                )}
               </div>
             </div>
 

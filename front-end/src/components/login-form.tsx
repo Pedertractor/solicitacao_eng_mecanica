@@ -19,13 +19,6 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useAuth } from '@/contexts/useAuth';
 import { ROUTES } from '@/routes/constants';
 import { loginFormSchema, changePasswordFormSchema } from '@/schemas/login';
@@ -36,6 +29,7 @@ import {
   displayCardNumber,
   parseCardNumberInput,
 } from '@/utils/card-number-input';
+import { publicSolicitationCardClass } from '@/pages/Solicitacao/PublicSolicitationShell';
 
 export function LoginForm({
   className,
@@ -124,7 +118,7 @@ export function LoginForm({
 
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
-      <Card>
+      <Card className={publicSolicitationCardClass}>
         {mustChangePassword ? (
           <>
             <CardHeader className='text-center'>
@@ -241,19 +235,26 @@ export function LoginForm({
                     />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor='unit'>Unidade</FieldLabel>
-                    <Select value={unit} onValueChange={setUnit}>
-                      <SelectTrigger id='unit'>
-                        <SelectValue placeholder='Selecione sua unidade' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {UNIT.map((u) => (
-                          <SelectItem key={u} value={u}>
-                            {u}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FieldLabel id='unit-label'>Unidade</FieldLabel>
+                    <div
+                      className='flex gap-1.5'
+                      role='group'
+                      aria-labelledby='unit-label'
+                    >
+                      {UNIT.map((u) => (
+                        <Button
+                          key={u}
+                          type='button'
+                          size='sm'
+                          variant={unit === u ? 'default' : 'outline'}
+                          className='h-8 flex-1 px-2 text-xs font-medium'
+                          aria-pressed={unit === u}
+                          onClick={() => setUnit(u)}
+                        >
+                          {u}
+                        </Button>
+                      ))}
+                    </div>
                   </Field>
                   <Field>
                     <FieldLabel htmlFor='password'>Senha</FieldLabel>
