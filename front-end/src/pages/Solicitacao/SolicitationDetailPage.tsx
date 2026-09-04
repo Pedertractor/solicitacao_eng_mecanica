@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { copyToClipboard } from '@/lib/clipboard';
 import { cn, SoftBreakText } from '@/lib/utils';
 import { SolicitationKairoDialog } from './SolicitationKairoDialog';
 
@@ -57,7 +58,7 @@ function trackAbsoluteUrl(trackingCode: string) {
 }
 
 async function copyText(value: string) {
-  await navigator.clipboard.writeText(value);
+  await copyToClipboard(value);
   toast.success('Copiado.');
 }
 
@@ -202,15 +203,20 @@ export function SolicitationDetailPage() {
                       trackLinkCopied ? 'Link copiado' : 'Copiar link público'
                     }
                     onClick={() => {
-                      void copyText(trackAbsoluteUrl(item.trackingCode)).then(
-                        () => {
+                      void (async () => {
+                        try {
+                          await copyText(
+                            trackAbsoluteUrl(item.trackingCode),
+                          );
                           setTrackLinkCopied(true);
                           window.setTimeout(
                             () => setTrackLinkCopied(false),
                             2000,
                           );
-                        },
-                      );
+                        } catch {
+                          toast.error('Não foi possível copiar o link.');
+                        }
+                      })();
                     }}
                   >
                     {trackLinkCopied ? (

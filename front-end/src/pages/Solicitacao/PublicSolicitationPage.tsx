@@ -35,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { copyToClipboard } from '@/lib/clipboard';
 import { cn } from '@/lib/utils';
 import type { AnimatedIconHandle } from '@/config/sidebar';
 import {
@@ -89,7 +90,7 @@ function trackAbsoluteUrl(trackingCode: string) {
 }
 
 async function copyText(value: string) {
-  await navigator.clipboard.writeText(value);
+  await copyToClipboard(value);
   toast.success('Copiado.');
 }
 
@@ -335,10 +336,18 @@ export function PublicSolicitationPage() {
                   className='shrink-0'
                   aria-label={trackLinkCopied ? 'Link copiado' : 'Copiar link'}
                   onClick={() => {
-                    void copyText(trackUrl).then(() => {
-                      setTrackLinkCopied(true);
-                      window.setTimeout(() => setTrackLinkCopied(false), 2000);
-                    });
+                    void (async () => {
+                      try {
+                        await copyText(trackUrl);
+                        setTrackLinkCopied(true);
+                        window.setTimeout(
+                          () => setTrackLinkCopied(false),
+                          2000,
+                        );
+                      } catch {
+                        toast.error('Não foi possível copiar o link.');
+                      }
+                    })();
                   }}
                 >
                   {trackLinkCopied ? (
