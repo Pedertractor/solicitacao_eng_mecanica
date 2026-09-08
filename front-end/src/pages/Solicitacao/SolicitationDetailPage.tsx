@@ -63,10 +63,11 @@ const NONE = '__none__';
 const REVIEW_ICON_SIZE = 16;
 const APPROVED_BUTTON_CLASS =
   'border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white';
-const OPEN_STATUSES: SolicitationStatus[] = [
+const DELETABLE_STATUSES: SolicitationStatus[] = [
   'PENDING',
   'IN_REVIEW',
   'APPROVED',
+  'COMPLETED',
 ];
 const EDITABLE_STATUSES: SolicitationStatus[] = [
   'PENDING',
@@ -192,7 +193,7 @@ export function SolicitationDetailPage() {
   });
 
   const item = query.data;
-  const canDelete = item ? OPEN_STATUSES.includes(item.status) : false;
+  const canDelete = item ? DELETABLE_STATUSES.includes(item.status) : false;
 
   return (
     <div className="min-w-0 max-w-full space-y-4 md:p-6">

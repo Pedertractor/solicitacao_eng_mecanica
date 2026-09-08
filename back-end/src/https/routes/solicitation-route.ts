@@ -397,7 +397,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
       preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
       schema: {
         tags: ['solicitations'],
-        summary: 'Excluir solicitação aberta (admin)',
+        summary: 'Excluir solicitação (admin)',
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',

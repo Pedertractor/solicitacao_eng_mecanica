@@ -14,10 +14,11 @@ import {
 import { SolicitationPrismaRepository } from '../repositories/prisma/solicitation-repository.js';
 import { KairoCredentialService } from './kairo-credential-service.js';
 
-const OPEN_STATUSES: $Enums.SolicitationStatus[] = [
+const DELETABLE_STATUSES: $Enums.SolicitationStatus[] = [
   $Enums.SolicitationStatus.PENDING,
   $Enums.SolicitationStatus.IN_REVIEW,
   $Enums.SolicitationStatus.APPROVED,
+  $Enums.SolicitationStatus.COMPLETED,
 ];
 
 function mapSolicitation(row: {
@@ -392,9 +393,9 @@ export class SolicitationService {
       throw new HttpError('Solicitação não encontrada', 404);
     }
 
-    if (!OPEN_STATUSES.includes(existing.status)) {
+    if (!DELETABLE_STATUSES.includes(existing.status)) {
       throw new HttpError(
-        'Somente solicitações abertas (pendente, em análise ou aprovada) podem ser excluídas',
+        'Somente solicitações pendentes, em análise, aprovadas ou concluídas podem ser excluídas',
         400,
       );
     }
