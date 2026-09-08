@@ -10,6 +10,7 @@ import { PublicSolicitationPage } from '@/pages/Solicitacao/PublicSolicitationPa
 import { PublicSolicitationTrackPage } from '@/pages/Solicitacao/PublicSolicitationTrackPage';
 import { SolicitationListPage } from '@/pages/Solicitacao/SolicitationListPage';
 import { SolicitationDetailPage } from '@/pages/Solicitacao/SolicitationDetailPage';
+import { SettingsPage } from '@/pages/Configuracoes/SettingsPage';
 import { ROUTES } from './constants';
 
 export { ROUTES } from './constants';
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
               },
               { path: ROUTES.USUARIOS, element: <UserListPage /> },
               { path: ROUTES.USUARIOS_NOVO, element: <NewUserPage /> },
+              { path: ROUTES.CONFIGURACOES, element: <SettingsPage /> },
               {
                 path: ROUTES.NOT_FOUND,
                 element: <NotFoundPage />,

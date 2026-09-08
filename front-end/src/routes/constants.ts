@@ -11,6 +11,7 @@ export const ROUTES = {
   SOLICITACAO_DETALHE: '/solicitacoes/:id',
   USUARIOS: '/usuarios',
   USUARIOS_NOVO: '/usuarios/novo',
+  CONFIGURACOES: '/configuracoes',
   NOT_FOUND: '*',
 } as const;
 

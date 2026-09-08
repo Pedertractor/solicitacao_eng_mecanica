@@ -1,4 +1,5 @@
 import { sendMail } from './mailer.js';
+import { SettingsService } from '../services/settings-service.js';
 import {
   approvedMailHtml,
   approvedMailSubject,
@@ -22,16 +23,29 @@ async function safeSend(
     return;
   }
 
+  let cc: string[] = [];
+  try {
+    cc = await new SettingsService().getEmailCc();
+  } catch (error) {
+    console.error('[mail] Falha ao carregar e-mails em cópia:', error);
+  }
+
+  const ccWithoutRecipient = cc.filter(
+    (item) => item.toLowerCase() !== email.toLowerCase(),
+  );
+
   try {
     if (kind === 'approved') {
       await sendMail({
         to: email,
+        cc: ccWithoutRecipient,
         subject: approvedMailSubject(payload.trackingCode),
         html: approvedMailHtml(payload),
       });
     } else {
       await sendMail({
         to: email,
+        cc: ccWithoutRecipient,
         subject: completedMailSubject(payload.trackingCode),
         html: completedMailHtml(payload),
       });

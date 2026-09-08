@@ -5,6 +5,7 @@ import {
 } from '@/config/sidebar';
 import type { UserRole } from '@/types/auth';
 import {
+  canAccessSettings,
   canAccessSolicitations,
   canAccessUsersArea,
 } from '@/config/permissions';
@@ -25,6 +26,7 @@ const PROTECTED_PATH_PATTERNS: RegExp[] = [
   /^\/$/,
   /^\/solicitacoes(\/.*)?$/,
   /^\/usuarios(\/.*)?$/,
+  /^\/configuracoes(\/.*)?$/,
 ];
 
 export function isAppShellPath(pathname: string): boolean {
@@ -63,6 +65,13 @@ export function canRoleAccessPath(role: UserRole, pathname: string): boolean {
     normalized.startsWith(`${ROUTES.USUARIOS}/`)
   ) {
     return canAccessUsersArea(role);
+  }
+
+  if (
+    normalized === ROUTES.CONFIGURACOES ||
+    normalized.startsWith(`${ROUTES.CONFIGURACOES}/`)
+  ) {
+    return canAccessSettings(role);
   }
 
   const allowed = NAV_PATHS_BY_ROLE[role];

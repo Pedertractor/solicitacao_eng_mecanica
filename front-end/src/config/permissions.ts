@@ -27,3 +27,7 @@ export function canResetUserPassword(role: UserRole): boolean {
 export function canAccessSolicitations(role: UserRole): boolean {
   return role === 'ADMIN';
 }
+
+export function canAccessSettings(role: UserRole): boolean {
+  return role === 'ADMIN';
+}

@@ -124,6 +124,14 @@ model UserKairoCredential {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
 model Solicitation {
   id String @id @default(uuid())
 
