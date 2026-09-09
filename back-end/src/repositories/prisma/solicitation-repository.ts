@@ -61,7 +61,9 @@ export class SolicitationPrismaRepository {
       | 'status';
     sortOrder?: 'asc' | 'desc';
   }): Promise<{ items: Solicitation[]; total: number }> {
-    const where = input.status ? { status: input.status } : {};
+    const where = input.status
+      ? { status: input.status }
+      : { status: { not: $Enums.SolicitationStatus.DELETED } };
     const skip = (input.page - 1) * input.pageSize;
     const sortBy = input.sortBy ?? 'createdAt';
     const sortOrder = input.sortOrder ?? 'desc';
