@@ -31,9 +31,13 @@ instance.interceptors.request.use((config) => {
   return config;
 });
 
-const INTERNAL_SERVER_ERROR_MESSAGE = 'erro interno do servidor';
-
 const PUBLIC_PATH_PREFIXES = ['/solicitacao', '/login'];
+
+type ApiErrorBody = {
+  error?: string;
+  message?: string;
+  mensagem?: string;
+};
 
 function isPublicAppPath() {
   const pathname = window.location.pathname;
@@ -42,29 +46,84 @@ function isPublicAppPath() {
   );
 }
 
+function extractApiMessage(data: ApiErrorBody | undefined): string | undefined {
+  if (!data) return undefined;
+  for (const key of ['error', 'message', 'mensagem'] as const) {
+    const value = data[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function capitalizeMessage(message: string): string {
+  if (!message) return message;
+  return message.charAt(0).toUpperCase() + message.slice(1);
+}
+
+function fallbackMessageForStatus(status: number): string {
+  switch (status) {
+    case 400:
+      return 'Dados inválidos. Verifique as informações e tente novamente.';
+    case 401:
+      return 'Não autorizado. Faça login novamente.';
+    case 403:
+      return 'Você não tem permissão para realizar esta ação.';
+    case 404:
+      return 'Recurso não encontrado.';
+    case 409:
+      return 'Conflito com o estado atual. Atualize a página e tente novamente.';
+    case 422:
+      return 'Não foi possível processar os dados enviados.';
+    case 429:
+      return 'Muitas tentativas. Aguarde um momento e tente novamente.';
+    case 502:
+      return 'Serviço externo indisponível no momento. Tente novamente em instantes.';
+    case 503:
+      return 'Serviço temporariamente indisponível. Tente novamente em instantes.';
+    case 504:
+      return 'O servidor demorou para responder. Tente novamente.';
+    case 500:
+      return 'Erro interno do servidor. Se o problema persistir, contate o suporte.';
+    default:
+      return `Erro inesperado (código ${status}). Verifique a conexão e tente novamente.`;
+  }
+}
+
 function resolveApiErrorMessage(
   status: number,
   apiMessage: string | undefined,
 ): string {
-  if (status === 500) {
-    return apiMessage?.trim() || INTERNAL_SERVER_ERROR_MESSAGE;
+  if (apiMessage) {
+    return capitalizeMessage(apiMessage);
   }
-  return apiMessage?.trim() || 'Erro inesperado, verifique a conexão.';
+  return fallbackMessageForStatus(status);
+}
+
+function resolveNetworkErrorMessage(error: AxiosError): string {
+  if (error.code === 'ECONNABORTED') {
+    return 'A requisição demorou demais. Tente novamente.';
+  }
+  if (error.message?.toLowerCase().includes('network error')) {
+    return 'Falha de rede. Verifique sua conexão com a internet.';
+  }
+  return 'Não foi possível conectar ao servidor. Verifique se o serviço está no ar.';
 }
 
 function applyErrorInterceptor(api: AxiosInstance) {
   api.interceptors.response.use(
     (response) => response,
-    (error: AxiosError<{ error?: string }>) => {
+    (error: AxiosError<ApiErrorBody>) => {
       let message: string;
       let status = 500;
       let skipToast = Boolean(error.config?.skipErrorToast);
       if (error.response) {
         status = error.response.status;
-        const apiMessage = error.response.data?.error;
+        const apiMessage = extractApiMessage(error.response.data);
         if (
           status === 401 &&
-          error.response.data.error !== 'Credenciais inválidas'
+          apiMessage !== 'Credenciais inválidas'
         ) {
           clearAuthStorage();
           if (isPublicAppPath()) {
@@ -72,8 +131,10 @@ function applyErrorInterceptor(api: AxiosInstance) {
             message = '';
             skipToast = true;
           } else {
-            message =
-              apiMessage?.trim() || 'Sua sessão expirou, faça login novamente.';
+            message = resolveApiErrorMessage(
+              status,
+              apiMessage || 'Sua sessão expirou, faça login novamente.',
+            );
             setTimeout(() => {
               window.location.href = '/login';
             }, 1500);
@@ -82,7 +143,7 @@ function applyErrorInterceptor(api: AxiosInstance) {
           message = resolveApiErrorMessage(status, apiMessage);
         }
       } else {
-        message = 'Erro ao conectar com o servidor, tente novamente.';
+        message = resolveNetworkErrorMessage(error);
       }
       if (!skipToast && message) {
         toast.error(message);

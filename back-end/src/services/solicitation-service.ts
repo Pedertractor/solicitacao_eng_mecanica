@@ -18,7 +18,6 @@ const DELETABLE_STATUSES: $Enums.SolicitationStatus[] = [
   $Enums.SolicitationStatus.PENDING,
   $Enums.SolicitationStatus.IN_REVIEW,
   $Enums.SolicitationStatus.APPROVED,
-  $Enums.SolicitationStatus.COMPLETED,
 ];
 
 function mapSolicitation(row: {
@@ -395,7 +394,7 @@ export class SolicitationService {
 
     if (!DELETABLE_STATUSES.includes(existing.status)) {
       throw new HttpError(
-        'Somente solicitações pendentes, em análise, aprovadas ou concluídas podem ser excluídas',
+        'Somente solicitações pendentes, em análise ou aprovadas podem ser excluídas',
         400,
       );
     }
@@ -408,48 +407,57 @@ export class SolicitationService {
       throw new HttpError('Usuário não encontrado', 404);
     }
 
+    // Tenta remover no Kairo, mas nunca bloqueia o soft-delete local
+    // (falha de rede/502/credencial ausente não deve impedir a exclusão).
     if (existing.kairoCardId && existing.kairoTeamId) {
       const credentials = new KairoCredentialService();
-      const client = await credentials.getClientForUser(actingUserId);
+      const client = await credentials.tryGetClientForUser(actingUserId);
 
-      try {
-        if (existing.kind === $Enums.SolicitationKind.PROJETO) {
-          await client.deleteProject(existing.kairoTeamId, existing.kairoCardId);
-        } else if (existing.kind === $Enums.SolicitationKind.ATIVIDADE) {
-          await client.deleteActivity(
-            existing.kairoTeamId,
-            existing.kairoCardId,
-          );
-        } else {
-          try {
-            await client.deleteActivity(
-              existing.kairoTeamId,
-              existing.kairoCardId,
-            );
-          } catch (activityError) {
-            if (
-              !(
-                activityError instanceof HttpError &&
-                activityError.statusCode === 404
-              )
-            ) {
-              throw activityError;
-            }
+      if (client) {
+        try {
+          if (existing.kind === $Enums.SolicitationKind.PROJETO) {
             await client.deleteProject(
               existing.kairoTeamId,
               existing.kairoCardId,
             );
+          } else if (existing.kind === $Enums.SolicitationKind.ATIVIDADE) {
+            await client.deleteActivity(
+              existing.kairoTeamId,
+              existing.kairoCardId,
+            );
+          } else {
+            try {
+              await client.deleteActivity(
+                existing.kairoTeamId,
+                existing.kairoCardId,
+              );
+            } catch (activityError) {
+              if (
+                !(
+                  activityError instanceof HttpError &&
+                  activityError.statusCode === 404
+                )
+              ) {
+                throw activityError;
+              }
+              await client.deleteProject(
+                existing.kairoTeamId,
+                existing.kairoCardId,
+              );
+            }
+          }
+          await credentials.touchValidated(actingUserId);
+        } catch (error) {
+          if (
+            !(error instanceof HttpError && error.statusCode === 404)
+          ) {
+            console.error(
+              '[solicitation.delete] Falha ao excluir card no Kairo; seguindo com soft-delete local',
+              error,
+            );
           }
         }
-      } catch (error) {
-        if (error instanceof HttpError && error.statusCode === 404) {
-          // Card já removido no Kairo — segue com soft-delete local.
-        } else {
-          throw error;
-        }
       }
-
-      await credentials.touchValidated(actingUserId);
     }
 
     const updated = await repo.markDeleted(id, {

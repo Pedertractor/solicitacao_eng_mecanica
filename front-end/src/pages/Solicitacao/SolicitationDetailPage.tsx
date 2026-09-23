@@ -67,7 +67,6 @@ const DELETABLE_STATUSES: SolicitationStatus[] = [
   'PENDING',
   'IN_REVIEW',
   'APPROVED',
-  'COMPLETED',
 ];
 const EDITABLE_STATUSES: SolicitationStatus[] = [
   'PENDING',
@@ -223,7 +222,9 @@ export function SolicitationDetailPage() {
                 <EditableSolicitationStatus
                   status={item.status}
                   disabled={
-                    statusMutation.isPending || item.status === 'DELETED'
+                    statusMutation.isPending ||
+                    item.status === 'DELETED' ||
+                    item.status === 'COMPLETED'
                   }
                   onStatusChange={(status) => statusMutation.mutate(status)}
                 />
@@ -573,7 +574,7 @@ function EditableSolicitationStatus({
   return (
     <div className="flex items-center gap-1">
       <SolicitationStatusBadge status={status} />
-      {status !== 'DELETED' ? (
+      {status !== 'DELETED' && status !== 'COMPLETED' ? (
         <Button
           type="button"
           variant="ghost"
