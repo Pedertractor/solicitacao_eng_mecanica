@@ -33,6 +33,15 @@ instance.interceptors.request.use((config) => {
 
 const INTERNAL_SERVER_ERROR_MESSAGE = 'erro interno do servidor';
 
+const PUBLIC_PATH_PREFIXES = ['/solicitacao', '/login'];
+
+function isPublicAppPath() {
+  const pathname = window.location.pathname;
+  return PUBLIC_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 function resolveApiErrorMessage(
   status: number,
   apiMessage: string | undefined,
@@ -49,6 +58,7 @@ function applyErrorInterceptor(api: AxiosInstance) {
     (error: AxiosError<{ error?: string }>) => {
       let message: string;
       let status = 500;
+      let skipToast = Boolean(error.config?.skipErrorToast);
       if (error.response) {
         status = error.response.status;
         const apiMessage = error.response.data?.error;
@@ -56,19 +66,25 @@ function applyErrorInterceptor(api: AxiosInstance) {
           status === 401 &&
           error.response.data.error !== 'Credenciais inválidas'
         ) {
-          message =
-            apiMessage?.trim() || 'Sua sessão expirou, faça login novamente.';
           clearAuthStorage();
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1500);
+          if (isPublicAppPath()) {
+            // Public pages (e.g. /solicitacao) must stay usable with a stale token.
+            message = '';
+            skipToast = true;
+          } else {
+            message =
+              apiMessage?.trim() || 'Sua sessão expirou, faça login novamente.';
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 1500);
+          }
         } else {
           message = resolveApiErrorMessage(status, apiMessage);
         }
       } else {
         message = 'Erro ao conectar com o servidor, tente novamente.';
       }
-      if (!error.config?.skipErrorToast) {
+      if (!skipToast && message) {
         toast.error(message);
       }
       return Promise.reject({ message, status });
