@@ -21,6 +21,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { buildDefaultKairoDescription } from '@/lib/kairo-send-content';
+import {
+  isProcessPartNumberKairoSend,
+  listKairoCardIds,
+  processPartNumberKairoTitle,
+  splitCommaList,
+} from '@/lib/kairo-cards';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -87,9 +93,17 @@ function KairoSendView({
   onOpenAccountIntegrations: () => void;
 }) {
   const queryClient = useQueryClient();
+  const partNumbers = splitCommaList(solicitation.partNumbers);
+  const sendOnePerPartNumber = isProcessPartNumberKairoSend(solicitation);
+  const activityTitles = partNumbers.map((partNumber) =>
+    processPartNumberKairoTitle(
+      partNumber,
+      solicitation.processInstructionType,
+    ),
+  );
   const [teamId, setTeamId] = useState('');
   const [kind, setKind] = useState<SolicitationKind>(
-    solicitation.kind ?? 'ATIVIDADE',
+    sendOnePerPartNumber ? 'ATIVIDADE' : (solicitation.kind ?? 'ATIVIDADE'),
   );
   const [tagId, setTagId] = useState('');
   const [title, setTitle] = useState(solicitation.title);
@@ -112,12 +126,16 @@ function KairoSendView({
     enabled: statusQuery.data?.linked === true && !solicitation.kairoCardId,
   });
 
+  const effectiveKindForQuery: SolicitationKind = sendOnePerPartNumber
+    ? 'ATIVIDADE'
+    : kind;
+
   const tagsQuery = useQuery({
     queryKey: ['kairo-tags', teamId],
     queryFn: () => kairoApi.listTags(teamId),
     enabled:
       !solicitation.kairoCardId &&
-      kind === 'ATIVIDADE' &&
+      effectiveKindForQuery === 'ATIVIDADE' &&
       Boolean(teamId),
   });
 
@@ -133,11 +151,15 @@ function KairoSendView({
     mutationFn: () =>
       solicitationApi.sendToKairo(solicitation.id, {
         teamId,
-        kind,
-        title: title.trim(),
+        kind: sendOnePerPartNumber ? 'ATIVIDADE' : kind,
+        title: sendOnePerPartNumber
+          ? (activityTitles[0] ?? title.trim())
+          : title.trim(),
         description: description.trim(),
-        ...(kind === 'ATIVIDADE' && tagId ? { tagId } : {}),
-        ...(kind === 'PROJETO' && validEstimatedHours
+        ...((sendOnePerPartNumber || kind === 'ATIVIDADE') && tagId
+          ? { tagId }
+          : {}),
+        ...(!sendOnePerPartNumber && kind === 'PROJETO' && validEstimatedHours
           ? { estimatedHours: validEstimatedHours }
           : {}),
       }),
@@ -175,16 +197,19 @@ function KairoSendView({
   }
 
   const linked = statusQuery.data?.linked === true;
-  const alreadySent = Boolean(solicitation.kairoCardId);
+  const linkedCardIds = listKairoCardIds(solicitation);
+  const alreadySent = linkedCardIds.length > 0;
+  const effectiveKind: SolicitationKind = sendOnePerPartNumber
+    ? 'ATIVIDADE'
+    : kind;
   const canSubmit =
     linked &&
-    Boolean(title.trim()) &&
+    (sendOnePerPartNumber || Boolean(title.trim())) &&
     Boolean(description.trim()) &&
     Boolean(teamId) &&
-    (kind === 'PROJETO' || Boolean(tagId)) &&
     !sendMutation.isPending;
   const selectedTag =
-    kind === 'ATIVIDADE'
+    effectiveKind === 'ATIVIDADE'
       ? (tagsQuery.data ?? []).find((tag) => tag.id === tagId) ?? null
       : null;
 
@@ -198,14 +223,19 @@ function KairoSendView({
         <DialogDescription>
           {alreadySent
             ? 'Esta solicitação já foi enviada ao Kairo.'
-            : 'Escolha o time e se a solicitação será criada como projeto ou atividade.'}
+            : sendOnePerPartNumber
+              ? `Serão criadas ${partNumbers.length} atividades (1 por part number).`
+              : 'Escolha o time e se a solicitação será criada como projeto ou atividade.'}
         </DialogDescription>
       </DialogHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {alreadySent ? (
           <div className="grid gap-3 text-sm md:grid-cols-2">
-            <SentField label="Card Kairo" value={solicitation.kairoCardId ?? '—'} />
+            <SentField
+              label={linkedCardIds.length > 1 ? 'Cards Kairo' : 'Card Kairo'}
+              value={linkedCardIds.join(', ') || '—'}
+            />
             <SentField label="Time" value={solicitation.kairoTeamId ?? '—'} />
             <SentField
               label="Enviado em"
@@ -260,6 +290,7 @@ function KairoSendView({
               </Select>
             </div>
 
+            {!sendOnePerPartNumber && (
             <div className="space-y-2">
               <Label>Tipo</Label>
               <Select
@@ -287,10 +318,11 @@ function KairoSendView({
                 </SelectContent>
               </Select>
             </div>
+            )}
 
-            {kind === 'ATIVIDADE' && (
+            {effectiveKind === 'ATIVIDADE' && (
               <div className="space-y-2">
-                <Label>Etiqueta</Label>
+                <Label>Etiqueta (opcional)</Label>
                 <Select
                   value={tagId || undefined}
                   onValueChange={setTagId}
@@ -303,7 +335,7 @@ function KairoSendView({
                           ? 'Selecione um time primeiro'
                           : tagsQuery.isLoading
                             ? 'Carregando etiquetas…'
-                            : 'Selecione a etiqueta'
+                            : 'Nenhuma (opcional)'
                       }
                     />
                   </SelectTrigger>
@@ -315,10 +347,16 @@ function KairoSendView({
                     ))}
                   </SelectContent>
                 </Select>
+                {teamId && tagsQuery.isError ? (
+                  <p className="text-muted-foreground text-xs">
+                    Não foi possível carregar as etiquetas deste time. Você
+                    ainda pode enviar sem etiqueta.
+                  </p>
+                ) : null}
               </div>
             )}
 
-            {kind === 'PROJETO' && (
+            {!sendOnePerPartNumber && kind === 'PROJETO' && (
               <div className="space-y-2">
                 <Label htmlFor="kairo-send-estimated-hours">
                   Horas estimadas
@@ -335,6 +373,7 @@ function KairoSendView({
               </div>
             )}
 
+            {!sendOnePerPartNumber && (
             <div className="space-y-2">
               <Label htmlFor="kairo-send-title">Título</Label>
               <Input
@@ -343,6 +382,7 @@ function KairoSendView({
                 onChange={(event) => setTitle(event.target.value)}
               />
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="kairo-send-description">Descrição</Label>
@@ -356,13 +396,28 @@ function KairoSendView({
               />
             </div>
 
-            <KairoCardPreview
-              title={title}
-              description={description}
-              kind={kind}
-              tag={selectedTag}
-              estimatedHours={estimatedHours}
-            />
+            {sendOnePerPartNumber ? (
+              <div className="grid gap-3">
+                {activityTitles.map((activityTitle, index) => (
+                  <KairoCardPreview
+                    key={`${activityTitle}-${index}`}
+                    showLabel={index === 0}
+                    title={activityTitle}
+                    description={`${description.trim()}\nPart number: ${partNumbers[index]}`}
+                    kind="ATIVIDADE"
+                    tag={selectedTag}
+                  />
+                ))}
+              </div>
+            ) : (
+              <KairoCardPreview
+                title={title}
+                description={description}
+                kind={kind}
+                tag={selectedTag}
+                estimatedHours={estimatedHours}
+              />
+            )}
           </div>
         )}
       </div>
@@ -393,6 +448,7 @@ function KairoSendView({
         open={sendProgressOpen}
         phase={sendPhase}
         errorMessage={sendErrorMessage}
+        activityCount={sendOnePerPartNumber ? partNumbers.length : 1}
         onClose={closeSendProgress}
         onRetry={retrySend}
       />

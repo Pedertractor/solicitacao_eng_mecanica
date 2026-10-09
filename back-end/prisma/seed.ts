@@ -1,48 +1,57 @@
 import 'dotenv/config';
+import bcrypt from 'bcrypt';
+import {
+  BOOTSTRAP_SUPER_ADMIN_CARD,
+  BOOTSTRAP_SUPER_ADMIN_DEPARTMENT,
+  BOOTSTRAP_SUPER_ADMIN_ROLE,
+  BOOTSTRAP_SUPER_ADMIN_UNIT,
+} from '../src/auth/bootstrap-super-admin.js';
 import { $Enums } from '../src/generated/prisma/client.js';
-import { HttpError } from '../src/https/errors/index.js';
 import { prisma } from '../src/lib/prisma.js';
-import { UserService } from '../src/services/user-service.js';
 
-const SEED_CARD_NUMBER = '5487';
-const SEED_UNIT = $Enums.Unit.PEDERTRACTOR;
-
-async function seedAdminUser() {
+async function seedBootstrapSuperAdmin() {
   console.log(
-    `Seed: registrando cartão ${SEED_CARD_NUMBER} na unidade ${SEED_UNIT} via API corporativa.`,
+    `Seed: garantindo SUPER_ADMIN para cartão ${BOOTSTRAP_SUPER_ADMIN_CARD} (${BOOTSTRAP_SUPER_ADMIN_UNIT}).`,
   );
 
-  const userService = new UserService();
+  const passwordHash = await bcrypt.hash(BOOTSTRAP_SUPER_ADMIN_CARD, 10);
 
-  try {
-    const user = await userService.register({
-      cardNumber: SEED_CARD_NUMBER,
-      unit: SEED_UNIT,
+  const user = await prisma.user.upsert({
+    where: {
+      cardNumber_unit: {
+        cardNumber: BOOTSTRAP_SUPER_ADMIN_CARD,
+        unit: BOOTSTRAP_SUPER_ADMIN_UNIT,
+      },
+    },
+    create: {
+      name: 'Admin Local',
+      employeeId: `seed-${BOOTSTRAP_SUPER_ADMIN_CARD}`,
+      unit: BOOTSTRAP_SUPER_ADMIN_UNIT,
+      cardNumber: BOOTSTRAP_SUPER_ADMIN_CARD,
+      role: BOOTSTRAP_SUPER_ADMIN_ROLE,
+      department: BOOTSTRAP_SUPER_ADMIN_DEPARTMENT,
+      approvalStatus: $Enums.UserApprovalStatus.APPROVED,
       active: true,
-      role: $Enums.UserRole.ADMIN,
-    });
-    console.log(
-      `Seed: usuário criado (${user.name}, cartão ${user.cardNumber}, unidade ${user.unit}, role ${user.role}, senha inicial = cartão).`,
-    );
-  } catch (e) {
-    if (e instanceof HttpError) {
-      if (e.statusCode === 400 && e.message === 'Usuário já existe') {
-        console.log(
-          `Seed: usuário ${SEED_CARD_NUMBER}/${SEED_UNIT} já existe; ignorando.`,
-        );
-        return;
-      }
-      console.error(
-        `Seed: falha ao registrar ${SEED_CARD_NUMBER} (${e.statusCode}): ${e.message}`,
-      );
-      throw e;
-    }
-    throw e;
-  }
+      passwordHash,
+      mustChangePassword: false,
+    },
+    update: {
+      role: BOOTSTRAP_SUPER_ADMIN_ROLE,
+      department: BOOTSTRAP_SUPER_ADMIN_DEPARTMENT,
+      approvalStatus: $Enums.UserApprovalStatus.APPROVED,
+      active: true,
+      passwordHash,
+      mustChangePassword: false,
+    },
+  });
+
+  console.log(
+    `Seed: usuário ${user.cardNumber}/${user.unit} com role ${user.role} (senha inicial = cartão).`,
+  );
 }
 
 async function main() {
-  await seedAdminUser();
+  await seedBootstrapSuperAdmin();
 }
 
 main()

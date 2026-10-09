@@ -31,7 +31,7 @@ instance.interceptors.request.use((config) => {
   return config;
 });
 
-const PUBLIC_PATH_PREFIXES = ['/solicitacao', '/login'];
+const PUBLIC_PATH_PREFIXES = ['/solicitacao', '/login', '/cadastro'];
 
 type ApiErrorBody = {
   error?: string;

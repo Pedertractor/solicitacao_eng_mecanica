@@ -1,7 +1,15 @@
 import { HttpError } from '../https/errors/index.js';
 import { prisma } from '../lib/prisma.js';
 import { $Enums } from '../generated/prisma/client.js';
+import {
+  type AccessActor,
+  canAccessSolicitation,
+  canManageSolicitations,
+  isSuperAdmin,
+  solicitationScope,
+} from '../auth/access-policy.js';
 import { ApiPedertractorEmployee } from '../integrations/api-pedertractor-employee.js';
+import { ApiPedertractorPart } from '../integrations/api-pedertractor-part.js';
 import { ApiPedertractorSector } from '../integrations/api-pedertractor-sector.js';
 import {
   KAIRO_INTEGRATION_SOURCE,
@@ -13,12 +21,15 @@ import {
 } from '../lib/solicitation-mail.js';
 import { SolicitationPrismaRepository } from '../repositories/prisma/solicitation-repository.js';
 import { KairoCredentialService } from './kairo-credential-service.js';
-
-const DELETABLE_STATUSES: $Enums.SolicitationStatus[] = [
-  $Enums.SolicitationStatus.PENDING,
-  $Enums.SolicitationStatus.IN_REVIEW,
-  $Enums.SolicitationStatus.APPROVED,
-];
+import {
+  buildStoredDeadline,
+  deliveryDateError,
+  isValidProcessCombination,
+  optionalHttpsUrl,
+  parseIsoDate,
+  processInstructionTitle,
+  shouldShowDeliveryDate,
+} from '../lib/process-instruction.js';
 
 function mapSolicitation(row: {
   id: string;
@@ -34,6 +45,14 @@ function mapSolicitation(row: {
   pillarOrLocation: string;
   title: string;
   description: string;
+  processInstructionRequester: string | null;
+  processInstructionProcess: string | null;
+  processInstructionType: string | null;
+  processInstructionDeadlineLabel: string | null;
+  processInstructionDeadlineDate: string | null;
+  deliveryDate: Date | null;
+  partNumbers: string | null;
+  fileLink: string | null;
   kind: $Enums.SolicitationKind | null;
   client: $Enums.SolicitationClient | null;
   activityType: $Enums.SolicitationActivityType | null;
@@ -43,6 +62,7 @@ function mapSolicitation(row: {
   statusUpdatedAt: Date | null;
   statusUpdatedByUserId: string | null;
   kairoCardId: string | null;
+  kairoCardIds: string | null;
   kairoTeamId: string | null;
   kairoSyncedAt: Date | null;
   kairoSyncedByUserId: string | null;
@@ -50,6 +70,7 @@ function mapSolicitation(row: {
   deletedByUserId: string | null;
   deletedByName: string | null;
   deletedFrom: $Enums.SolicitationDeletionSource | null;
+  department: $Enums.UserDepartment;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -67,6 +88,14 @@ function mapSolicitation(row: {
     pillarOrLocation: row.pillarOrLocation,
     title: row.title,
     description: row.description,
+    processInstructionRequester: row.processInstructionRequester,
+    processInstructionProcess: row.processInstructionProcess,
+    processInstructionType: row.processInstructionType,
+    processInstructionDeadlineLabel: row.processInstructionDeadlineLabel,
+    processInstructionDeadlineDate: row.processInstructionDeadlineDate,
+    deliveryDate: toDateOnly(row.deliveryDate),
+    partNumbers: row.partNumbers,
+    fileLink: row.fileLink,
     kind: row.kind,
     client: row.client,
     activityType: row.activityType,
@@ -76,6 +105,7 @@ function mapSolicitation(row: {
     statusUpdatedAt: row.statusUpdatedAt?.toISOString() ?? null,
     statusUpdatedByUserId: row.statusUpdatedByUserId,
     kairoCardId: row.kairoCardId,
+    kairoCardIds: row.kairoCardIds,
     kairoTeamId: row.kairoTeamId,
     kairoSyncedAt: row.kairoSyncedAt?.toISOString() ?? null,
     kairoSyncedByUserId: row.kairoSyncedByUserId,
@@ -83,9 +113,108 @@ function mapSolicitation(row: {
     deletedByUserId: row.deletedByUserId,
     deletedByName: row.deletedByName,
     deletedFrom: row.deletedFrom,
+    department: row.department,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function splitCommaList(value: string | null | undefined): string[] {
+  if (!value?.trim()) return [];
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function listLinkedKairoCardIds(row: {
+  kairoCardId: string | null;
+  kairoCardIds?: string | null;
+}): string[] {
+  const listed = splitCommaList(row.kairoCardIds);
+  if (listed.length > 0) return listed;
+  return row.kairoCardId ? [row.kairoCardId] : [];
+}
+
+function appendPartNumber(description: string, partNumber: string): string {
+  return `${description.trim()}\nPart number: ${partNumber}`;
+}
+
+function buildProcessInstructionContent(input: {
+  processInstructionRequester: string;
+  processInstructionProcess: string;
+  processInstructionType: string;
+  client: $Enums.SolicitationClient;
+  deliveryDate?: string | undefined;
+  partNumbers?: string | undefined;
+  fileLink?: string | undefined;
+  comments?: string | undefined;
+}) {
+  const requester = input.processInstructionRequester.trim();
+  const process = input.processInstructionProcess.trim();
+  const type = input.processInstructionType.trim();
+
+  if (!isValidProcessCombination(requester, process, type)) {
+    throw new HttpError(
+      'Combinação de solicitante, processo e tipo inválida',
+      400,
+    );
+  }
+
+  const deliveryIso = input.deliveryDate?.trim() ?? '';
+  const dateError = deliveryDateError(requester, process, type, deliveryIso);
+  if (dateError) {
+    throw new HttpError(dateError, 400);
+  }
+
+  let fileLink: string | null;
+  try {
+    fileLink = optionalHttpsUrl(input.fileLink ?? '');
+  } catch (error) {
+    throw new HttpError(
+      error instanceof Error ? error.message : 'Link de arquivos inválido.',
+      400,
+    );
+  }
+
+  const storedDelivery = shouldShowDeliveryDate(requester, process, type)
+    ? deliveryIso
+    : null;
+  const deadline = buildStoredDeadline(
+    requester,
+    process,
+    type,
+    storedDelivery,
+  );
+
+  return {
+    title: processInstructionTitle(process, type),
+    description: input.comments?.trim() ?? '',
+    client: input.client,
+    processInstructionRequester: requester,
+    processInstructionProcess: process,
+    processInstructionType: type,
+    processInstructionDeadlineLabel: deadline.deadlineLabel,
+    processInstructionDeadlineDate: deadline.deadlineDate,
+    deliveryDate: storedDelivery ? isoDateToUtc(storedDelivery) : null,
+    partNumbers: input.partNumbers?.trim() || null,
+    fileLink,
+  };
+}
+
+function toDateOnly(value: Date | null): string | null {
+  if (!value) return null;
+  return value.toISOString().slice(0, 10);
+}
+
+function isoDateToUtc(value: string): Date {
+  const parsed = parseIsoDate(value);
+  if (!parsed) {
+    throw new HttpError('Data de entrega inválida.', 400);
+  }
+  return new Date(
+    Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()),
+  );
 }
 
 function mapPublicTicket(row: {
@@ -96,6 +225,16 @@ function mapPublicTicket(row: {
   pillarOrLocation: string;
   title: string;
   description: string;
+  department: $Enums.UserDepartment;
+  client: $Enums.SolicitationClient | null;
+  processInstructionRequester: string | null;
+  processInstructionProcess: string | null;
+  processInstructionType: string | null;
+  processInstructionDeadlineLabel: string | null;
+  processInstructionDeadlineDate: string | null;
+  deliveryDate: Date | null;
+  partNumbers: string | null;
+  fileLink: string | null;
   status: $Enums.SolicitationStatus;
   statusUpdatedAt: Date | null;
   createdAt: Date;
@@ -109,23 +248,19 @@ function mapPublicTicket(row: {
     sectorName: row.sectorName,
     pillarOrLocation: row.pillarOrLocation,
     unit: row.unit,
+    department: row.department,
+    client: row.client,
+    processInstructionRequester: row.processInstructionRequester,
+    processInstructionProcess: row.processInstructionProcess,
+    processInstructionType: row.processInstructionType,
+    processInstructionDeadlineLabel: row.processInstructionDeadlineLabel,
+    processInstructionDeadlineDate: row.processInstructionDeadlineDate,
+    deliveryDate: toDateOnly(row.deliveryDate),
+    partNumbers: row.partNumbers,
+    fileLink: row.fileLink,
     createdAt: row.createdAt.toISOString(),
     statusUpdatedAt: row.statusUpdatedAt?.toISOString() ?? null,
   };
-}
-
-function hasCompleteReview(row: {
-  client: $Enums.SolicitationClient | null;
-  activityType: $Enums.SolicitationActivityType | null;
-  productType: $Enums.SolicitationProductType | null;
-  priority: $Enums.SolicitationPriority | null;
-}) {
-  return Boolean(
-    row.client &&
-      row.activityType &&
-      row.productType &&
-      row.priority,
-  );
 }
 
 export class SolicitationService {
@@ -156,6 +291,30 @@ export class SolicitationService {
     };
   }
 
+  async lookupPartByNumber(partNumber: string) {
+    const api = new ApiPedertractorPart();
+    return api.getByPartNumber(partNumber);
+  }
+
+  async resolvePartNumbers(raw: string | undefined): Promise<string | null> {
+    const tokens = (raw ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (tokens.length === 0) return null;
+
+    const confirmed: string[] = [];
+    const seen = new Set<string>();
+    for (const token of tokens) {
+      const part = await this.lookupPartByNumber(token);
+      const key = part.partNumber.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      confirmed.push(part.partNumber);
+    }
+    return confirmed.join(', ');
+  }
+
   async getSectorByCostCenter(costCenter: string) {
     const trimmed = costCenter.trim();
     if (!trimmed) {
@@ -178,21 +337,48 @@ export class SolicitationService {
     };
   }
 
-  async create(input: {
-    cardNumber: string;
-    unit: $Enums.Unit;
-    costCenter: string;
-    pillarOrLocation: string;
-    title: string;
-    description: string;
-    requesterEmail: string;
-  }) {
+  async create(
+    input: {
+      cardNumber: string;
+      unit: $Enums.Unit;
+      costCenter: string;
+      pillarOrLocation: string;
+      requesterEmail: string;
+    } & (
+      | {
+          department: 'ENG_MECANICA';
+          title: string;
+          description: string;
+        }
+      | {
+          department: 'DESENVOLVIMENTO_PROCESSOS';
+          processInstructionRequester: string;
+          processInstructionProcess: string;
+          processInstructionType: string;
+          client: $Enums.SolicitationClient;
+          deliveryDate?: string | undefined;
+          partNumbers?: string | undefined;
+          fileLink?: string | undefined;
+          comments?: string | undefined;
+        }
+    ),
+  ) {
     const requester = await this.validateRequester(
       input.cardNumber,
       input.unit,
     );
     const sector = await this.getSectorByCostCenter(input.costCenter);
     const requesterEmail = input.requesterEmail.trim().toLowerCase();
+    const content =
+      input.department === 'DESENVOLVIMENTO_PROCESSOS'
+        ? {
+            ...buildProcessInstructionContent(input),
+            partNumbers: await this.resolvePartNumbers(input.partNumbers),
+          }
+        : {
+            title: input.title.trim(),
+            description: input.description.trim(),
+          };
 
     const repo = new SolicitationPrismaRepository(prisma);
     const created = await repo.create({
@@ -205,8 +391,8 @@ export class SolicitationService {
       sectorId: sector.id,
       sectorName: sector.name,
       pillarOrLocation: input.pillarOrLocation.trim(),
-      title: input.title.trim(),
-      description: input.description.trim(),
+      department: input.department,
+      ...content,
     });
 
     return mapSolicitation(created);
@@ -223,9 +409,14 @@ export class SolicitationService {
       | 'title'
       | 'status';
     sortOrder?: 'asc' | 'desc';
-  }) {
+  },
+    actor: AccessActor,
+  ) {
     const repo = new SolicitationPrismaRepository(prisma);
-    const { items, total } = await repo.findManyPaginated(input);
+    const { items, total } = await repo.findManyPaginated({
+      ...input,
+      scope: solicitationScope(actor),
+    });
     const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
 
     return {
@@ -239,7 +430,8 @@ export class SolicitationService {
     };
   }
 
-  async getById(id: string) {
+  async getById(id: string, actor: AccessActor) {
+    await this.assertAccessible(id, actor, false);
     const repo = new SolicitationPrismaRepository(prisma);
     const row = await repo.findById(id);
     if (!row) {
@@ -263,6 +455,11 @@ export class SolicitationService {
   }
 
   async startReview(id: string, actingUserId: string) {
+    await this.assertAccessible(
+      id,
+      await this.loadActor(actingUserId),
+      true,
+    );
     const repo = new SolicitationPrismaRepository(prisma);
     const existing = await repo.findById(id);
     if (!existing) {
@@ -284,14 +481,15 @@ export class SolicitationService {
   async updateReview(
     id: string,
     input: {
-      client: $Enums.SolicitationClient | null;
-      activityType: $Enums.SolicitationActivityType | null;
-      productType: $Enums.SolicitationProductType | null;
-      priority: $Enums.SolicitationPriority | null;
+      client?: $Enums.SolicitationClient | null;
+      activityType?: $Enums.SolicitationActivityType | null;
+      productType?: $Enums.SolicitationProductType | null;
+      priority?: $Enums.SolicitationPriority | null;
       approve?: boolean;
     },
     actingUserId: string,
   ) {
+    await this.assertAccessible(id, await this.loadActor(actingUserId), true);
     const repo = new SolicitationPrismaRepository(prisma);
     const existing = await repo.findById(id);
     if (!existing) {
@@ -299,20 +497,20 @@ export class SolicitationService {
     }
 
     const review = {
-      client: input.client,
-      activityType: input.activityType,
-      productType: input.productType,
-      priority: input.priority,
+      client: input.client !== undefined ? input.client : existing.client,
+      activityType:
+        input.activityType !== undefined
+          ? input.activityType
+          : existing.activityType,
+      productType:
+        input.productType !== undefined
+          ? input.productType
+          : existing.productType,
+      priority:
+        input.priority !== undefined ? input.priority : existing.priority,
     };
 
     if (input.approve) {
-      if (!hasCompleteReview(review)) {
-        throw new HttpError(
-          'Preencha cliente, tipo de atividade, tipo de produto e prioridade para aprovar',
-          400,
-        );
-      }
-
       const wasAlreadyApproved =
         existing.status === $Enums.SolicitationStatus.APPROVED;
 
@@ -338,6 +536,7 @@ export class SolicitationService {
     status: $Enums.SolicitationStatus,
     actingUserId: string,
   ) {
+    await this.assertAccessible(id, await this.loadActor(actingUserId), true);
     const repo = new SolicitationPrismaRepository(prisma);
     const existing = await repo.findById(id);
     if (!existing) {
@@ -353,16 +552,6 @@ export class SolicitationService {
 
     if (existing.status === $Enums.SolicitationStatus.DELETED) {
       throw new HttpError('Solicitação excluída não pode mudar de status', 400);
-    }
-
-    if (
-      status === $Enums.SolicitationStatus.APPROVED &&
-      !hasCompleteReview(existing)
-    ) {
-      throw new HttpError(
-        'Preencha cliente, tipo de atividade, tipo de produto e prioridade antes de aprovar',
-        400,
-      );
     }
 
     const previousStatus = existing.status;
@@ -386,17 +575,18 @@ export class SolicitationService {
   }
 
   async delete(id: string, actingUserId: string) {
+    await this.assertAccessible(id, await this.loadActor(actingUserId), true);
     const repo = new SolicitationPrismaRepository(prisma);
     const existing = await repo.findById(id);
     if (!existing) {
       throw new HttpError('Solicitação não encontrada', 404);
     }
 
-    if (!DELETABLE_STATUSES.includes(existing.status)) {
-      throw new HttpError(
-        'Somente solicitações pendentes, em análise ou aprovadas podem ser excluídas',
-        400,
-      );
+    if (
+      existing.status === $Enums.SolicitationStatus.DELETED ||
+      existing.deletedAt
+    ) {
+      throw new HttpError('Solicitação já está excluída', 400);
     }
 
     const actor = await prisma.user.findUnique({
@@ -409,53 +599,35 @@ export class SolicitationService {
 
     // Tenta remover no Kairo, mas nunca bloqueia o soft-delete local
     // (falha de rede/502/credencial ausente não deve impedir a exclusão).
-    if (existing.kairoCardId && existing.kairoTeamId) {
+    const linkedCardIds = listLinkedKairoCardIds(existing);
+    if (linkedCardIds.length > 0 && existing.kairoTeamId) {
       const credentials = new KairoCredentialService();
       const client = await credentials.tryGetClientForUser(actingUserId);
 
       if (client) {
-        try {
-          if (existing.kind === $Enums.SolicitationKind.PROJETO) {
-            await client.deleteProject(
+        let deletedAny = false;
+        for (const cardId of linkedCardIds) {
+          try {
+            await this.deleteKairoCard(
+              client,
               existing.kairoTeamId,
-              existing.kairoCardId,
+              cardId,
+              existing.kind,
             );
-          } else if (existing.kind === $Enums.SolicitationKind.ATIVIDADE) {
-            await client.deleteActivity(
-              existing.kairoTeamId,
-              existing.kairoCardId,
-            );
-          } else {
-            try {
-              await client.deleteActivity(
-                existing.kairoTeamId,
-                existing.kairoCardId,
-              );
-            } catch (activityError) {
-              if (
-                !(
-                  activityError instanceof HttpError &&
-                  activityError.statusCode === 404
-                )
-              ) {
-                throw activityError;
-              }
-              await client.deleteProject(
-                existing.kairoTeamId,
-                existing.kairoCardId,
+            deletedAny = true;
+          } catch (error) {
+            if (
+              !(error instanceof HttpError && error.statusCode === 404)
+            ) {
+              console.error(
+                '[solicitation.delete] Falha ao excluir card no Kairo; seguindo com soft-delete local',
+                error,
               );
             }
           }
+        }
+        if (deletedAny) {
           await credentials.touchValidated(actingUserId);
-        } catch (error) {
-          if (
-            !(error instanceof HttpError && error.statusCode === 404)
-          ) {
-            console.error(
-              '[solicitation.delete] Falha ao excluir card no Kairo; seguindo com soft-delete local',
-              error,
-            );
-          }
         }
       }
     }
@@ -481,6 +653,7 @@ export class SolicitationService {
     },
     actingUserId: string,
   ) {
+    await this.assertAccessible(id, await this.loadActor(actingUserId), true);
     const repo = new SolicitationPrismaRepository(prisma);
     const existing = await repo.findById(id);
     if (!existing) {
@@ -494,16 +667,21 @@ export class SolicitationService {
       );
     }
 
-    if (existing.kairoCardId) {
+    if (listLinkedKairoCardIds(existing).length > 0) {
       throw new HttpError('Esta solicitação já foi enviada ao Kairo', 400);
     }
 
-    if (
-      input.kind === $Enums.SolicitationKind.ATIVIDADE &&
-      !input.tagId?.trim()
-    ) {
+    const partNumbers =
+      existing.department === $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS
+        ? splitCommaList(existing.partNumbers)
+        : [];
+    const sendOneActivityPerPart = partNumbers.length > 0;
+
+    const trimmedTagId = input.tagId?.trim() || undefined;
+
+    if (sendOneActivityPerPart && input.kind !== $Enums.SolicitationKind.ATIVIDADE) {
       throw new HttpError(
-        'Selecione uma etiqueta do Kairo para criar a atividade',
+        'Solicitações de processo com part number são enviadas como atividade',
         400,
       );
     }
@@ -511,16 +689,42 @@ export class SolicitationService {
     const credentials = new KairoCredentialService();
     const client = await credentials.getClientForUser(actingUserId);
 
-    let cardId: string;
+    let cardIds: string[];
+    let kind = input.kind;
 
-    if (input.kind === $Enums.SolicitationKind.ATIVIDADE) {
+    if (sendOneActivityPerPart) {
+      const instructionType = existing.processInstructionType?.trim();
+      if (!instructionType) {
+        throw new HttpError(
+          'A solicitação de processo não tem tipo para nomear as atividades',
+          400,
+        );
+      }
+
+      kind = $Enums.SolicitationKind.ATIVIDADE;
+      cardIds = [];
+      try {
+        for (const partNumber of partNumbers) {
+          const { activity } = await client.createActivity(input.teamId, {
+            title: `${partNumber} — ${instructionType}`,
+            description: appendPartNumber(input.description, partNumber),
+            integrationSource: KAIRO_INTEGRATION_SOURCE,
+            ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
+          });
+          cardIds.push(activity.id);
+        }
+      } catch (error) {
+        await this.rollbackCreatedActivities(client, input.teamId, cardIds);
+        throw error;
+      }
+    } else if (input.kind === $Enums.SolicitationKind.ATIVIDADE) {
       const { activity } = await client.createActivity(input.teamId, {
         title: input.title,
         description: input.description,
-        tagId: input.tagId!.trim(),
         integrationSource: KAIRO_INTEGRATION_SOURCE,
+        ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
       });
-      cardId = activity.id;
+      cardIds = [activity.id];
     } else {
       const { project } = await client.createProject(input.teamId, {
         title: input.title,
@@ -530,22 +734,26 @@ export class SolicitationService {
           ? { estimatedHours: input.estimatedHours }
           : {}),
       });
-      cardId = project.id;
+      cardIds = [project.id];
     }
 
     await credentials.touchValidated(actingUserId);
 
     const updated = await repo.markKairoSynced(id, {
-      kairoCardId: cardId,
+      kairoCardId: cardIds[0]!,
+      kairoCardIds: cardIds.join(', '),
       kairoTeamId: input.teamId,
       kairoSyncedByUserId: actingUserId,
-      kind: input.kind,
+      kind,
     });
 
     return mapSolicitation(updated);
   }
 
   async syncFromKairo(id: string, actingUserId?: string) {
+    if (actingUserId) {
+      await this.assertAccessible(id, await this.loadActor(actingUserId), true);
+    }
     const repo = new SolicitationPrismaRepository(prisma);
     const existing = await repo.findById(id);
     if (!existing) {
@@ -564,7 +772,8 @@ export class SolicitationService {
       return mapSolicitation(existing);
     }
 
-    if (!existing.kairoCardId || !existing.kairoTeamId) {
+    const linkedCardIds = listLinkedKairoCardIds(existing);
+    if (linkedCardIds.length === 0 || !existing.kairoTeamId) {
       return mapSolicitation(existing);
     }
 
@@ -597,33 +806,50 @@ export class SolicitationService {
       return mapSolicitation(existing);
     }
 
-    const kairoCard = await this.fetchKairoCardStatus(
-      client,
-      existing.kairoTeamId,
-      existing.kairoCardId,
-      existing.kind,
-    );
-
-    if (!kairoCard) {
-      return mapSolicitation(existing);
+    const kairoCards: Array<{
+      kind: $Enums.SolicitationKind;
+      status: string | undefined;
+      deletedAt: string | null;
+      deletedByName: string | null;
+    }> = [];
+    for (const cardId of linkedCardIds) {
+      const kairoCard = await this.fetchKairoCardStatus(
+        client,
+        existing.kairoTeamId,
+        cardId,
+        existing.kind,
+      );
+      if (!kairoCard) {
+        return mapSolicitation(existing);
+      }
+      kairoCards.push(kairoCard);
     }
 
-    if (existing.kind !== kairoCard.kind) {
-      await repo.updateKind(id, kairoCard.kind);
+    const sharedKind = kairoCards.every(
+      (card) => card.kind === kairoCards[0]!.kind,
+    )
+      ? kairoCards[0]!.kind
+      : null;
+    if (sharedKind && existing.kind !== sharedKind) {
+      await repo.updateKind(id, sharedKind);
     }
 
     await credentials.touchValidated(credentialUserId);
 
-    if (kairoCard.deletedAt) {
+    if (kairoCards.every((card) => card.deletedAt)) {
+      const deletedByName =
+        kairoCards
+          .map((card) => card.deletedByName?.trim())
+          .find((name): name is string => Boolean(name)) || 'Usuário do Kairo';
       const updated = await repo.markDeleted(id, {
         deletedByUserId: null,
-        deletedByName: kairoCard.deletedByName?.trim() || 'Usuário do Kairo',
+        deletedByName,
         deletedFrom: $Enums.SolicitationDeletionSource.KAIRO,
       });
       return mapSolicitation(updated);
     }
 
-    if (kairoCard.status !== 'DONE') {
+    if (!kairoCards.every((card) => card.status === 'DONE' && !card.deletedAt)) {
       return mapSolicitation(existing);
     }
 
@@ -638,9 +864,14 @@ export class SolicitationService {
     return mapSolicitation(updated);
   }
 
-  async syncPendingFromKairo() {
+  async syncPendingFromKairo(actor?: AccessActor) {
+    if (actor && !canManageSolicitations(actor.role)) {
+      throw new HttpError('Sem permissão para alterar esta solicitação', 403);
+    }
     const repo = new SolicitationPrismaRepository(prisma);
-    const pending = await repo.findPendingKairoSync();
+    const pending = await repo.findPendingKairoSync(
+      actor && !isSuperAdmin(actor.role) ? actor.department : undefined,
+    );
     let completed = 0;
     let deleted = 0;
 
@@ -661,6 +892,38 @@ export class SolicitationService {
     }
 
     return { checked: pending.length, completed, deleted };
+  }
+
+  private async loadActor(userId: string): Promise<AccessActor> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        department: true,
+        cardNumber: true,
+        unit: true,
+      },
+    });
+    if (!user) {
+      throw new HttpError('Não autorizado', 401);
+    }
+    return user;
+  }
+
+  private async assertAccessible(
+    id: string,
+    actor: AccessActor,
+    manage: boolean,
+  ) {
+    const repo = new SolicitationPrismaRepository(prisma);
+    const row = await repo.findById(id);
+    if (!row || !canAccessSolicitation(actor, row)) {
+      throw new HttpError('Solicitação não encontrada', 404);
+    }
+    if (manage && !canManageSolicitations(actor.role)) {
+      throw new HttpError('Sem permissão para alterar esta solicitação', 403);
+    }
   }
 
   private async resolveKairoKind(
@@ -728,6 +991,54 @@ export class SolicitationService {
     }
 
     return fetchByKind(resolvedKind);
+  }
+
+  private async deleteKairoCard(
+    client: KairoClient,
+    teamId: string,
+    cardId: string,
+    kind: $Enums.SolicitationKind | null,
+  ) {
+    if (kind === $Enums.SolicitationKind.PROJETO) {
+      await client.deleteProject(teamId, cardId);
+      return;
+    }
+
+    if (kind === $Enums.SolicitationKind.ATIVIDADE) {
+      await client.deleteActivity(teamId, cardId);
+      return;
+    }
+
+    try {
+      await client.deleteActivity(teamId, cardId);
+    } catch (activityError) {
+      if (
+        !(
+          activityError instanceof HttpError &&
+          activityError.statusCode === 404
+        )
+      ) {
+        throw activityError;
+      }
+      await client.deleteProject(teamId, cardId);
+    }
+  }
+
+  private async rollbackCreatedActivities(
+    client: KairoClient,
+    teamId: string,
+    activityIds: string[],
+  ) {
+    for (const activityId of activityIds) {
+      try {
+        await client.deleteActivity(teamId, activityId);
+      } catch (error) {
+        console.error(
+          '[solicitation.sendToKairo] Falha ao desfazer atividade criada no Kairo',
+          error,
+        );
+      }
+    }
   }
 }
 

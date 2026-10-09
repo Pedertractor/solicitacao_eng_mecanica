@@ -9,6 +9,7 @@ import {
   type BookmarkPlusIconHandle,
 } from '@/components/icons/bookmark-plus';
 import {
+  SOLICITATION_CLIENT_LABELS,
   solicitationApi,
   type SolicitationStatus,
 } from '@/services/solicitation';
@@ -20,6 +21,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { PartNumberChips } from '@/components/PartNumberAllocator';
+import { formatIsoDateLabel } from '@/config/process-instruction';
 import { cn, SoftBreakText } from '@/lib/utils';
 import {
   PublicSolicitationShell,
@@ -189,26 +192,89 @@ export function PublicSolicitationTrackPage() {
                   />
                 </div>
 
-                <div className='min-w-0 max-w-full overflow-hidden'>
-                  <p className='text-muted-foreground text-xs uppercase tracking-wide'>
-                    Descrição
-                  </p>
-                  <p
-                    className={cn(
-                      'mt-1 text-sm leading-snug',
-                      breakableTextClass,
-                    )}
-                    style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}
-                    title={query.data.description}
-                  >
-                    <SoftBreakText
-                      text={truncateText(
-                        query.data.description,
-                        DESCRIPTION_MAX_LENGTH,
-                      )}
+                {query.data.department === 'DESENVOLVIMENTO_PROCESSOS' ? (
+                  <div className='grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2'>
+                    <Field
+                      label='Área solicitante'
+                      value={query.data.processInstructionRequester ?? '—'}
                     />
-                  </p>
-                </div>
+                    <Field
+                      label='Processo'
+                      value={query.data.processInstructionProcess ?? '—'}
+                    />
+                    <Field
+                      label='Tipo'
+                      value={query.data.processInstructionType ?? '—'}
+                    />
+                    <Field
+                      label='Cliente'
+                      value={
+                        query.data.client
+                          ? SOLICITATION_CLIENT_LABELS[query.data.client]
+                          : '—'
+                      }
+                    />
+                    <Field
+                      label='Prazo'
+                      value={query.data.processInstructionDeadlineLabel ?? '—'}
+                    />
+                    <Field
+                      label='Data limite'
+                      value={query.data.processInstructionDeadlineDate ?? '—'}
+                    />
+                    {query.data.deliveryDate ? (
+                      <Field
+                        label='Data de entrega'
+                        value={formatIsoDateLabel(query.data.deliveryDate)}
+                      />
+                    ) : null}
+                    <div className='min-w-0 sm:col-span-2'>
+                      <p className='text-muted-foreground text-xs uppercase tracking-wide'>
+                        Part Number
+                      </p>
+                      <PartNumberChips value={query.data.partNumbers} />
+                    </div>
+                    <Field
+                      label='Link de arquivos'
+                      value={query.data.fileLink?.trim() || '—'}
+                    />
+                    {query.data.description.trim() ? (
+                      <div className='min-w-0 sm:col-span-2'>
+                        <Field
+                          label='Comentários'
+                          value={truncateText(
+                            query.data.description,
+                            DESCRIPTION_MAX_LENGTH,
+                          )}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className='min-w-0 max-w-full overflow-hidden'>
+                    <p className='text-muted-foreground text-xs uppercase tracking-wide'>
+                      Descrição
+                    </p>
+                    <p
+                      className={cn(
+                        'mt-1 text-sm leading-snug',
+                        breakableTextClass,
+                      )}
+                      style={{
+                        wordBreak: 'break-all',
+                        overflowWrap: 'anywhere',
+                      }}
+                      title={query.data.description}
+                    >
+                      <SoftBreakText
+                        text={truncateText(
+                          query.data.description,
+                          DESCRIPTION_MAX_LENGTH,
+                        )}
+                      />
+                    </p>
+                  </div>
+                )}
               </CardContent>
 
               <TicketStub>

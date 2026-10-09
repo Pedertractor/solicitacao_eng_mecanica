@@ -6,7 +6,8 @@ import { userApi, type UserDetail } from '@/services/user';
 import type { ListUser, UserRole } from '@/types/auth';
 import { ROLE_OPTIONS } from '@/pages/Usuarios/userFormConstants';
 import { useAuth } from '@/contexts/useAuth';
-import { canResetUserPassword } from '@/config/permissions';
+import { assignableRoles, canResetUserPassword } from '@/config/permissions';
+import { DEPARTMENT_LABELS } from '@/utils/roles';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,19 +56,17 @@ function EditUserFormBody({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   const isCurrentUser = authUser?.id === detail.id;
-  const canAssignAdminRole = authUser?.role === 'ADMIN';
   const canResetPassword =
     authUser?.role != null &&
     canResetUserPassword(authUser.role) &&
     !isCurrentUser;
   const roleOptions = useMemo(() => {
-    const base = canAssignAdminRole
-      ? ROLE_OPTIONS
-      : ROLE_OPTIONS.filter((opt) => opt.value !== 'ADMIN');
+    const allowedRoles = authUser ? assignableRoles(authUser.role) : [];
+    const base = ROLE_OPTIONS.filter((opt) => allowedRoles.includes(opt.value));
     if (base.some((o) => o.value === detail.role)) return base;
     const current = ROLE_OPTIONS.find((o) => o.value === detail.role);
     return current ? [current, ...base] : base;
-  }, [canAssignAdminRole, detail.role]);
+  }, [authUser, detail.role]);
 
   const updateMutation = useMutation({
     mutationFn: () => userApi.updateByAdmin(detail.id, { role }),
@@ -128,6 +127,17 @@ function EditUserFormBody({
           type='text'
           readOnly
           value={detail.name}
+          className='bg-muted'
+        />
+      </div>
+
+      <div className='space-y-2'>
+        <Label htmlFor='edit-department'>Departamento</Label>
+        <Input
+          id='edit-department'
+          type='text'
+          readOnly
+          value={DEPARTMENT_LABELS[detail.department]}
           className='bg-muted'
         />
       </div>

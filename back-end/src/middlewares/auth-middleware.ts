@@ -15,6 +15,10 @@ export async function authMiddleware(
   const userService = new UserService();
   const principal = await userService.resolveSessionPrincipal(request.user.sub);
 
+  if (principal.approvalStatus !== 'APPROVED') {
+    throw new HttpError('Cadastro ainda não aprovado', 403);
+  }
+
   if (!principal.active) {
     throw new HttpError('Usuário inativo', 401);
   }
@@ -34,5 +38,8 @@ export async function authMiddleware(
   request.user = {
     sub: principal.id,
     role: principal.role,
+    department: principal.department,
+    cardNumber: principal.cardNumber,
+    unit: principal.unit,
   };
 }

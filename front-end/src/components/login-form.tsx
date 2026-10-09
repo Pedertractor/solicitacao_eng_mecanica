@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -293,6 +293,16 @@ export function LoginForm({
                     <Button type='submit' disabled={isLoading}>
                       {isLoading ? 'Entrando...' : 'Entrar'}
                     </Button>
+                  </Field>
+                  <Field>
+                    <FieldDescription className='text-center'>
+                      <Link
+                        to={ROUTES.CADASTRO}
+                        className='underline-offset-4 hover:underline'
+                      >
+                        Cadastrar
+                      </Link>
+                    </FieldDescription>
                   </Field>
                 </FieldGroup>
               </form>

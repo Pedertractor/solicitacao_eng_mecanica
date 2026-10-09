@@ -1,21 +1,31 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  approveUser,
+  changePasswordFirstLogin,
+  getMe,
+  getUserById,
+  listUsers,
   login,
   register,
-  getMe,
-  changePasswordFirstLogin,
-  listUsers,
-  validateEmployee,
-  getUserById,
-  updateUserByAdmin,
+  rejectUser,
   resetUserPasswordByAdmin,
+  signup,
+  updateUserByAdmin,
+  validateEmployee,
 } from '../controllers/user-controller.js';
-import { $Enums } from '../../generated/prisma/client.js';
+import { AREA_ADMIN_ROLES } from '../../auth/access-policy.js';
 import { authMiddleware } from '../../middlewares/auth-middleware.js';
 import { roleMiddleware } from '../../middlewares/auth-role-middleware.js';
 
 const unitEnum = ['PEDERTRACTOR', 'TRACTOR'] as const;
-const userRoleEnum = ['USER', 'ADMIN'] as const;
+const userRoleEnum = [
+  'SUPER_ADMIN',
+  'ADMIN_ENG',
+  'ADMIN_PROCESSOS',
+  'USER',
+] as const;
+const departmentEnum = ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'] as const;
+const approvalStatusEnum = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 
 const userSchema = {
   type: 'object',
@@ -28,6 +38,16 @@ const userSchema = {
       type: 'string',
       enum: userRoleEnum,
       description: 'Papel do usuário',
+    },
+    department: {
+      type: 'string',
+      enum: departmentEnum,
+      description: 'Departamento',
+    },
+    approvalStatus: {
+      type: 'string',
+      enum: approvalStatusEnum,
+      description: 'Situação da aprovação do cadastro',
     },
     mustChangePassword: {
       type: 'boolean',
@@ -93,9 +113,75 @@ export async function userRoutes(app: FastifyInstance) {
   );
 
   app.post(
+    '/signup/validate',
+    {
+      schema: {
+        tags: ['users'],
+        summary: 'Validar colaborador no cadastro público',
+        body: {
+          type: 'object',
+          required: ['cardNumber', 'unit'],
+          properties: {
+            cardNumber: { type: 'string', minLength: 1 },
+            unit: { type: 'string', enum: unitEnum },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              status: { type: 'boolean' },
+            },
+          },
+          400: errorResponseSchema,
+        },
+      },
+    },
+    validateEmployee,
+  );
+
+  app.post(
+    '/signup',
+    {
+      schema: {
+        tags: ['users'],
+        summary: 'Cadastro público aguardando aprovação',
+        body: {
+          type: 'object',
+          required: [
+            'unit',
+            'cardNumber',
+            'password',
+            'confirmPassword',
+            'department',
+          ],
+          properties: {
+            unit: { type: 'string', enum: unitEnum },
+            cardNumber: { type: 'string', minLength: 1 },
+            password: { type: 'string', minLength: 6 },
+            confirmPassword: { type: 'string', minLength: 6 },
+            department: { type: 'string', enum: departmentEnum },
+          },
+        },
+        response: {
+          201: {
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+            },
+          },
+          400: errorResponseSchema,
+        },
+      },
+    },
+    signup,
+  );
+
+  app.post(
     '/register',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['users'],
         summary: 'Registrar usuário',
@@ -120,6 +206,12 @@ export async function userRoutes(app: FastifyInstance) {
               type: 'string',
               enum: userRoleEnum,
               description: 'Papel do usuário',
+            },
+            department: {
+              type: 'string',
+              enum: departmentEnum,
+              description:
+                'Obrigatório para super admin. Admins de área usam o próprio departamento.',
             },
           },
         },
@@ -214,7 +306,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.get(
     '/',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['users'],
         summary: 'Listar usuários',
@@ -244,7 +336,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.post(
     '/validate-employee',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['users'],
         summary: 'Validar colaborador',
@@ -281,7 +373,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.get(
     '/:userId',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['users'],
         summary: 'Buscar usuário por ID',
@@ -314,7 +406,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.patch(
     '/:userId',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['users'],
         summary: 'Atualizar papel do usuário',
@@ -354,7 +446,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.post(
     '/:userId/reset-password',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['users'],
         summary: 'Resetar senha do usuário',
@@ -384,5 +476,61 @@ export async function userRoutes(app: FastifyInstance) {
       },
     },
     resetUserPasswordByAdmin,
+  );
+
+  app.post(
+    '/:userId/approve',
+    {
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
+      schema: {
+        tags: ['users'],
+        summary: 'Aprovar cadastro pendente',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId'],
+          properties: {
+            userId: { type: 'string', format: 'uuid' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { user: userSchema },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+        },
+      },
+    },
+    approveUser,
+  );
+
+  app.post(
+    '/:userId/reject',
+    {
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
+      schema: {
+        tags: ['users'],
+        summary: 'Recusar cadastro pendente',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId'],
+          properties: {
+            userId: { type: 'string', format: 'uuid' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { user: userSchema },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+        },
+      },
+    },
+    rejectUser,
   );
 }

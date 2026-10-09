@@ -13,10 +13,24 @@ import { BrushCleaning, Check, CircleCheck, Copy, Loader2 } from 'lucide-react';
 import { SendIcon, type SendIconHandle } from 'lucide-animated';
 import { motion, useAnimation } from 'motion/react';
 import {
+  ProcessInstructionFormSection,
+} from '@/components/ProcessInstructionFormSection';
+import {
+  emptyProcessInstructionDraft,
+  type ProcessInstructionDraft,
+} from '@/config/process-instruction-draft';
+import {
+  shouldShowDeliveryDate,
+  validateProcessInstructionFields,
+  type ProcessInstructionFieldErrors,
+} from '@/config/process-instruction';
+import {
   solicitationApi,
   type Solicitation,
+  type SolicitationClient,
 } from '@/services/solicitation';
-import { type Unit } from '@/types/auth';
+import { type Unit, type UserDepartment } from '@/types/auth';
+import { DEPARTMENT_LABELS } from '@/utils/roles';
 import {
   cardNumberForApi,
 } from '@/utils/card-number-input';
@@ -75,6 +89,18 @@ const UNIT_OPTIONS: { value: Unit; label: string }[] = [
   { value: 'TRACTOR', label: 'T' },
 ];
 
+const DEPARTMENT_OPTIONS: { value: UserDepartment; label: string }[] = [
+  { value: 'ENG_MECANICA', label: 'Engenharia' },
+  { value: 'DESENVOLVIMENTO_PROCESSOS', label: 'Processos' },
+];
+
+const DEPARTMENT_DESCRIPTION: Record<UserDepartment, string> = {
+  ENG_MECANICA:
+    'Engenharia Mecânica. Página para fazer solicitações para a equipe.',
+  DESENVOLVIMENTO_PROCESSOS:
+    'Preencha os dados abaixo para solicitar um novo serviço.',
+};
+
 const CARD_NUMBER_LENGTH = 4;
 
 function isCompleteCardNumber(value: string) {
@@ -100,6 +126,8 @@ async function copyText(value: string) {
 }
 
 export function PublicSolicitationPage() {
+  const [department, setDepartment] =
+    useState<UserDepartment>('ENG_MECANICA');
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [requesterName, setRequesterName] = useState<string | null>(null);
@@ -115,6 +143,11 @@ export function PublicSolicitationPage() {
   const [pillarOrLocation, setPillarOrLocation] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [processDraft, setProcessDraft] = useState<ProcessInstructionDraft>(
+    emptyProcessInstructionDraft,
+  );
+  const [processErrors, setProcessErrors] =
+    useState<ProcessInstructionFieldErrors>({});
   const [submittedSolicitation, setSubmittedSolicitation] =
     useState<Solicitation | null>(null);
   const [trackLinkCopied, setTrackLinkCopied] = useState(false);
@@ -200,16 +233,49 @@ export function PublicSolicitationPage() {
   }, [costCenter, lookupSector]);
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      solicitationApi.create({
+    mutationFn: () => {
+      const shared = {
         cardNumber: cardNumberForApi(cardNumber),
         unit,
         costCenter: costCenter.trim(),
         pillarOrLocation: pillarOrLocation.trim(),
+        requesterEmail: requesterEmail.trim(),
+      };
+
+      if (department === 'DESENVOLVIMENTO_PROCESSOS') {
+        return solicitationApi.create({
+          ...shared,
+          department,
+          processInstructionRequester: processDraft.requester,
+          processInstructionProcess: processDraft.process,
+          processInstructionType: processDraft.type,
+          client: processDraft.client as SolicitationClient,
+          ...(shouldShowDeliveryDate(
+            processDraft.requester,
+            processDraft.process,
+            processDraft.type,
+          )
+            ? { deliveryDate: processDraft.deliveryDate }
+            : {}),
+          ...(processDraft.allocatedPartNumbers.length > 0
+            ? { partNumbers: processDraft.allocatedPartNumbers.join(', ') }
+            : {}),
+          ...(processDraft.fileLink.trim()
+            ? { fileLink: processDraft.fileLink.trim() }
+            : {}),
+          ...(processDraft.comments.trim()
+            ? { comments: processDraft.comments.trim() }
+            : {}),
+        });
+      }
+
+      return solicitationApi.create({
+        ...shared,
+        department: 'ENG_MECANICA',
         title: title.trim(),
         description: description.trim(),
-        requesterEmail: requesterEmail.trim(),
-      }),
+      });
+    },
     onSuccess: (solicitation) => {
       setSubmittedSolicitation(solicitation);
       toast.success('Solicitação enviada com sucesso.');
@@ -226,6 +292,7 @@ export function PublicSolicitationPage() {
   };
 
   const resetFormFields = () => {
+    setDepartment('ENG_MECANICA');
     setCardNumber('');
     setUnit('PEDERTRACTOR');
     setRequesterName(null);
@@ -239,6 +306,8 @@ export function PublicSolicitationPage() {
     setPillarOrLocation('');
     setTitle('');
     setDescription('');
+    setProcessDraft(emptyProcessInstructionDraft());
+    setProcessErrors({});
     setFieldErrors({});
   };
 
@@ -293,19 +362,39 @@ export function PublicSolicitationPage() {
     if (!pillarOrLocation.trim()) {
       errors.pillarOrLocation = 'Campo obrigatório.';
     }
-    if (!title.trim()) {
-      errors.title = 'Campo obrigatório.';
-    }
-    if (!description.trim()) {
-      errors.description = 'Campo obrigatório.';
+
+    const nextProcessErrors =
+      department === 'DESENVOLVIMENTO_PROCESSOS'
+        ? validateProcessInstructionFields({
+            requester: processDraft.requester,
+            process: processDraft.process,
+            type: processDraft.type,
+            deliveryDate: processDraft.deliveryDate,
+            client: processDraft.client,
+            fileLink: processDraft.fileLink,
+          })
+        : {};
+
+    if (department === 'ENG_MECANICA') {
+      if (!title.trim()) {
+        errors.title = 'Campo obrigatório.';
+      }
+      if (!description.trim()) {
+        errors.description = 'Campo obrigatório.';
+      }
     }
 
-    if (Object.keys(errors).length > 0) {
+    if (
+      Object.keys(errors).length > 0 ||
+      Object.keys(nextProcessErrors).length > 0
+    ) {
+      setProcessErrors(nextProcessErrors);
       setFieldErrors(errors);
       return;
     }
 
     setFieldErrors({});
+    setProcessErrors({});
     createMutation.mutate();
   };
 
@@ -325,8 +414,11 @@ export function PublicSolicitationPage() {
               />
             </CardTitle>
             <CardDescription>
-              Sua solicitação foi registrada e será analisada pela engenharia
-              mecânica. Guarde o protocolo para acompanhar o andamento.
+              Sua solicitação foi registrada e será analisada pela equipe de{' '}
+              {submittedSolicitation.department === 'DESENVOLVIMENTO_PROCESSOS'
+                ? 'desenvolvimento de processos'
+                : 'engenharia mecânica'}
+              . Guarde o protocolo para acompanhar o andamento.
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-4'>
@@ -408,10 +500,12 @@ export function PublicSolicitationPage() {
         )}
       >
         <CardHeader className='shrink-0 border-b py-6'>
-          <CardTitle>Solicitação de projetos - Engenharia Mecânica</CardTitle>
-          <CardDescription>
-            Página para fazer solicitações para equipe de engenharia mecânica
-          </CardDescription>
+          <CardTitle>
+            {department === 'DESENVOLVIMENTO_PROCESSOS'
+              ? 'Solicitação de Instrução de Processo'
+              : 'Solicitação Pedertractor'}
+          </CardTitle>
+          <CardDescription>{DEPARTMENT_DESCRIPTION[department]}</CardDescription>
         </CardHeader>
         <form
           onSubmit={handleSubmit}
@@ -605,46 +699,101 @@ export function PublicSolicitationPage() {
               )}
             </div>
 
+            <div className='grid gap-2'>
+              <Label id='department-label'>Destino da solicitação</Label>
+              <div
+                className='grid grid-cols-2 gap-2'
+                role='group'
+                aria-labelledby='department-label'
+              >
+                {DEPARTMENT_OPTIONS.map(({ value, label }) => (
+                  <Button
+                    key={value}
+                    type='button'
+                    variant={department === value ? 'default' : 'outline'}
+                    className='h-9 text-sm font-medium'
+                    aria-pressed={department === value}
+                    aria-label={DEPARTMENT_LABELS[value]}
+                    onClick={() => {
+                      if (value === department) return;
+                      if (value === 'ENG_MECANICA') {
+                        setProcessDraft(emptyProcessInstructionDraft());
+                        setProcessErrors({});
+                      } else {
+                        setTitle('');
+                        setDescription('');
+                        clearFieldError('title');
+                        clearFieldError('description');
+                      }
+                      setDepartment(value);
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
             <Separator className='bg-border/60' />
 
-            <div className='grid gap-2'>
-              <Label htmlFor='title'>Título</Label>
-              <Input
-                id='title'
-                value={title}
-                onChange={(e) => {
-                  clearFieldError('title');
-                  setTitle(e.target.value);
+            {department === 'DESENVOLVIMENTO_PROCESSOS' ? (
+              <ProcessInstructionFormSection
+                value={processDraft}
+                errors={processErrors}
+                onChange={setProcessDraft}
+                onClearError={(field) => {
+                  setProcessErrors((prev) => {
+                    if (!prev[field]) return prev;
+                    const next = { ...prev };
+                    delete next[field];
+                    return next;
+                  });
                 }}
-                aria-invalid={!!fieldErrors.title}
               />
-              {fieldErrors.title && (
-                <p className='text-sm text-destructive'>{fieldErrors.title}</p>
-              )}
-            </div>
+            ) : (
+              <>
+                <div className='grid gap-2'>
+                  <Label htmlFor='title'>Título</Label>
+                  <Input
+                    id='title'
+                    value={title}
+                    onChange={(e) => {
+                      clearFieldError('title');
+                      setTitle(e.target.value);
+                    }}
+                    aria-invalid={!!fieldErrors.title}
+                  />
+                  {fieldErrors.title && (
+                    <p className='text-sm text-destructive'>
+                      {fieldErrors.title}
+                    </p>
+                  )}
+                </div>
 
-            <div className='grid gap-2'>
-              <Label htmlFor='description'>Descrição</Label>
-              <textarea
-                id='description'
-                className={cn(
-                  'border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-28 w-full resize-none rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-                  fieldErrors.description &&
-                    'border-destructive aria-invalid:border-destructive',
-                )}
-                value={description}
-                onChange={(e) => {
-                  clearFieldError('description');
-                  setDescription(e.target.value);
-                }}
-                aria-invalid={!!fieldErrors.description}
-              />
-              {fieldErrors.description && (
-                <p className='text-sm text-destructive'>
-                  {fieldErrors.description}
-                </p>
-              )}
-            </div>
+                <div className='grid gap-2'>
+                  <Label htmlFor='description'>Descrição</Label>
+                  <textarea
+                    id='description'
+                    className={cn(
+                      'border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-28 w-full resize-none rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+                      fieldErrors.description &&
+                        'border-destructive aria-invalid:border-destructive',
+                    )}
+                    value={description}
+                    onChange={(e) => {
+                      clearFieldError('description');
+                      setDescription(e.target.value);
+                    }}
+                    aria-invalid={!!fieldErrors.description}
+                  />
+                  {fieldErrors.description && (
+                    <p className='text-sm text-destructive'>
+                      {fieldErrors.description}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
             <div className='flex flex-col gap-2 sm:flex-row'>
               <Button

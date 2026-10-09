@@ -5,13 +5,11 @@ import { toast } from 'sonner';
 import { ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { userApi } from '@/services/user';
 import { ROUTES } from '@/routes/constants';
-import { UNIT, type Unit, type UserRole } from '@/types/auth';
+import { UNIT, type Unit, type UserDepartment, type UserRole } from '@/types/auth';
 import { ROLE_OPTIONS } from '@/pages/Usuarios/userFormConstants';
 import { useAuth } from '@/contexts/useAuth';
-import {
-  canAssignAdminRoleOnRegister,
-  canCreateUser,
-} from '@/config/permissions';
+import { assignableRoles, canCreateUser } from '@/config/permissions';
+import { DEPARTMENT_LABELS } from '@/utils/roles';
 import {
   cardNumberForApi,
   displayCardNumber,
@@ -36,6 +34,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function resolveDepartment(
+  actorRole: UserRole | undefined,
+  role: UserRole,
+  draft: UserDepartment,
+): UserDepartment {
+  if (role === 'ADMIN_ENG') return 'ENG_MECANICA';
+  if (role === 'ADMIN_PROCESSOS') return 'DESENVOLVIMENTO_PROCESSOS';
+  if (actorRole === 'ADMIN_ENG') return 'ENG_MECANICA';
+  if (actorRole === 'ADMIN_PROCESSOS') return 'DESENVOLVIMENTO_PROCESSOS';
+  return draft;
+}
+
 export function NewUserPage() {
   const { user: authUser } = useAuth();
   const navigate = useNavigate();
@@ -43,13 +53,13 @@ export function NewUserPage() {
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [employeeName, setEmployeeName] = useState<string | null>(null);
+  const allowedRoles = authUser ? assignableRoles(authUser.role) : [];
   const [roleDraft, setRoleDraft] = useState<UserRole>('USER');
-  const role =
-    authUser &&
-    !canAssignAdminRoleOnRegister(authUser.role) &&
-    roleDraft === 'ADMIN'
-      ? 'USER'
-      : roleDraft;
+  const role = allowedRoles.includes(roleDraft) ? roleDraft : 'USER';
+  const [departmentDraft, setDepartmentDraft] = useState<UserDepartment>(
+    authUser?.department ?? 'ENG_MECANICA',
+  );
+  const department = resolveDepartment(authUser?.role, role, departmentDraft);
   const [validateError, setValidateError] = useState<string | null>(null);
   const [validateLoading, setValidateLoading] = useState(false);
   const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,6 +99,7 @@ export function NewUserPage() {
         cardNumber: cardNumberForApi(cardNumber),
         unit,
         role,
+        department,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -112,10 +123,12 @@ export function NewUserPage() {
     return <Navigate to={ROUTES.USUARIOS} replace />;
   }
 
-  const roleOptions =
-    authUser && canAssignAdminRoleOnRegister(authUser.role)
-      ? ROLE_OPTIONS
-      : ROLE_OPTIONS.filter((opt) => opt.value !== 'ADMIN');
+  const roleOptions = ROLE_OPTIONS.filter((opt) =>
+    allowedRoles.includes(opt.value),
+  );
+  const showDepartment = authUser?.role === 'SUPER_ADMIN';
+  const departmentLocked =
+    role === 'ADMIN_ENG' || role === 'ADMIN_PROCESSOS';
 
   return (
     <div className='space-y-6'>
@@ -199,6 +212,35 @@ export function NewUserPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {showDepartment ? (
+              <div className='space-y-2'>
+                <Label htmlFor='department'>Departamento</Label>
+                <Select
+                  value={department}
+                  disabled={departmentLocked}
+                  onValueChange={(v) =>
+                    setDepartmentDraft(v as UserDepartment)
+                  }
+                >
+                  <SelectTrigger id='department' className='w-full'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      Object.entries(DEPARTMENT_LABELS) as [
+                        UserDepartment,
+                        string,
+                      ][]
+                    ).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
             {validateLoading && (
               <p className='flex items-center gap-2 text-sm text-muted-foreground'>

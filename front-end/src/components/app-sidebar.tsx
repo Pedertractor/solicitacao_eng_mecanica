@@ -46,7 +46,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <TeamSwitcher
           teams={[
             {
-              name: 'Solicitação Engenharia Mecânica',
+              name: 'Solicitação Pedertractor',
               logo: CogIcon,
               plan: user?.role ? formattedRoles[user.role] : 'App',
             },

@@ -22,7 +22,7 @@ function breadcrumbLabel(pathname: string): string {
   if (pathname.startsWith(ROUTES.SOLICITACOES)) return 'Solicitações';
   if (pathname.startsWith(ROUTES.USUARIOS_NOVO)) return 'Novo usuário';
   if (pathname.startsWith(ROUTES.USUARIOS)) return 'Usuários';
-  return 'Solicitação Engenharia Mecânica';
+  return 'Solicitação Pedertractor';
 }
 
 export function MainLayout() {

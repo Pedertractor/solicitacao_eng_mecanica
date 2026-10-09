@@ -23,6 +23,16 @@ export class SolicitationPrismaRepository {
     pillarOrLocation: string;
     title: string;
     description: string;
+    department?: $Enums.UserDepartment;
+    client?: $Enums.SolicitationClient | null;
+    processInstructionRequester?: string | null;
+    processInstructionProcess?: string | null;
+    processInstructionType?: string | null;
+    processInstructionDeadlineLabel?: string | null;
+    processInstructionDeadlineDate?: string | null;
+    deliveryDate?: Date | null;
+    partNumbers?: string | null;
+    fileLink?: string | null;
   }): Promise<Solicitation> {
     let lastError: unknown;
 
@@ -60,10 +70,14 @@ export class SolicitationPrismaRepository {
       | 'title'
       | 'status';
     sortOrder?: 'asc' | 'desc';
+    scope?: Prisma.SolicitationWhereInput;
   }): Promise<{ items: Solicitation[]; total: number }> {
-    const where = input.status
+    const statusWhere = input.status
       ? { status: input.status }
       : { status: { not: $Enums.SolicitationStatus.DELETED } };
+    const where: Prisma.SolicitationWhereInput = {
+      AND: [statusWhere, input.scope ?? {}],
+    };
     const skip = (input.page - 1) * input.pageSize;
     const sortBy = input.sortBy ?? 'createdAt';
     const sortOrder = input.sortOrder ?? 'desc';
@@ -165,6 +179,7 @@ export class SolicitationPrismaRepository {
     id: string,
     data: {
       kairoCardId: string;
+      kairoCardIds?: string | null;
       kairoTeamId: string;
       kairoSyncedByUserId: string;
       kind: $Enums.SolicitationKind;
@@ -175,6 +190,7 @@ export class SolicitationPrismaRepository {
       data: {
         kind: data.kind,
         kairoCardId: data.kairoCardId,
+        kairoCardIds: data.kairoCardIds ?? data.kairoCardId,
         kairoTeamId: data.kairoTeamId,
         kairoSyncedAt: new Date(),
         kairoSyncedByUserId: data.kairoSyncedByUserId,
@@ -206,11 +222,17 @@ export class SolicitationPrismaRepository {
     });
   }
 
-  async findPendingKairoSync(): Promise<Solicitation[]> {
+  async findPendingKairoSync(
+    department?: $Enums.UserDepartment,
+  ): Promise<Solicitation[]> {
     return await this.prisma.solicitation.findMany({
       where: {
-        kairoCardId: { not: null },
+        ...(department ? { department } : {}),
         kairoTeamId: { not: null },
+        OR: [
+          { kairoCardId: { not: null } },
+          { kairoCardIds: { not: null } },
+        ],
         status: {
           notIn: [
             $Enums.SolicitationStatus.COMPLETED,

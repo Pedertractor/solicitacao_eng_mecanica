@@ -1,4 +1,10 @@
-import type { AuthUser, ListUser, Unit, UserRole } from '@/types/auth';
+import type {
+  AuthUser,
+  ListUser,
+  Unit,
+  UserDepartment,
+  UserRole,
+} from '@/types/auth';
 import api from '@/utils/axiosConfig';
 
 /** Detalhe retornado por GET /users/:id (alinhado ao perfil completo da API). */
@@ -8,6 +14,8 @@ export interface UserDetail {
   cardNumber: string;
   unit: Unit;
   role: UserRole;
+  department: UserDepartment;
+  approvalStatus: AuthUser['approvalStatus'];
   mustChangePassword: boolean;
   active?: boolean;
   createdAt?: string;
@@ -28,9 +36,18 @@ export interface RegisterUserPayload {
   cardNumber: string;
   unit: Unit;
   role: UserRole;
+  department?: UserDepartment;
   /** Senha padrão gerada no backend; usuário altera no primeiro login */
   password?: string;
   active?: boolean;
+}
+
+export interface PublicSignupPayload {
+  cardNumber: string;
+  unit: Unit;
+  password: string;
+  confirmPassword: string;
+  department: UserDepartment;
 }
 
 export const userApi = {
@@ -49,6 +66,22 @@ export const userApi = {
       { skipErrorToast: true },
     );
     return data;
+  },
+
+  async validateSignup(
+    cardNumber: string,
+    unit: Unit,
+  ): Promise<ValidateEmployeeResponse> {
+    const { data } = await api.post<ValidateEmployeeResponse>(
+      `${BASE}/signup/validate`,
+      { cardNumber, unit },
+      { skipErrorToast: true },
+    );
+    return data;
+  },
+
+  async signup(payload: PublicSignupPayload): Promise<void> {
+    await api.post(`${BASE}/signup`, payload);
   },
 
   async register(payload: RegisterUserPayload): Promise<void> {
@@ -74,6 +107,20 @@ export const userApi = {
   async resetPasswordByAdmin(userId: string): Promise<UserDetail> {
     const { data } = await api.post<{ user: UserDetail }>(
       `${BASE}/${encodeURIComponent(userId)}/reset-password`,
+    );
+    return data.user;
+  },
+
+  async approve(userId: string): Promise<UserDetail> {
+    const { data } = await api.post<{ user: UserDetail }>(
+      `${BASE}/${encodeURIComponent(userId)}/approve`,
+    );
+    return data.user;
+  },
+
+  async reject(userId: string): Promise<UserDetail> {
+    const { data } = await api.post<{ user: UserDetail }>(
+      `${BASE}/${encodeURIComponent(userId)}/reject`,
     );
     return data.user;
   },

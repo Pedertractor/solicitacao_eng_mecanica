@@ -1,4 +1,4 @@
-import type { Unit } from '@/types/auth';
+import type { Unit, UserDepartment } from '@/types/auth';
 import api from '@/utils/axiosConfig';
 
 export type SolicitationStatus =
@@ -13,6 +13,7 @@ export type SolicitationDeletionSource = 'SOLICITATION_APP' | 'KAIRO';
 
 export type SolicitationClient =
   | 'CATERPILLAR'
+  | 'CATERPILLAR_GERADORES'
   | 'CNH_CONTAGEM'
   | 'CNH_CURITIBA'
   | 'CNH_PIRACICABA'
@@ -24,11 +25,14 @@ export type SolicitationClient =
   | 'JACTO'
   | 'JCB'
   | 'JOHN_DEERE_CATALAO'
+  | 'JOHN_DEERE_HORIZONTINA'
   | 'JOHN_DEERE_INDAIATUBA'
+  | 'MOTOCANA'
   | 'PEDERTRACTOR'
   | 'PRAMAC'
   | 'SILTOMAC'
   | 'TRACTOR_COMPONENTS'
+  | 'TRIVELATO'
   | 'VOLVO';
 
 export type SolicitationActivityType =
@@ -73,6 +77,14 @@ export interface Solicitation {
   pillarOrLocation: string;
   title: string;
   description: string;
+  processInstructionRequester: string | null;
+  processInstructionProcess: string | null;
+  processInstructionType: string | null;
+  processInstructionDeadlineLabel: string | null;
+  processInstructionDeadlineDate: string | null;
+  deliveryDate: string | null;
+  partNumbers: string | null;
+  fileLink: string | null;
   kind: SolicitationKind | null;
   client: SolicitationClient | null;
   activityType: SolicitationActivityType | null;
@@ -82,6 +94,7 @@ export interface Solicitation {
   statusUpdatedAt: string | null;
   statusUpdatedByUserId: string | null;
   kairoCardId: string | null;
+  kairoCardIds: string | null;
   kairoTeamId: string | null;
   kairoSyncedAt: string | null;
   kairoSyncedByUserId: string | null;
@@ -89,6 +102,7 @@ export interface Solicitation {
   deletedByUserId: string | null;
   deletedByName: string | null;
   deletedFrom: SolicitationDeletionSource | null;
+  department: UserDepartment;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,6 +116,16 @@ export interface PublicSolicitationTicket {
   sectorName: string;
   pillarOrLocation: string;
   unit: Unit;
+  department: UserDepartment;
+  client: SolicitationClient | null;
+  processInstructionRequester: string | null;
+  processInstructionProcess: string | null;
+  processInstructionType: string | null;
+  processInstructionDeadlineLabel: string | null;
+  processInstructionDeadlineDate: string | null;
+  deliveryDate: string | null;
+  partNumbers: string | null;
+  fileLink: string | null;
   createdAt: string;
   statusUpdatedAt: string | null;
 }
@@ -115,6 +139,13 @@ export interface ValidateRequesterResponse {
   email: string | null;
 }
 
+export interface PartLookup {
+  partNumber: string;
+  partCode: string | null;
+  description: string | null;
+  status: boolean | null;
+}
+
 export interface SectorByCostCenter {
   id: string;
   name: string;
@@ -123,21 +154,37 @@ export interface SectorByCostCenter {
   status: boolean;
 }
 
-export interface CreateSolicitationPayload {
+type CreateSolicitationBase = {
   cardNumber: string;
   unit: Unit;
   costCenter: string;
   pillarOrLocation: string;
-  title: string;
-  description: string;
   requesterEmail: string;
-}
+};
+
+export type CreateSolicitationPayload =
+  | (CreateSolicitationBase & {
+      department: 'ENG_MECANICA';
+      title: string;
+      description: string;
+    })
+  | (CreateSolicitationBase & {
+      department: 'DESENVOLVIMENTO_PROCESSOS';
+      processInstructionRequester: string;
+      processInstructionProcess: string;
+      processInstructionType: string;
+      client: SolicitationClient;
+      deliveryDate?: string;
+      partNumbers?: string;
+      fileLink?: string;
+      comments?: string;
+    });
 
 export interface UpdateSolicitationReviewPayload {
-  client: SolicitationClient | null;
-  activityType: SolicitationActivityType | null;
-  productType: SolicitationProductType | null;
-  priority: SolicitationPriority | null;
+  client?: SolicitationClient | null;
+  activityType?: SolicitationActivityType | null;
+  productType?: SolicitationProductType | null;
+  priority?: SolicitationPriority | null;
   approve?: boolean;
 }
 
@@ -181,6 +228,14 @@ export const solicitationApi = {
       { skipErrorToast: true },
     );
     return data;
+  },
+
+  async lookupPartByNumber(partNumber: string): Promise<PartLookup> {
+    const { data } = await api.get<{ part: PartLookup }>(
+      `${BASE}/part/${encodeURIComponent(partNumber)}`,
+      { skipErrorToast: true },
+    );
+    return data.part;
   },
 
   async getSectorByCostCenter(
@@ -330,24 +385,53 @@ export const SOLICITATION_DELETION_SOURCE_LABELS: Record<
 
 export const SOLICITATION_CLIENT_LABELS: Record<SolicitationClient, string> = {
   CATERPILLAR: 'CATERPILLAR',
-  CNH_CONTAGEM: 'CNH CONTAGEM',
-  CNH_CURITIBA: 'CNH CURITIBA',
-  CNH_PIRACICABA: 'CNH PIRACICABA',
-  CNH_SOROCABA: 'CNH SOROCABA',
-  CRUCIANELLI: 'CRUCIANELLI',
+  CATERPILLAR_GERADORES: 'CATERPILLAR - GERADORES',
+  CNH_CONTAGEM: 'CNH - CONTAGEM',
+  CNH_CURITIBA: 'CNH - CURITIBA',
+  CNH_PIRACICABA: 'CNH - PIRACICABA',
+  CNH_SOROCABA: 'CNH - SOROCABA',
+  CRUCIANELLI: 'CRUCIANELLI - PICCIN',
   DYNAPAC: 'DYNAPAC',
   HYUNDAI: 'HYUNDAI',
   IVECO: 'IVECO',
   JACTO: 'JACTO',
   JCB: 'JCB',
-  JOHN_DEERE_CATALAO: 'JOHN DEERE CATALAO',
-  JOHN_DEERE_INDAIATUBA: 'JOHN DEERE INDAIATUBA',
+  JOHN_DEERE_CATALAO: 'JOHN DEERE - CATALÃO',
+  JOHN_DEERE_HORIZONTINA: 'JOHN DEERE - HORIZONTINA',
+  JOHN_DEERE_INDAIATUBA: 'JOHN DEERE - INDAIATUBA',
+  MOTOCANA: 'MOTOCANA',
   PEDERTRACTOR: 'PEDERTRACTOR',
-  PRAMAC: 'PRAMAC',
+  PRAMAC: 'PRAMAC GERADORES',
   SILTOMAC: 'SILTOMAC',
   TRACTOR_COMPONENTS: 'TRACTOR COMPONENTS',
+  TRIVELATO: 'TRIVELATO',
   VOLVO: 'VOLVO',
 };
+
+export const SOLICITATION_CLIENT_OPTIONS: SolicitationClient[] = [
+  'CATERPILLAR',
+  'CNH_PIRACICABA',
+  'CATERPILLAR_GERADORES',
+  'CNH_CONTAGEM',
+  'IVECO',
+  'CNH_CURITIBA',
+  'CNH_SOROCABA',
+  'CRUCIANELLI',
+  'DYNAPAC',
+  'HYUNDAI',
+  'JACTO',
+  'JCB',
+  'JOHN_DEERE_CATALAO',
+  'JOHN_DEERE_HORIZONTINA',
+  'JOHN_DEERE_INDAIATUBA',
+  'PEDERTRACTOR',
+  'PRAMAC',
+  'SILTOMAC',
+  'MOTOCANA',
+  'VOLVO',
+  'TRIVELATO',
+  'TRACTOR_COMPONENTS',
+];
 
 export const SOLICITATION_ACTIVITY_TYPE_LABELS: Record<
   SolicitationActivityType,

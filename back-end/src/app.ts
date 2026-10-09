@@ -27,7 +27,7 @@ app.register(swagger, {
   openapi: {
     openapi: '3.0.0',
     info: {
-      title: 'Solicitação Eng. Mecânica API',
+      title: 'Solicitação Pedertractor API',
       description:
         'API de solicitações públicas e painel administrativo',
       version: '1.0.0',

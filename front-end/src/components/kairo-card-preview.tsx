@@ -10,6 +10,7 @@ export function KairoCardPreview({
   kind,
   tag,
   estimatedHours,
+  showLabel = true,
   className,
 }: {
   title: string;
@@ -17,6 +18,7 @@ export function KairoCardPreview({
   kind: SolicitationKind;
   tag?: KairoTagOption | null;
   estimatedHours?: string;
+  showLabel?: boolean;
   className?: string;
 }) {
   const parsedEstimatedHours = estimatedHours?.trim()
@@ -28,10 +30,12 @@ export function KairoCardPreview({
     parsedEstimatedHours > 0;
 
   return (
-    <div className={cn('space-y-2', className)}>
-      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-        Pré-visualização no Kairo
-      </p>
+    <div className={cn(showLabel && 'space-y-2', className)}>
+      {showLabel ? (
+        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+          Pré-visualização no Kairo
+        </p>
+      ) : null}
       <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
         <div className="flex items-start justify-between gap-2">
           <p className="line-clamp-2 min-w-0 flex-1 text-sm font-medium">

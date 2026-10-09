@@ -6,10 +6,8 @@ import { userApi } from '@/services/user';
 import { ROUTES } from '@/routes/constants';
 import type { ListUser, UserRole } from '@/types/auth';
 import { useAuth } from '@/contexts/useAuth';
-import {
-  canCreateUser,
-  canEditUserAsAdmin,
-} from '@/config/permissions';
+import { canCreateUser, canEditUserAsAdmin } from '@/config/permissions';
+import { DEPARTMENT_LABELS, formattedRoles } from '@/utils/roles';
 import { EditUserModal } from '@/pages/Usuarios/EditUserModal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,10 +25,7 @@ import { TablePagination } from '@/components/ui/table-pagination';
 
 const PAGE_SIZE = 10;
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  ADMIN: 'ADMIN',
-  USER: 'USUÁRIO',
-};
+const ROLE_LABELS: Record<UserRole, string> = formattedRoles;
 
 function getInitials(name: string): string {
   return name
@@ -79,14 +74,8 @@ export function UserListPage() {
         onClose={() => setEditUser(null)}
       />
 
-      <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-        <div>
-          <h1>Usuários</h1>
-          <p className='text-muted-foreground'>
-            Lista de usuários do sistema
-          </p>
-        </div>
-        {showNewUser ? (
+      {showNewUser ? (
+        <div className='flex justify-end'>
           <Button
             type='button'
             onClick={() => navigate(ROUTES.USUARIOS_NOVO)}
@@ -95,8 +84,8 @@ export function UserListPage() {
             <Plus />
             Novo usuário
           </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className='relative max-w-md'>
         <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
@@ -141,6 +130,7 @@ export function UserListPage() {
                     <TableHead>Nome</TableHead>
                     <TableHead>Cartão</TableHead>
                     <TableHead>Unidade</TableHead>
+                    <TableHead>Área</TableHead>
                     <TableHead>Função</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -192,7 +182,7 @@ export function UserListPage() {
 
 function RoleBadge({ role }: { role: UserRole }) {
   return (
-    <Badge variant={role === 'ADMIN' ? 'secondary' : 'outline'}>
+    <Badge variant={role === 'USER' ? 'outline' : 'secondary'}>
       {ROLE_LABELS[role]}
     </Badge>
   );
@@ -242,6 +232,7 @@ function UserRow({
       </TableCell>
       <TableCell>{user.cardNumber}</TableCell>
       <TableCell>{user.unit}</TableCell>
+      <TableCell>{DEPARTMENT_LABELS[user.department]}</TableCell>
       <TableCell>
         <RoleBadge role={user.role} />
       </TableCell>
@@ -295,6 +286,9 @@ function UserCard({
         <RoleBadge role={user.role} />
         <ActiveBadge active={user.active} />
         <span className='text-xs text-muted-foreground'>{user.unit}</span>
+        <span className='text-xs text-muted-foreground'>
+          {DEPARTMENT_LABELS[user.department]}
+        </span>
       </div>
     </div>
   );

@@ -13,8 +13,21 @@ enum Unit {
 }
 
 enum UserRole {
-  ADMIN
+  SUPER_ADMIN
+  ADMIN_ENG
+  ADMIN_PROCESSOS
   USER
+}
+
+enum UserDepartment {
+  ENG_MECANICA
+  DESENVOLVIMENTO_PROCESSOS
+}
+
+enum UserApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum SolicitationStatus {
@@ -33,6 +46,7 @@ enum SolicitationDeletionSource {
 
 enum SolicitationClient {
   CATERPILLAR
+  CATERPILLAR_GERADORES
   CNH_CONTAGEM
   CNH_CURITIBA
   CNH_PIRACICABA
@@ -44,11 +58,14 @@ enum SolicitationClient {
   JACTO
   JCB
   JOHN_DEERE_CATALAO
+  JOHN_DEERE_HORIZONTINA
   JOHN_DEERE_INDAIATUBA
+  MOTOCANA
   PEDERTRACTOR
   PRAMAC
   SILTOMAC
   TRACTOR_COMPONENTS
+  TRIVELATO
   VOLVO
 }
 
@@ -94,8 +111,10 @@ model User {
   cardNumber   String
   passwordHash String
 
-  role   UserRole @default(USER)
-  active Boolean  @default(true)
+  role             UserRole           @default(USER)
+  department       UserDepartment     @default(ENG_MECANICA)
+  approvalStatus   UserApprovalStatus @default(APPROVED)
+  active           Boolean            @default(true)
 
   mustChangePassword Boolean @default(true)
 
@@ -110,6 +129,7 @@ model User {
   @@unique([cardNumber, unit])
   @@index([role])
   @@index([unit])
+  @@index([department])
 }
 
 model UserKairoCredential {
@@ -151,6 +171,17 @@ model Solicitation {
   title            String
   description      String
 
+  processInstructionRequester     String?
+  processInstructionProcess       String?
+  processInstructionType          String?
+  processInstructionDeadlineLabel String?
+  processInstructionDeadlineDate  String?
+  deliveryDate                    DateTime?
+  partNumbers                     String?
+  fileLink                        String?
+
+  department   UserDepartment     @default(ENG_MECANICA)
+
   kind         SolicitationKind?
   client       SolicitationClient?
   activityType SolicitationActivityType?
@@ -162,6 +193,7 @@ model Solicitation {
   statusUpdatedByUserId String?
 
   kairoCardId          String?
+  kairoCardIds         String?
   kairoTeamId          String?
   kairoSyncedAt        DateTime?
   kairoSyncedByUserId  String?
@@ -183,4 +215,5 @@ model Solicitation {
   @@index([cardNumber, unit])
   @@index([costCenter])
   @@index([deletedAt])
+  @@index([department])
 }

@@ -13,6 +13,8 @@ const userSafeSelect = {
   unit: true,
   cardNumber: true,
   role: true,
+  department: true,
+  approvalStatus: true,
   active: true,
   mustChangePassword: true,
   createdAt: true,
@@ -33,8 +35,11 @@ export class UserPrismaRepository {
     });
   }
 
-  async findAll(): Promise<UserWithoutPassword[]> {
+  async findAll(
+    where?: Prisma.UserWhereInput,
+  ): Promise<UserWithoutPassword[]> {
     return await this.prisma.user.findMany({
+      ...(where ? { where } : {}),
       orderBy: { name: 'asc' },
       select: userSafeSelect,
     });
@@ -81,7 +86,10 @@ export class UserPrismaRepository {
     unit: $Enums.Unit;
     cardNumber: string;
     role: $Enums.UserRole;
+    department: $Enums.UserDepartment;
+    approvalStatus?: $Enums.UserApprovalStatus;
     active: boolean;
+    mustChangePassword?: boolean;
     passwordHash: string;
   }): Promise<UserWithoutPassword> {
     return await this.prisma.user.create({
@@ -115,10 +123,40 @@ export class UserPrismaRepository {
   async updateRole(
     userId: string,
     role: $Enums.UserRole,
+    department: $Enums.UserDepartment,
   ): Promise<UserWithoutPassword> {
     return await this.prisma.user.update({
       where: { id: userId },
-      data: { role },
+      data: { role, department },
+      select: userSafeSelect,
+    });
+  }
+
+  async updateApproval(
+    userId: string,
+    data: {
+      approvalStatus: $Enums.UserApprovalStatus;
+      active: boolean;
+    },
+  ): Promise<UserWithoutPassword> {
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: userSafeSelect,
+    });
+  }
+
+  async applyBootstrapSuperAdminState(
+    userId: string,
+  ): Promise<UserWithoutPassword> {
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        role: $Enums.UserRole.SUPER_ADMIN,
+        department: $Enums.UserDepartment.ENG_MECANICA,
+        approvalStatus: $Enums.UserApprovalStatus.APPROVED,
+        active: true,
+      },
       select: userSafeSelect,
     });
   }

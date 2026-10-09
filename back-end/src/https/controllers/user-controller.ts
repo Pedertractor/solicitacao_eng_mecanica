@@ -1,8 +1,10 @@
 import z from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { actorFromSession } from '../../auth/access-policy.js';
 import { UserService } from '../../services/user-service.js';
-import { HttpError } from '../errors/index.js';
 import { $Enums } from '../../generated/prisma/client.js';
+
+const departmentEnum = z.enum($Enums.UserDepartment);
 
 export async function register(request: FastifyRequest, reply: FastifyReply) {
   const userService = new UserService();
@@ -11,25 +13,44 @@ export async function register(request: FastifyRequest, reply: FastifyReply) {
     cardNumber: z.string().min(1, 'Cartão é obrigatório'),
     active: z.boolean().default(true),
     role: z.enum($Enums.UserRole),
+    department: departmentEnum.optional(),
   });
 
   const body = bodySchema.parse(request.body);
-
-  if (
-    body.role === $Enums.UserRole.ADMIN &&
-    request.user.role !== $Enums.UserRole.ADMIN
-  ) {
-    throw new HttpError(
-      'Apenas administradores podem criar usuários com papel Admin',
-      403,
-    );
-  }
-
-  const user = await userService.register(body);
+  const user = await userService.register(body, actorFromSession(request.user));
   const fullUser = await userService.getById(user.id);
 
   return reply.status(201).send({
     user: fullUser,
+  });
+}
+
+export async function signup(request: FastifyRequest, reply: FastifyReply) {
+  const userService = new UserService();
+  const bodySchema = z
+    .object({
+      unit: z.enum($Enums.Unit),
+      cardNumber: z.string().min(1, 'Cartão é obrigatório'),
+      password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+      confirmPassword: z.string().min(6, 'Confirme a senha'),
+      department: departmentEnum,
+    })
+    .refine((body) => body.password === body.confirmPassword, {
+      message: 'As senhas não coincidem',
+      path: ['confirmPassword'],
+    });
+
+  const body = bodySchema.parse(request.body);
+  await userService.signupPublic({
+    cardNumber: body.cardNumber,
+    unit: body.unit,
+    password: body.password,
+    department: body.department,
+  });
+
+  return reply.status(201).send({
+    message:
+      'Cadastro enviado. Aguarde a aprovação do administrador da área escolhida.',
   });
 }
 
@@ -78,7 +99,7 @@ export async function resetUserPasswordByAdmin(
   const { userId } = paramsSchema.parse(request.params);
   const userService = new UserService();
   const user = await userService.resetPasswordToCardNumberByAdmin(
-    request.user.sub,
+    actorFromSession(request.user),
     userId,
   );
   return reply.status(200).send({ user });
@@ -92,7 +113,7 @@ export async function getMe(request: FastifyRequest, reply: FastifyReply) {
 
 export async function listUsers(request: FastifyRequest, reply: FastifyReply) {
   const userService = new UserService();
-  const users = await userService.listAll();
+  const users = await userService.listAll(actorFromSession(request.user));
   return reply.status(200).send({ users });
 }
 
@@ -105,7 +126,10 @@ export async function getUserById(
   });
   const userService = new UserService();
   const { userId } = getUserIdParamsSchema.parse(request.params);
-  const user = await userService.getById(userId);
+  const user = await userService.getManagedById(
+    actorFromSession(request.user),
+    userId,
+  );
   return reply.status(200).send({ user });
 }
 
@@ -125,7 +149,7 @@ export async function updateUserByAdmin(
 
   const userService = new UserService();
   const user = await userService.updateUserRoleByAdmin(
-    request.user.sub,
+    actorFromSession(request.user),
     userId,
     body.role,
   );
@@ -145,4 +169,36 @@ export async function validateEmployee(
   const userService = new UserService();
   const result = await userService.validateEmployee(cardNumber, unit);
   return reply.status(200).send(result);
+}
+
+export async function approveUser(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    userId: z.string().uuid('ID de usuário inválido'),
+  });
+  const { userId } = paramsSchema.parse(request.params);
+  const userService = new UserService();
+  const user = await userService.approveUser(
+    actorFromSession(request.user),
+    userId,
+  );
+  return reply.status(200).send({ user });
+}
+
+export async function rejectUser(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    userId: z.string().uuid('ID de usuário inválido'),
+  });
+  const { userId } = paramsSchema.parse(request.params);
+  const userService = new UserService();
+  const user = await userService.rejectUser(
+    actorFromSession(request.user),
+    userId,
+  );
+  return reply.status(200).send({ user });
 }

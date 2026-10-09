@@ -28,10 +28,10 @@ export async function settingsRoutes(app: FastifyInstance) {
   app.get(
     '/email-cc',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.SUPER_ADMIN])],
       schema: {
         tags: ['settings'],
-        summary: 'Listar e-mails em cópia (ADMIN)',
+        summary: 'Listar e-mails em cópia (super admin)',
         security: [{ bearerAuth: [] }],
         response: {
           200: emailCcResponseSchema,
@@ -46,10 +46,10 @@ export async function settingsRoutes(app: FastifyInstance) {
   app.put(
     '/email-cc',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.SUPER_ADMIN])],
       schema: {
         tags: ['settings'],
-        summary: 'Atualizar e-mails em cópia (ADMIN)',
+        summary: 'Atualizar e-mails em cópia (super admin)',
         security: [{ bearerAuth: [] }],
         body: {
           type: 'object',

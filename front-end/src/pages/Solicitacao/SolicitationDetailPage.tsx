@@ -4,27 +4,27 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, Check, CircleCheck, Copy, Pencil, Trash2 } from 'lucide-react';
 import {
-  CheckIcon,
+  ArrowLeft,
+  Check,
+  CircleCheck,
+  Copy,
+  Pencil,
+  Trash2,
+  X,
+} from 'lucide-react';
+import {
   StampIcon,
-  type CheckIconHandle,
   type StampIconHandle,
 } from 'lucide-animated';
 import { KairoIcon } from '@/components/kairo-icon';
+import { listKairoCardIds } from '@/lib/kairo-cards';
 import {
-  SOLICITATION_ACTIVITY_TYPE_LABELS,
   SOLICITATION_CLIENT_LABELS,
   SOLICITATION_DELETION_SOURCE_LABELS,
-  SOLICITATION_PRIORITY_LABELS,
-  SOLICITATION_PRODUCT_TYPE_LABELS,
   SOLICITATION_STATUS_LABELS,
   solicitationApi,
   type Solicitation,
-  type SolicitationActivityType,
-  type SolicitationClient,
-  type SolicitationPriority,
-  type SolicitationProductType,
   type SolicitationStatus,
 } from '@/services/solicitation';
 import { ROUTES, solicitationTrackPath } from '@/routes/constants';
@@ -47,7 +47,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -57,17 +56,17 @@ import {
 } from '@/components/ui/select';
 import { copyToClipboard } from '@/lib/clipboard';
 import { cn, SoftBreakText } from '@/lib/utils';
+import { useAuth } from '@/contexts/useAuth';
+import { canManageSolicitations } from '@/config/permissions';
+import { formatIsoDateLabel } from '@/config/process-instruction';
+import { PartNumberChips } from '@/components/PartNumberAllocator';
 import { SolicitationKairoDialog } from './SolicitationKairoDialog';
 
-const NONE = '__none__';
 const REVIEW_ICON_SIZE = 16;
+const REJECTED_BUTTON_CLASS =
+  'border-transparent bg-muted text-muted-foreground hover:bg-muted dark:bg-muted';
 const APPROVED_BUTTON_CLASS =
   'border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600 dark:text-white';
-const DELETABLE_STATUSES: SolicitationStatus[] = [
-  'PENDING',
-  'IN_REVIEW',
-  'APPROVED',
-];
 const EDITABLE_STATUSES: SolicitationStatus[] = [
   'PENDING',
   'IN_REVIEW',
@@ -87,6 +86,9 @@ async function copyText(value: string) {
 
 export function SolicitationDetailPage() {
   const { id = '' } = useParams();
+  const { user } = useAuth();
+  const canManage =
+    user?.role != null && canManageSolicitations(user.role);
   const queryClient = useQueryClient();
   const [kairoDialogOpen, setKairoDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -141,7 +143,7 @@ export function SolicitationDetailPage() {
     if (
       !id ||
       !query.data ||
-      !query.data.kairoCardId ||
+      !listKairoCardIds(query.data).length ||
       query.data.status === 'COMPLETED' ||
       query.data.status === 'CANCELLED' ||
       query.data.status === 'DELETED'
@@ -192,7 +194,7 @@ export function SolicitationDetailPage() {
   });
 
   const item = query.data;
-  const canDelete = item ? DELETABLE_STATUSES.includes(item.status) : false;
+  const canDelete = item ? item.status !== 'DELETED' : false;
 
   return (
     <div className="min-w-0 max-w-full space-y-4 md:p-6">
@@ -219,16 +221,20 @@ export function SolicitationDetailPage() {
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <EditableSolicitationStatus
-                  status={item.status}
-                  disabled={
-                    statusMutation.isPending ||
-                    item.status === 'DELETED' ||
-                    item.status === 'COMPLETED'
-                  }
-                  onStatusChange={(status) => statusMutation.mutate(status)}
-                />
-                {canDelete ? (
+                {canManage ? (
+                  <EditableSolicitationStatus
+                    status={item.status}
+                    disabled={
+                      statusMutation.isPending ||
+                      item.status === 'DELETED' ||
+                      item.status === 'COMPLETED'
+                    }
+                    onStatusChange={(status) => statusMutation.mutate(status)}
+                  />
+                ) : (
+                  <SolicitationStatusBadge status={item.status} />
+                )}
+                {canManage && canDelete ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -310,19 +316,111 @@ export function SolicitationDetailPage() {
               <Field label="Centro de custo" value={item.costCenter} />
               <Field label="Setor" value={item.sectorName} />
               <Field label="Pilar / local" value={item.pillarOrLocation} />
-              <div className="min-w-0 md:col-span-2">
-                <Field label="Descrição" value={item.description} multiline />
-              </div>
+              {item.department === 'DESENVOLVIMENTO_PROCESSOS' ? (
+                <div className="grid min-w-0 gap-4 md:col-span-2 md:grid-cols-2">
+                  <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide md:col-span-2">
+                    Instrução de processo
+                  </div>
+                  <Field
+                    label="Área solicitante"
+                    value={item.processInstructionRequester ?? '—'}
+                  />
+                  <Field
+                    label="Processo"
+                    value={item.processInstructionProcess ?? '—'}
+                  />
+                  <Field
+                    label="Tipo"
+                    value={item.processInstructionType ?? '—'}
+                  />
+                  <Field
+                    label="Cliente"
+                    value={
+                      item.client
+                        ? SOLICITATION_CLIENT_LABELS[item.client]
+                        : '—'
+                    }
+                  />
+                  <Field
+                    label="Prazo"
+                    value={item.processInstructionDeadlineLabel ?? '—'}
+                  />
+                  <Field
+                    label="Data limite"
+                    value={item.processInstructionDeadlineDate ?? '—'}
+                  />
+                  {item.deliveryDate ? (
+                    <Field
+                      label="Data de entrega"
+                      value={formatIsoDateLabel(item.deliveryDate)}
+                    />
+                  ) : null}
+                  <div className="min-w-0">
+                    <div className="text-muted-foreground text-xs uppercase tracking-wide">
+                      Part Number
+                    </div>
+                    <PartNumberChips value={item.partNumbers} />
+                  </div>
+                  <Field
+                    label="Link de arquivos"
+                    value={item.fileLink?.trim() || '—'}
+                  />
+                  {item.description.trim() ? (
+                    <div className="min-w-0 md:col-span-2">
+                      <Field
+                        label="Comentários"
+                        value={item.description}
+                        multiline
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="min-w-0 md:col-span-2">
+                  <Field label="Descrição" value={item.description} multiline />
+                </div>
+              )}
+              {listKairoCardIds(item).length > 0 ? (
+                <div className="min-w-0 md:col-span-2">
+                  <div className="text-muted-foreground text-xs uppercase tracking-wide">
+                    {listKairoCardIds(item).length > 1
+                      ? 'Cards Kairo'
+                      : 'Card Kairo'}
+                  </div>
+                  <ul className="mt-1 space-y-1">
+                    {listKairoCardIds(item).map((cardId) => (
+                      <li key={cardId} className="break-all font-mono text-sm">
+                        {cardId}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {canManage &&
+              item.department === 'DESENVOLVIMENTO_PROCESSOS' ? (
+                <SolicitationReviewPanel
+                  key={`${item.id}-${item.updatedAt}-embedded`}
+                  id={id}
+                  item={item}
+                  variant="embedded"
+                  onApproved={openKairoDialogAfterApprove}
+                  onOpenKairo={() => setKairoDialogOpen(true)}
+                />
+              ) : null}
             </CardContent>
           </Card>
 
-          <SolicitationReviewPanel
-            key={`${item.id}-${item.updatedAt}`}
-            id={id}
-            item={item}
-            onApproved={openKairoDialogAfterApprove}
-            onOpenKairo={() => setKairoDialogOpen(true)}
-          />
+          {canManage ? (
+            <>
+          {item.department !== 'DESENVOLVIMENTO_PROCESSOS' ? (
+            <SolicitationReviewPanel
+              key={`${item.id}-${item.updatedAt}`}
+              id={id}
+              item={item}
+              onApproved={openKairoDialogAfterApprove}
+              onOpenKairo={() => setKairoDialogOpen(true)}
+            />
+          ) : null}
 
           <SolicitationKairoDialog
             open={kairoDialogOpen}
@@ -339,9 +437,11 @@ export function SolicitationDetailPage() {
                 <AlertDialogTitle>Excluir solicitação?</AlertDialogTitle>
                 <AlertDialogDescription>
                   A solicitação permanecerá no histórico como excluída.
-                  {item.kairoCardId
-                    ? ' O card correspondente no Kairo também será excluído.'
-                    : ''}
+                  {listKairoCardIds(item).length > 1
+                    ? ' Os cards correspondentes no Kairo também serão excluídos.'
+                    : listKairoCardIds(item).length === 1
+                      ? ' O card correspondente no Kairo também será excluído.'
+                      : ''}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -361,6 +461,8 @@ export function SolicitationDetailPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+            </>
+          ) : null}
         </>
       )}
     </div>
@@ -370,165 +472,145 @@ export function SolicitationDetailPage() {
 function SolicitationReviewPanel({
   id,
   item,
+  variant = 'card',
   onApproved,
   onOpenKairo,
 }: {
   id: string;
   item: Solicitation;
+  variant?: 'card' | 'embedded';
   onApproved?: () => void;
   onOpenKairo?: () => void;
 }) {
   const queryClient = useQueryClient();
-  const saveIconRef = useRef<CheckIconHandle>(null);
   const approveIconRef = useRef<StampIconHandle>(null);
   const isDeleted = item.status === 'DELETED';
+  const isRejected = item.status === 'CANCELLED';
   const isApproved =
     item.status === 'APPROVED' ||
     item.status === 'COMPLETED' ||
     isDeleted;
-  const sentToKairo = Boolean(item.kairoCardId);
+  const reviewClosed = isApproved || isRejected;
+  const sentToKairo = listKairoCardIds(item).length > 0;
 
-  const [client, setClient] = useState<SolicitationClient | null>(item.client);
-  const [activityType, setActivityType] =
-    useState<SolicitationActivityType | null>(item.activityType);
-  const [productType, setProductType] =
-    useState<SolicitationProductType | null>(item.productType);
-  const [priority, setPriority] = useState<SolicitationPriority | null>(
-    item.priority,
-  );
-
-  const reviewMutation = useMutation({
-    mutationFn: (approve: boolean) =>
-      solicitationApi.updateReview(id, {
-        client,
-        activityType,
-        productType,
-        priority,
-        approve,
-      }),
-    onSuccess: (updated, approve) => {
+  const approveMutation = useMutation({
+    mutationFn: () => solicitationApi.updateReview(id, { approve: true }),
+    onSuccess: (updated) => {
       queryClient.setQueryData(['solicitation', id], updated);
       queryClient.invalidateQueries({ queryKey: ['solicitations'] });
-      toast.success(approve ? 'Solicitação aprovada.' : 'Revisão salva.');
-      if (approve && !updated.kairoCardId) {
+      toast.success('Solicitação aprovada.');
+      if (!listKairoCardIds(updated).length) {
         onApproved?.();
       }
     },
   });
 
-  const saving = reviewMutation.isPending;
+  const rejectMutation = useMutation({
+    mutationFn: () => solicitationApi.updateStatus(id, 'CANCELLED'),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['solicitation', id], updated);
+      queryClient.invalidateQueries({ queryKey: ['solicitations'] });
+      toast.success('Solicitação reprovada.');
+    },
+  });
+
+  const acting =
+    approveMutation.isPending || rejectMutation.isPending;
+
+  const reviewDescription = isDeleted
+    ? 'Solicitação excluída.'
+    : isRejected
+      ? 'Solicitação reprovada.'
+      : isApproved
+        ? 'Solicitação aprovada.'
+        : 'Aprove ou reprove a solicitação.';
+
+  const actions = (
+    <div className="flex flex-wrap justify-end gap-2">
+      {isRejected ? (
+        <Button
+          type="button"
+          disabled
+          variant="outline"
+          className={cn(REJECTED_BUTTON_CLASS, 'disabled:opacity-100')}
+        >
+          <X className="size-4" />
+          Reprovada
+        </Button>
+      ) : null}
+      {isApproved ? (
+        <>
+          {!isDeleted ? (
+            <Button type="button" variant="outline" onClick={onOpenKairo}>
+              <KairoIcon className="size-4" />
+              Kairo
+              {sentToKairo && (
+                <CircleCheck
+                  className="size-4 text-emerald-600"
+                  aria-label="Enviado ao Kairo"
+                />
+              )}
+            </Button>
+          ) : null}
+          {!isDeleted ? (
+            <Button
+              type="button"
+              disabled
+              className={cn(APPROVED_BUTTON_CLASS, 'disabled:opacity-100')}
+            >
+              <Check className="size-4" />
+              Aprovado
+            </Button>
+          ) : null}
+        </>
+      ) : !reviewClosed ? (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={acting}
+            onClick={() => rejectMutation.mutate()}
+          >
+            <X className="size-4" />
+            Reprovar
+          </Button>
+          <Button
+            type="button"
+            disabled={acting}
+            onMouseEnter={() => approveIconRef.current?.startAnimation()}
+            onMouseLeave={() => approveIconRef.current?.stopAnimation()}
+            onClick={() => approveMutation.mutate()}
+          >
+            <StampIcon
+              ref={approveIconRef}
+              size={REVIEW_ICON_SIZE}
+              animateOnHover={false}
+            />
+            Aprovar
+          </Button>
+        </>
+      ) : null}
+    </div>
+  );
+
+  if (variant === 'embedded') {
+    return (
+      <div className="min-w-0 space-y-3 border-t pt-4 md:col-span-2">
+        {!isApproved && !isRejected && !isDeleted ? (
+          <p className="text-muted-foreground text-sm">{reviewDescription}</p>
+        ) : null}
+        {actions}
+      </div>
+    );
+  }
 
   return (
     <Card className="min-w-0 overflow-hidden">
       <CardHeader>
         <CardTitle>Revisão</CardTitle>
-        <CardDescription>
-          {isDeleted
-            ? 'Solicitação excluída. Os dados de classificação foram preservados no histórico.'
-            : isApproved
-              ? 'Solicitação aprovada. Os campos de classificação não podem mais ser editados.'
-              : 'Preencha os campos para classificar a solicitação. Aprovar exige todos preenchidos.'}
-        </CardDescription>
+        <CardDescription>{reviewDescription}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <ReviewSelect
-            label="Cliente"
-            value={client}
-            labels={SOLICITATION_CLIENT_LABELS}
-            onChange={setClient}
-            disabled={isApproved}
-          />
-          <ReviewSelect
-            label="Tipo de Atividade"
-            value={activityType}
-            labels={SOLICITATION_ACTIVITY_TYPE_LABELS}
-            onChange={setActivityType}
-            disabled={isApproved}
-          />
-          <ReviewSelect
-            label="Tipo de Produto"
-            value={productType}
-            labels={SOLICITATION_PRODUCT_TYPE_LABELS}
-            onChange={setProductType}
-            disabled={isApproved}
-          />
-          <ReviewSelect
-            label="Prioridade"
-            value={priority}
-            labels={SOLICITATION_PRIORITY_LABELS}
-            onChange={setPriority}
-            disabled={isApproved}
-          />
-        </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {!isApproved && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onMouseEnter={() => saveIconRef.current?.startAnimation()}
-              onMouseLeave={() => saveIconRef.current?.stopAnimation()}
-              onClick={() => reviewMutation.mutate(false)}
-            >
-              <CheckIcon
-                ref={saveIconRef}
-                size={REVIEW_ICON_SIZE}
-                animateOnHover={false}
-              />
-              Salvar
-            </Button>
-          )}
-          {isApproved ? (
-            <>
-              {!isDeleted ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onOpenKairo}
-                >
-                  <KairoIcon className="size-4" />
-                  Kairo
-                  {sentToKairo && (
-                    <CircleCheck
-                      className="size-4 text-emerald-600"
-                      aria-label="Enviado ao Kairo"
-                    />
-                  )}
-                </Button>
-              ) : null}
-              {!isDeleted ? (
-                <Button
-                  type="button"
-                  disabled
-                  className={cn(
-                    APPROVED_BUTTON_CLASS,
-                    'disabled:opacity-100',
-                  )}
-                >
-                  <Check className="size-4" />
-                  Aprovado
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <Button
-              type="button"
-              disabled={saving}
-              onMouseEnter={() => approveIconRef.current?.startAnimation()}
-              onMouseLeave={() => approveIconRef.current?.stopAnimation()}
-              onClick={() => reviewMutation.mutate(true)}
-            >
-              <StampIcon
-                ref={approveIconRef}
-                size={REVIEW_ICON_SIZE}
-                animateOnHover={false}
-              />
-              Aprovar
-            </Button>
-          )}
-        </div>
-      </CardContent>
+      <CardContent className="space-y-4">{actions}</CardContent>
     </Card>
   );
 }
@@ -617,41 +699,3 @@ function Field({
   );
 }
 
-function ReviewSelect<T extends string>({
-  label,
-  value,
-  labels,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  value: T | null;
-  labels: Record<T, string>;
-  onChange: (value: T | null) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-3">
-      <Label>{label} *</Label>
-      <Select
-        value={value ?? NONE}
-        disabled={disabled}
-        onValueChange={(next) =>
-          onChange(next === NONE ? null : (next as T))
-        }
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Selecione" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE}>Selecione</SelectItem>
-          {(Object.keys(labels) as T[]).map((key) => (
-            <SelectItem key={key} value={key}>
-              {labels[key]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}

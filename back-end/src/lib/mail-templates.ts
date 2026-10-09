@@ -68,7 +68,7 @@ function baseLayout(input: {
           <tr>
             <td style="background-color:#0f172a;padding:24px 28px;">
               <p style="margin:0;font-size:16px;font-weight:600;color:#f8fafc;letter-spacing:-0.01em;">
-                Solicitação Engenharia Mecânica
+                Solicitação Pedertractor
               </p>
             </td>
           </tr>

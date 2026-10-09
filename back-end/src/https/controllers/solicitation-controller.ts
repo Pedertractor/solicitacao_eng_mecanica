@@ -1,5 +1,6 @@
 import z from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { actorFromSession } from '../../auth/access-policy.js';
 import { $Enums } from '../../generated/prisma/client.js';
 import { SolicitationService } from '../../services/solicitation-service.js';
 
@@ -15,6 +16,19 @@ export async function validateRequester(
   const service = new SolicitationService();
   const result = await service.validateRequester(cardNumber, unit);
   return reply.status(200).send(result);
+}
+
+export async function getPartByNumber(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    partNumber: z.string().min(1, 'Part number é obrigatório'),
+  });
+  const { partNumber } = paramsSchema.parse(request.params);
+  const service = new SolicitationService();
+  const part = await service.lookupPartByNumber(partNumber);
+  return reply.status(200).send({ part });
 }
 
 export async function getSectorByCostCenter(
@@ -34,15 +48,35 @@ export async function createSolicitation(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const bodySchema = z.object({
+  const shared = {
     cardNumber: z.string().min(1, 'Cartão é obrigatório'),
     unit: z.enum($Enums.Unit),
     costCenter: z.string().min(1, 'Centro de custo é obrigatório'),
     pillarOrLocation: z.string().min(1, 'Pilar/local é obrigatório'),
-    title: z.string().min(1, 'Título é obrigatório'),
-    description: z.string().min(1, 'Descrição é obrigatória'),
     requesterEmail: z.email('E-mail inválido'),
-  });
+  };
+  const bodySchema = z.discriminatedUnion('department', [
+    z.object({
+      ...shared,
+      department: z.literal($Enums.UserDepartment.ENG_MECANICA),
+      title: z.string().min(1, 'Título é obrigatório'),
+      description: z.string().min(1, 'Descrição é obrigatória'),
+    }),
+    z.object({
+      ...shared,
+      department: z.literal($Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS),
+      processInstructionRequester: z
+        .string()
+        .min(1, 'Solicitante é obrigatório'),
+      processInstructionProcess: z.string().min(1, 'Processo é obrigatório'),
+      processInstructionType: z.string().min(1, 'Tipo é obrigatório'),
+      client: z.enum($Enums.SolicitationClient),
+      deliveryDate: z.string().optional(),
+      partNumbers: z.string().optional(),
+      fileLink: z.string().optional(),
+      comments: z.string().optional(),
+    }),
+  ]);
   const body = bodySchema.parse(request.body);
   const service = new SolicitationService();
   const solicitation = await service.create(body);
@@ -70,7 +104,7 @@ export async function listSolicitations(
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     ...(query.status !== undefined ? { status: query.status } : {}),
-  });
+  }, actorFromSession(request.user));
   return reply.status(200).send(result);
 }
 
@@ -83,7 +117,7 @@ export async function getSolicitationById(
   });
   const { id } = paramsSchema.parse(request.params);
   const service = new SolicitationService();
-  const solicitation = await service.getById(id);
+  const solicitation = await service.getById(id, actorFromSession(request.user));
   return reply.status(200).send({ solicitation });
 }
 
@@ -121,10 +155,10 @@ export async function updateSolicitationReview(
     id: z.string().uuid('ID inválido'),
   });
   const bodySchema = z.object({
-    client: z.enum($Enums.SolicitationClient).nullable(),
-    activityType: z.enum($Enums.SolicitationActivityType).nullable(),
-    productType: z.enum($Enums.SolicitationProductType).nullable(),
-    priority: z.enum($Enums.SolicitationPriority).nullable(),
+    client: z.enum($Enums.SolicitationClient).nullable().optional(),
+    activityType: z.enum($Enums.SolicitationActivityType).nullable().optional(),
+    productType: z.enum($Enums.SolicitationProductType).nullable().optional(),
+    priority: z.enum($Enums.SolicitationPriority).nullable().optional(),
     approve: z.boolean().optional(),
   });
   const { id } = paramsSchema.parse(request.params);
@@ -133,10 +167,14 @@ export async function updateSolicitationReview(
   const solicitation = await service.updateReview(
     id,
     {
-      client: body.client,
-      activityType: body.activityType,
-      productType: body.productType,
-      priority: body.priority,
+      ...(body.client !== undefined ? { client: body.client } : {}),
+      ...(body.activityType !== undefined
+        ? { activityType: body.activityType }
+        : {}),
+      ...(body.productType !== undefined
+        ? { productType: body.productType }
+        : {}),
+      ...(body.priority !== undefined ? { priority: body.priority } : {}),
       ...(body.approve !== undefined ? { approve: body.approve } : {}),
     },
     request.user.sub,
@@ -217,11 +255,13 @@ export async function syncSolicitationFromKairo(
 }
 
 export async function syncPendingSolicitationsFromKairo(
-  _request: FastifyRequest,
+  request: FastifyRequest,
   reply: FastifyReply,
 ) {
   const service = new SolicitationService();
-  const result = await service.syncPendingFromKairo();
+  const result = await service.syncPendingFromKairo(
+    actorFromSession(request.user),
+  );
   return reply.status(200).send(result);
 }
 

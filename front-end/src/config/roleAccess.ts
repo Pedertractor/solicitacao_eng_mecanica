@@ -10,16 +10,18 @@ import {
   canAccessUsersArea,
 } from '@/config/permissions';
 
-const FULL_NAV_PATHS: readonly string[] = [
+const SOLICITATION_NAV: readonly string[] = [ROUTES.SOLICITACOES] as const;
+
+const ADMIN_NAV_PATHS: readonly string[] = [
   ROUTES.SOLICITACOES,
   ROUTES.USUARIOS,
 ] as const;
 
-const USER_NAV_PATHS: readonly string[] = [] as const;
-
 export const NAV_PATHS_BY_ROLE: Record<UserRole, readonly string[]> = {
-  USER: USER_NAV_PATHS,
-  ADMIN: FULL_NAV_PATHS,
+  USER: SOLICITATION_NAV,
+  ADMIN_ENG: ADMIN_NAV_PATHS,
+  ADMIN_PROCESSOS: ADMIN_NAV_PATHS,
+  SUPER_ADMIN: ADMIN_NAV_PATHS,
 };
 
 const PROTECTED_PATH_PATTERNS: RegExp[] = [
@@ -50,7 +52,7 @@ export function canRoleAccessPath(role: UserRole, pathname: string): boolean {
   if (!isAppShellPath(normalized)) return true;
 
   if (normalized === '/' || normalized === '') {
-    return role === 'ADMIN';
+    return canAccessSolicitations(role);
   }
 
   if (

@@ -26,7 +26,7 @@ export async function sendMail(input: {
 }): Promise<void> {
   const cc = input.cc?.filter((email) => email.trim().length > 0);
   await getTransporter().sendMail({
-    from: `"Solicitação Engenharia Mecânica" <${env.EMAIL_AUTOMACAO}>`,
+    from: `"Solicitação Pedertractor" <${env.EMAIL_AUTOMACAO}>`,
     to: input.to,
     ...(cc && cc.length > 0 ? { cc } : {}),
     subject: input.subject,

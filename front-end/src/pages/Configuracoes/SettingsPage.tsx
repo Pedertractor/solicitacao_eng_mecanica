@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,7 +18,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
-  const [emails, setEmails] = useState<string[]>([]);
+  const [editedEmails, setEditedEmails] = useState<string[] | null>(null);
   const [draftEmail, setDraftEmail] = useState('');
   const [draftError, setDraftError] = useState<string | null>(null);
 
@@ -27,16 +27,12 @@ export function SettingsPage() {
     queryFn: () => settingsApi.getEmailCc(),
   });
 
-  useEffect(() => {
-    if (query.data) {
-      setEmails(query.data);
-    }
-  }, [query.data]);
+  const emails = editedEmails ?? query.data ?? [];
 
   const saveMutation = useMutation({
     mutationFn: (nextEmails: string[]) => settingsApi.updateEmailCc(nextEmails),
-    onSuccess: (saved) => {
-      setEmails(saved);
+    onSuccess: () => {
+      setEditedEmails(null);
       void queryClient.invalidateQueries({ queryKey: ['settings', 'email-cc'] });
       toast.success('Configurações de e-mail salvas.');
     },
@@ -57,12 +53,14 @@ export function SettingsPage() {
       return;
     }
     setDraftError(null);
-    setEmails((prev) => [...prev, value]);
+    setEditedEmails((prev) => [...(prev ?? query.data ?? []), value]);
     setDraftEmail('');
   };
 
   const removeEmail = (email: string) => {
-    setEmails((prev) => prev.filter((item) => item !== email));
+    setEditedEmails((prev) =>
+      (prev ?? query.data ?? []).filter((item) => item !== email),
+    );
   };
 
   const handleSave = () => {

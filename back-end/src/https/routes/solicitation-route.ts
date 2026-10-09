@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { $Enums } from '../../generated/prisma/client.js';
+import { AREA_ADMIN_ROLES } from '../../auth/access-policy.js';
 import { authMiddleware } from '../../middlewares/auth-middleware.js';
 import { roleMiddleware } from '../../middlewares/auth-role-middleware.js';
 import {
   createSolicitation,
   deleteSolicitation,
+  getPartByNumber,
   getSectorByCostCenter,
   getSolicitationById,
   getSolicitationByTrackingCode,
@@ -19,6 +20,7 @@ import {
 } from '../controllers/solicitation-controller.js';
 
 const unitEnum = ['PEDERTRACTOR', 'TRACTOR'] as const;
+const departmentEnum = ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'] as const;
 const statusEnum = [
   'PENDING',
   'IN_REVIEW',
@@ -31,6 +33,7 @@ const deletionSourceEnum = ['SOLICITATION_APP', 'KAIRO'] as const;
 
 const clientEnum = [
   'CATERPILLAR',
+  'CATERPILLAR_GERADORES',
   'CNH_CONTAGEM',
   'CNH_CURITIBA',
   'CNH_PIRACICABA',
@@ -42,11 +45,14 @@ const clientEnum = [
   'JACTO',
   'JCB',
   'JOHN_DEERE_CATALAO',
+  'JOHN_DEERE_HORIZONTINA',
   'JOHN_DEERE_INDAIATUBA',
+  'MOTOCANA',
   'PEDERTRACTOR',
   'PRAMAC',
   'SILTOMAC',
   'TRACTOR_COMPONENTS',
+  'TRIVELATO',
   'VOLVO',
 ] as const;
 
@@ -97,6 +103,14 @@ const solicitationSchema = {
     pillarOrLocation: { type: 'string' },
     title: { type: 'string' },
     description: { type: 'string' },
+    processInstructionRequester: { type: ['string', 'null'] },
+    processInstructionProcess: { type: ['string', 'null'] },
+    processInstructionType: { type: ['string', 'null'] },
+    processInstructionDeadlineLabel: { type: ['string', 'null'] },
+    processInstructionDeadlineDate: { type: ['string', 'null'] },
+    deliveryDate: { type: ['string', 'null'] },
+    partNumbers: { type: ['string', 'null'] },
+    fileLink: { type: ['string', 'null'] },
     client: { type: ['string', 'null'], enum: [...clientEnum, null] },
     kind: { type: ['string', 'null'], enum: [...kindEnum, null] },
     activityType: {
@@ -112,6 +126,7 @@ const solicitationSchema = {
     statusUpdatedAt: { type: ['string', 'null'], format: 'date-time' },
     statusUpdatedByUserId: { type: ['string', 'null'] },
     kairoCardId: { type: ['string', 'null'] },
+    kairoCardIds: { type: ['string', 'null'] },
     kairoTeamId: { type: ['string', 'null'] },
     kairoSyncedAt: { type: ['string', 'null'], format: 'date-time' },
     kairoSyncedByUserId: { type: ['string', 'null'] },
@@ -121,6 +136,10 @@ const solicitationSchema = {
     deletedFrom: {
       type: ['string', 'null'],
       enum: [...deletionSourceEnum, null],
+    },
+    department: {
+      type: 'string',
+      enum: ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'],
     },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -138,6 +157,16 @@ const publicTicketSchema = {
     sectorName: { type: 'string' },
     pillarOrLocation: { type: 'string' },
     unit: { type: 'string', enum: unitEnum },
+    department: { type: 'string', enum: departmentEnum },
+    client: { type: ['string', 'null'], enum: [...clientEnum, null] },
+    processInstructionRequester: { type: ['string', 'null'] },
+    processInstructionProcess: { type: ['string', 'null'] },
+    processInstructionType: { type: ['string', 'null'] },
+    processInstructionDeadlineLabel: { type: ['string', 'null'] },
+    processInstructionDeadlineDate: { type: ['string', 'null'] },
+    deliveryDate: { type: ['string', 'null'] },
+    partNumbers: { type: ['string', 'null'] },
+    fileLink: { type: ['string', 'null'] },
     createdAt: { type: 'string', format: 'date-time' },
     statusUpdatedAt: { type: ['string', 'null'], format: 'date-time' },
   },
@@ -215,6 +244,41 @@ export async function solicitationRoutes(app: FastifyInstance) {
     getSectorByCostCenter,
   );
 
+  app.get(
+    '/part/:partNumber',
+    {
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Buscar part number na API base (público)',
+        params: {
+          type: 'object',
+          required: ['partNumber'],
+          properties: {
+            partNumber: { type: 'string', minLength: 1 },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              part: {
+                type: 'object',
+                properties: {
+                  partNumber: { type: 'string' },
+                  partCode: { type: ['string', 'null'] },
+                  description: { type: ['string', 'null'] },
+                  status: { type: ['boolean', 'null'] },
+                },
+              },
+            },
+          },
+          404: errorResponseSchema,
+        },
+      },
+    },
+    getPartByNumber,
+  );
+
   app.post(
     '/',
     {
@@ -228,18 +292,26 @@ export async function solicitationRoutes(app: FastifyInstance) {
             'unit',
             'costCenter',
             'pillarOrLocation',
-            'title',
-            'description',
             'requesterEmail',
+            'department',
           ],
           properties: {
             cardNumber: { type: 'string', minLength: 1 },
             unit: { type: 'string', enum: unitEnum },
             costCenter: { type: 'string', minLength: 1 },
             pillarOrLocation: { type: 'string', minLength: 1 },
-            title: { type: 'string', minLength: 1 },
-            description: { type: 'string', minLength: 1 },
+            title: { type: 'string' },
+            description: { type: 'string' },
             requesterEmail: { type: 'string', format: 'email' },
+            department: { type: 'string', enum: departmentEnum },
+            processInstructionRequester: { type: 'string' },
+            processInstructionProcess: { type: 'string' },
+            processInstructionType: { type: 'string' },
+            client: { type: 'string', enum: clientEnum },
+            deliveryDate: { type: 'string' },
+            partNumbers: { type: 'string' },
+            fileLink: { type: 'string' },
+            comments: { type: 'string' },
           },
         },
         response: {
@@ -286,7 +358,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.get(
     '/',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware],
       schema: {
         tags: ['solicitations'],
         summary: 'Listar solicitações (admin)',
@@ -341,7 +413,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.post(
     '/sync-kairo-pending',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['solicitations'],
         summary:
@@ -365,7 +437,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.get(
     '/:id',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware],
       schema: {
         tags: ['solicitations'],
         summary: 'Detalhe da solicitação (admin)',
@@ -394,7 +466,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.delete(
     '/:id',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['solicitations'],
         summary: 'Excluir solicitação (admin)',
@@ -424,7 +496,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.post(
     '/:id/start-review',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['solicitations'],
         summary: 'Iniciar revisão (Pendente → Em análise)',
@@ -453,10 +525,10 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.patch(
     '/:id/review',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['solicitations'],
-        summary: 'Salvar campos de revisão / aprovar',
+        summary: 'Aprovar solicitação em revisão',
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -467,7 +539,6 @@ export async function solicitationRoutes(app: FastifyInstance) {
         },
         body: {
           type: 'object',
-          required: ['client', 'activityType', 'productType', 'priority'],
           properties: {
             client: { type: ['string', 'null'], enum: [...clientEnum, null] },
             activityType: {
@@ -503,7 +574,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.patch(
     '/:id/status',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['solicitations'],
         summary: 'Atualizar status (admin)',
@@ -549,7 +620,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.post(
     '/:id/send-to-kairo',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['solicitations'],
         summary: 'Enviar solicitação aprovada ao Kairo',
@@ -591,7 +662,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
   app.post(
     '/:id/sync-kairo',
     {
-      preHandler: [authMiddleware, roleMiddleware([$Enums.UserRole.ADMIN])],
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
       schema: {
         tags: ['solicitations'],
         summary:

@@ -21,12 +21,14 @@ export function KairoSendProgressDialog({
   open,
   phase,
   errorMessage,
+  activityCount = 1,
   onClose,
   onRetry,
 }: {
   open: boolean;
   phase: KairoSendPhase;
   errorMessage: string | null;
+  activityCount?: number;
   onClose: () => void;
   onRetry: () => void;
 }) {
@@ -98,9 +100,14 @@ export function KairoSendProgressDialog({
             {phase === 'error' && 'Falha na integração'}
           </DialogTitle>
           <DialogDescription>
-            {phase === 'running' && 'Aguarde enquanto a solicitação é enviada.'}
+            {phase === 'running' &&
+              (activityCount > 1
+                ? `Aguarde enquanto ${activityCount} atividades são enviadas.`
+                : 'Aguarde enquanto a solicitação é enviada.')}
             {phase === 'success' &&
-              'A solicitação foi criada no Kairo e vinculada.'}
+              (activityCount > 1
+                ? `${activityCount} atividades foram criadas no Kairo e vinculadas.`
+                : 'A solicitação foi criada no Kairo e vinculada.')}
             {phase === 'error' &&
               (errorMessage ??
                 'Não foi possível concluir o envio. Tente novamente.')}
