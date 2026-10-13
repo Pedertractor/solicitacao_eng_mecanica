@@ -1,9 +1,11 @@
 import bcrypt from 'bcrypt';
 import {
   type AccessActor,
+  canAssignDepartment,
   canAssignRole,
   canManageUser,
   departmentForAssignedRole,
+  isAdminOf,
   isPlatformAdmin,
   isSuperAdmin,
 } from '../auth/access-policy.js';
@@ -56,7 +58,7 @@ export class UserService {
     input: RegisterUserInput,
     actor: AccessActor,
   ): Promise<UserWithoutPassword> {
-    if (!isPlatformAdmin(actor.role)) {
+    if (!isPlatformAdmin(actor)) {
       throw new HttpError('Sem permissão para cadastrar usuários', 403);
     }
     if (!canAssignRole(actor, input.role)) {
@@ -66,6 +68,9 @@ export class UserService {
     const role = this.resolveRegisterRole(input);
     const department = this.resolveRegisterDepartment(actor, input);
     this.assertRoleMatchesDepartment(role, department);
+    if (!canAssignDepartment(actor, role, department)) {
+      throw new HttpError('Você não pode atribuir este departamento', 403);
+    }
 
     const employeeApi = await this.loadActiveEmployee(
       input.cardNumber,
@@ -186,7 +191,7 @@ export class UserService {
   }
 
   async listAll(actor: AccessActor) {
-    if (!isPlatformAdmin(actor.role)) {
+    if (!isPlatformAdmin(actor)) {
       throw new HttpError('Sem permissão para listar usuários', 403);
     }
 
@@ -194,10 +199,21 @@ export class UserService {
     const users = await userRepository.findAll(
       isSuperAdmin(actor.role)
         ? undefined
-        : {
-            department: actor.department,
-            role: { not: $Enums.UserRole.SUPER_ADMIN },
-          },
+        : isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS)
+          ? {
+              department: {
+                in: [
+                  $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+                  $Enums.UserDepartment.FERRAMENTARIA,
+                  $Enums.UserDepartment.AMOSTRA,
+                ],
+              },
+              role: { not: $Enums.UserRole.SUPER_ADMIN },
+            }
+          : {
+              department: actor.department,
+              role: { not: $Enums.UserRole.SUPER_ADMIN },
+            },
     );
     const synced = await Promise.all(
       users.map((user) => this.syncBootstrapSuperAdminIfNeeded(user)),
@@ -252,6 +268,7 @@ export class UserService {
     actor: AccessActor,
     targetUserId: string,
     role: $Enums.UserRole,
+    departmentInput?: $Enums.UserDepartment,
   ) {
     if (actor.id === targetUserId) {
       throw new HttpError('Não é permitido alterar a própria função', 400);
@@ -263,8 +280,15 @@ export class UserService {
       throw new HttpError('Você não pode atribuir este papel', 403);
     }
 
-    const department = departmentForAssignedRole(role, target.department);
+    const department = departmentForAssignedRole(
+      role,
+      target.department,
+      departmentInput,
+    );
     this.assertRoleMatchesDepartment(role, department);
+    if (!canAssignDepartment(actor, role, department)) {
+      throw new HttpError('Você não pode atribuir este departamento', 403);
+    }
 
     const userRepository = new UserPrismaRepository(prisma);
     await userRepository.updateRole(targetUserId, role, department);
@@ -379,11 +403,24 @@ export class UserService {
     if (isBootstrapSuperAdmin(input)) {
       return BOOTSTRAP_SUPER_ADMIN_DEPARTMENT;
     }
-    if (!isSuperAdmin(actor.role)) return actor.department;
-    if (!input.department) {
-      throw new HttpError('Informe o departamento', 400);
+    const role = this.resolveRegisterRole(input);
+    if (role === $Enums.UserRole.COMERCIAL) {
+      return $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS;
     }
-    return input.department;
+    if (role === $Enums.UserRole.ADMIN) {
+      if (!input.department) {
+        throw new HttpError(
+          'Informe o departamento do administrador',
+          400,
+        );
+      }
+      return input.department;
+    }
+    if (input.department) {
+      return input.department;
+    }
+    if (!isSuperAdmin(actor.role)) return actor.department;
+    throw new HttpError('Informe o departamento', 400);
   }
 
   private assertBootstrapSuperAdminImmutable(user: {
@@ -434,22 +471,24 @@ export class UserService {
     department: $Enums.UserDepartment,
   ) {
     if (
-      role === $Enums.UserRole.ADMIN_ENG &&
-      department !== $Enums.UserDepartment.ENG_MECANICA
-    ) {
-      throw new HttpError(
-        'Administrador de engenharia precisa do departamento de engenharia mecânica',
-        400,
-      );
-    }
-    if (
-      role === $Enums.UserRole.ADMIN_PROCESSOS &&
+      role === $Enums.UserRole.COMERCIAL &&
       department !== $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS
     ) {
       throw new HttpError(
-        'Administrador de processos precisa do departamento de desenvolvimento de processos',
+        'Comercial precisa do departamento de desenvolvimento de processos',
         400,
       );
+    }
+    if (role === $Enums.UserRole.ADMIN) {
+      const allowed: $Enums.UserDepartment[] = [
+        $Enums.UserDepartment.ENG_MECANICA,
+        $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+        $Enums.UserDepartment.FERRAMENTARIA,
+        $Enums.UserDepartment.AMOSTRA,
+      ];
+      if (!allowed.includes(department)) {
+        throw new HttpError('Departamento inválido para administrador', 400);
+      }
     }
   }
 

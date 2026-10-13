@@ -57,10 +57,16 @@ import {
 import { copyToClipboard } from '@/lib/clipboard';
 import { cn, SoftBreakText } from '@/lib/utils';
 import { useAuth } from '@/contexts/useAuth';
-import { canManageSolicitations } from '@/config/permissions';
+import {
+  canManageSampleStage,
+  canManageSolicitations,
+  canManageToolingStage,
+} from '@/config/permissions';
 import { formatIsoDateLabel } from '@/config/process-instruction';
 import { PartNumberChips } from '@/components/PartNumberAllocator';
+import { WorkflowTimeline } from '@/components/workflow/WorkflowTimeline';
 import { SolicitationKairoDialog } from './SolicitationKairoDialog';
+import { ToolingKairoDialog } from './ToolingKairoDialog';
 
 const REVIEW_ICON_SIZE = 16;
 const REJECTED_BUTTON_CLASS =
@@ -88,9 +94,18 @@ export function SolicitationDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
   const canManage =
-    user?.role != null && canManageSolicitations(user.role);
+    user?.role != null &&
+    canManageSolicitations(user.role, user.department);
+  const canTooling =
+    user?.role != null &&
+    canManageToolingStage(user.role, user.department);
+  const canSample =
+    user?.role != null &&
+    canManageSampleStage(user.role, user.department);
   const queryClient = useQueryClient();
   const [kairoDialogOpen, setKairoDialogOpen] = useState(false);
+  const [toolingDialogOpen, setToolingDialogOpen] = useState(false);
+  const [sampleDialogOpen, setSampleDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [trackLinkCopied, setTrackLinkCopied] = useState(false);
   const kairoOpenTimeoutRef = useRef<number | null>(null);
@@ -410,6 +425,33 @@ export function SolicitationDetailPage() {
             </CardContent>
           </Card>
 
+          {item.workflow ? (
+            <WorkflowActionsCard
+              item={item}
+              canTooling={canTooling}
+              canSample={canSample}
+              onOpenTooling={() => setToolingDialogOpen(true)}
+              onOpenSample={() => setSampleDialogOpen(true)}
+            />
+          ) : null}
+
+          {item.workflow ? (
+            <>
+              <ToolingKairoDialog
+                open={toolingDialogOpen}
+                onOpenChange={setToolingDialogOpen}
+                solicitation={item}
+                stage='FERRAMENTARIA'
+              />
+              <ToolingKairoDialog
+                open={sampleDialogOpen}
+                onOpenChange={setSampleDialogOpen}
+                solicitation={item}
+                stage='AMOSTRA'
+              />
+            </>
+          ) : null}
+
           {canManage ? (
             <>
           {item.department !== 'DESENVOLVIMENTO_PROCESSOS' ? (
@@ -466,6 +508,132 @@ export function SolicitationDetailPage() {
         </>
       )}
     </div>
+  );
+}
+
+function WorkflowActionsCard({
+  item,
+  canTooling,
+  canSample,
+  onOpenTooling,
+  onOpenSample,
+}: {
+  item: Solicitation;
+  canTooling: boolean;
+  canSample: boolean;
+  onOpenTooling: () => void;
+  onOpenSample: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const workflow = item.workflow!;
+  const tooling = workflow.stages.find((stage) => stage.stage === 'FERRAMENTARIA');
+  const sample = workflow.stages.find((stage) => stage.stage === 'AMOSTRA');
+  const engineering = workflow.stages.find((stage) => stage.stage === 'ENGENHARIA');
+
+  const toolingReady =
+    engineering?.status === 'DONE' &&
+    tooling != null &&
+    (tooling.status === 'READY' || tooling.status === 'PENDING') &&
+    !tooling.kairoCardIds;
+
+  const previousDoneForSample = tooling
+    ? tooling.status === 'DONE'
+    : engineering?.status === 'DONE';
+
+  const sampleReady =
+    previousDoneForSample &&
+    sample != null &&
+    (sample.status === 'READY' || sample.status === 'PENDING') &&
+    !sample.kairoCardIds;
+
+  const syncToolingMutation = useMutation({
+    mutationFn: () => solicitationApi.syncToolingFromKairo(item.id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['solicitation', item.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ['solicitations'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow-summary'] });
+      toast.success('Ferramentaria sincronizada.');
+    },
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined;
+      toast.error(message || 'Falha ao sincronizar ferramentaria.');
+    },
+  });
+
+  const syncSampleMutation = useMutation({
+    mutationFn: () => solicitationApi.syncSampleFromKairo(item.id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['solicitation', item.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ['solicitations'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow-summary'] });
+      toast.success('Amostra sincronizada.');
+    },
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined;
+      toast.error(message || 'Falha ao sincronizar amostra.');
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Workflow</CardTitle>
+        <CardDescription>
+          Engenharia →{workflow.requiresTooling ? ' Ferramentaria →' : ''}{' '}
+          Amostra
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        <WorkflowTimeline workflow={workflow} />
+
+        {(canTooling || canSample) && (
+          <div className='flex flex-wrap gap-2'>
+            {canTooling && toolingReady ? (
+              <Button type='button' onClick={onOpenTooling}>
+                Enviar Ferramentaria ao Kairo
+              </Button>
+            ) : null}
+            {canTooling && tooling?.kairoCardIds ? (
+              <Button
+                type='button'
+                variant='outline'
+                disabled={syncToolingMutation.isPending}
+                onClick={() => syncToolingMutation.mutate()}
+              >
+                {syncToolingMutation.isPending
+                  ? 'Sincronizando…'
+                  : 'Sincronizar Ferramentaria'}
+              </Button>
+            ) : null}
+            {canSample && sampleReady ? (
+              <Button type='button' onClick={onOpenSample}>
+                Enviar Amostra ao Kairo
+              </Button>
+            ) : null}
+            {canSample && sample?.kairoCardIds ? (
+              <Button
+                type='button'
+                variant='outline'
+                disabled={syncSampleMutation.isPending}
+                onClick={() => syncSampleMutation.mutate()}
+              >
+                {syncSampleMutation.isPending
+                  ? 'Sincronizando…'
+                  : 'Sincronizar Amostra'}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

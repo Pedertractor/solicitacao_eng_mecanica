@@ -25,7 +25,7 @@ export function RoleProtectedRoute() {
     );
   }
 
-  if (!canRoleAccessPath(user.role, location.pathname)) {
+  if (!canRoleAccessPath(user.role, location.pathname, user.department)) {
     return (
       <Navigate
         to={ROUTES.HOME}

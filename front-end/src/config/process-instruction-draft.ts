@@ -9,6 +9,7 @@ export type ProcessInstructionDraft = {
   allocatedPartNumbers: string[];
   fileLink: string;
   comments: string;
+  requiresTooling: boolean;
 };
 
 export function emptyProcessInstructionDraft(): ProcessInstructionDraft {
@@ -21,5 +22,6 @@ export function emptyProcessInstructionDraft(): ProcessInstructionDraft {
     allocatedPartNumbers: [],
     fileLink: '',
     comments: '',
+    requiresTooling: false,
   };
 }

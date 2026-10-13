@@ -23,6 +23,7 @@ export interface UserDetail {
 
 export interface UpdateUserByAdminPayload {
   role: UserRole;
+  department?: UserDepartment;
 }
 
 const BASE = '/users';

@@ -3,10 +3,21 @@ import {
   Prisma,
   PrismaClient,
   type Solicitation,
+  type SolicitationWorkflowStage,
 } from '../../generated/prisma/client.js';
 import { generateTrackingCode } from '../../lib/tracking-code.js';
 
 const CREATE_MAX_ATTEMPTS = 5;
+
+export const workflowStagesInclude = {
+  workflowStages: {
+    orderBy: { order: 'asc' as const },
+  },
+} satisfies Prisma.SolicitationInclude;
+
+export type SolicitationWithWorkflow = Solicitation & {
+  workflowStages: SolicitationWorkflowStage[];
+};
 
 export class SolicitationPrismaRepository {
   constructor(private prisma: PrismaClient | Prisma.TransactionClient) {}
@@ -33,7 +44,8 @@ export class SolicitationPrismaRepository {
     deliveryDate?: Date | null;
     partNumbers?: string | null;
     fileLink?: string | null;
-  }): Promise<Solicitation> {
+    requiresTooling?: boolean;
+  }): Promise<SolicitationWithWorkflow> {
     let lastError: unknown;
 
     for (let attempt = 0; attempt < CREATE_MAX_ATTEMPTS; attempt++) {
@@ -43,6 +55,7 @@ export class SolicitationPrismaRepository {
             ...data,
             trackingCode: generateTrackingCode(),
           },
+          include: workflowStagesInclude,
         });
       } catch (error) {
         lastError = error;
@@ -71,12 +84,16 @@ export class SolicitationPrismaRepository {
       | 'status';
     sortOrder?: 'asc' | 'desc';
     scope?: Prisma.SolicitationWhereInput;
-  }): Promise<{ items: Solicitation[]; total: number }> {
+    onlyWorkflow?: boolean;
+  }): Promise<{ items: SolicitationWithWorkflow[]; total: number }> {
     const statusWhere = input.status
       ? { status: input.status }
       : { status: { not: $Enums.SolicitationStatus.DELETED } };
+    const workflowWhere: Prisma.SolicitationWhereInput = input.onlyWorkflow
+      ? { workflowStages: { some: {} } }
+      : {};
     const where: Prisma.SolicitationWhereInput = {
-      AND: [statusWhere, input.scope ?? {}],
+      AND: [statusWhere, workflowWhere, input.scope ?? {}],
     };
     const skip = (input.page - 1) * input.pageSize;
     const sortBy = input.sortBy ?? 'createdAt';
@@ -85,6 +102,7 @@ export class SolicitationPrismaRepository {
     const [items, total] = await Promise.all([
       this.prisma.solicitation.findMany({
         where,
+        include: workflowStagesInclude,
         orderBy: { [sortBy]: sortOrder },
         skip,
         take: input.pageSize,
@@ -95,13 +113,19 @@ export class SolicitationPrismaRepository {
     return { items, total };
   }
 
-  async findById(id: string): Promise<Solicitation | null> {
-    return await this.prisma.solicitation.findUnique({ where: { id } });
+  async findById(id: string): Promise<SolicitationWithWorkflow | null> {
+    return await this.prisma.solicitation.findUnique({
+      where: { id },
+      include: workflowStagesInclude,
+    });
   }
 
-  async findByTrackingCode(trackingCode: string): Promise<Solicitation | null> {
+  async findByTrackingCode(
+    trackingCode: string,
+  ): Promise<SolicitationWithWorkflow | null> {
     return await this.prisma.solicitation.findUnique({
       where: { trackingCode },
+      include: workflowStagesInclude,
     });
   }
 
@@ -125,7 +149,7 @@ export class SolicitationPrismaRepository {
     id: string,
     status: $Enums.SolicitationStatus,
     statusUpdatedByUserId: string,
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: {
@@ -133,6 +157,7 @@ export class SolicitationPrismaRepository {
         statusUpdatedAt: new Date(),
         statusUpdatedByUserId,
       },
+      include: workflowStagesInclude,
     });
   }
 
@@ -147,7 +172,7 @@ export class SolicitationPrismaRepository {
       status?: $Enums.SolicitationStatus;
       statusUpdatedByUserId?: string;
     },
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     const { status, statusUpdatedByUserId, kind, ...reviewFields } = data;
     return await this.prisma.solicitation.update({
       where: { id },
@@ -162,16 +187,18 @@ export class SolicitationPrismaRepository {
             }
           : {}),
       },
+      include: workflowStagesInclude,
     });
   }
 
   async updateKind(
     id: string,
     kind: $Enums.SolicitationKind,
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: { kind },
+      include: workflowStagesInclude,
     });
   }
 
@@ -184,7 +211,7 @@ export class SolicitationPrismaRepository {
       kairoSyncedByUserId: string;
       kind: $Enums.SolicitationKind;
     },
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: {
@@ -195,6 +222,7 @@ export class SolicitationPrismaRepository {
         kairoSyncedAt: new Date(),
         kairoSyncedByUserId: data.kairoSyncedByUserId,
       },
+      include: workflowStagesInclude,
     });
   }
 
@@ -205,7 +233,7 @@ export class SolicitationPrismaRepository {
       deletedByName: string;
       deletedFrom: $Enums.SolicitationDeletionSource;
     },
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: {
@@ -219,12 +247,13 @@ export class SolicitationPrismaRepository {
           ? { statusUpdatedByUserId: data.deletedByUserId }
           : {}),
       },
+      include: workflowStagesInclude,
     });
   }
 
   async findPendingKairoSync(
     department?: $Enums.UserDepartment,
-  ): Promise<Solicitation[]> {
+  ): Promise<SolicitationWithWorkflow[]> {
     return await this.prisma.solicitation.findMany({
       where: {
         ...(department ? { department } : {}),
@@ -240,7 +269,16 @@ export class SolicitationPrismaRepository {
             $Enums.SolicitationStatus.DELETED,
           ],
         },
+        NOT: {
+          workflowStages: {
+            some: {
+              stage: $Enums.WorkflowStage.ENGENHARIA,
+              status: $Enums.WorkflowStageStatus.DONE,
+            },
+          },
+        },
       },
+      include: workflowStagesInclude,
       orderBy: { updatedAt: 'asc' },
     });
   }

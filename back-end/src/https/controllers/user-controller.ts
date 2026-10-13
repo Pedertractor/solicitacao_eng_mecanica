@@ -142,6 +142,7 @@ export async function updateUserByAdmin(
   });
   const bodySchema = z.object({
     role: z.enum($Enums.UserRole),
+    department: z.enum($Enums.UserDepartment).optional(),
   });
 
   const { userId } = paramsSchema.parse(request.params);
@@ -152,6 +153,7 @@ export async function updateUserByAdmin(
     actorFromSession(request.user),
     userId,
     body.role,
+    body.department,
   );
 
   return reply.status(200).send({ user });

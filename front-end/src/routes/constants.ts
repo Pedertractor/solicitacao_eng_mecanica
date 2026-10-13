@@ -10,6 +10,7 @@ export const ROUTES = {
   CADASTRO: '/cadastro',
   SOLICITACOES: '/solicitacoes',
   SOLICITACAO_DETALHE: '/solicitacoes/:id',
+  WORKFLOW: '/workflow',
   USUARIOS: '/usuarios',
   USUARIOS_SOLICITACOES: '/usuarios/solicitacoes',
   USUARIOS_NOVO: '/usuarios/novo',

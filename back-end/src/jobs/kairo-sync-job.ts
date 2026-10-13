@@ -1,4 +1,5 @@
 import { SolicitationService } from '../services/solicitation-service.js';
+import { WorkflowService } from '../services/workflow-service.js';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 
@@ -17,6 +18,21 @@ async function runSync() {
     if (result.completed > 0 || result.deleted > 0) {
       console.log(
         `[kairo-sync] Verificadas ${result.checked}; concluídas ${result.completed}; excluídas ${result.deleted}`,
+      );
+    }
+
+    const workflowService = new WorkflowService();
+    const toolingResult = await workflowService.syncPendingToolingFromKairo();
+    if (toolingResult.updated > 0) {
+      console.log(
+        `[kairo-sync] Ferramentaria: verificadas ${toolingResult.checked}; atualizadas ${toolingResult.updated}`,
+      );
+    }
+
+    const sampleResult = await workflowService.syncPendingSampleFromKairo();
+    if (sampleResult.updated > 0) {
+      console.log(
+        `[kairo-sync] Amostra: verificadas ${sampleResult.checked}; atualizadas ${sampleResult.updated}`,
       );
     }
   } catch (error) {

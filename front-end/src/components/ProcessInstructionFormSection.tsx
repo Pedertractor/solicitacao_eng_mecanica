@@ -8,6 +8,7 @@ import {
 } from '@/config/process-instruction';
 import type { ProcessInstructionDraft } from '@/config/process-instruction-draft';
 import { PartNumberAllocator } from '@/components/PartNumberAllocator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -73,9 +74,31 @@ export function ProcessInstructionFormSection({
             process: '',
             type: '',
             deliveryDate: '',
+            requiresTooling:
+              requester === 'Comercial' ? value.requiresTooling : false,
           });
         }}
       />
+
+      {value.requester === 'Comercial' ? (
+        <div className='flex items-start gap-3 rounded-md border px-3 py-3'>
+          <Checkbox
+            id='requiresTooling'
+            checked={value.requiresTooling}
+            onCheckedChange={(checked) =>
+              onChange({ ...value, requiresTooling: checked === true })
+            }
+          />
+          <div className='grid gap-1'>
+            <Label htmlFor='requiresTooling' className='cursor-pointer'>
+              Requer ferramentaria
+            </Label>
+            <p className='text-xs text-muted-foreground'>
+              Inclui a etapa Ferramentaria no workflow após Engenharia.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <OptionSelect
         id='processName'

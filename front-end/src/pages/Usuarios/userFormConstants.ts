@@ -1,6 +1,6 @@
 import type { UserRole } from '@/types/auth';
-import { formattedRoles } from '@/utils/roles';
+import { ROLE_BASE_LABELS } from '@/utils/roles';
 
 export const ROLE_OPTIONS: { value: UserRole; label: string }[] = (
-  Object.entries(formattedRoles) as [UserRole, string][]
+  Object.entries(ROLE_BASE_LABELS) as [UserRole, string][]
 ).map(([value, label]) => ({ value, label }));

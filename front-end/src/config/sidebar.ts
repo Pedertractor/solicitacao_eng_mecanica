@@ -4,7 +4,7 @@ import type {
   HTMLAttributes,
   RefAttributes,
 } from 'react';
-import { LayoutGridIcon, UsersIcon } from 'lucide-animated';
+import { GitBranchIcon, LayoutGridIcon, UsersIcon } from 'lucide-animated';
 import { ROUTES } from '@/routes/constants';
 
 /** Handle comum dos ícones lucide-animated. */
@@ -40,5 +40,6 @@ export interface SidebarNavItem {
 
 export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { path: ROUTES.SOLICITACOES, label: 'Solicitações', icon: LayoutGridIcon },
+  { path: ROUTES.WORKFLOW, label: 'Workflow', icon: GitBranchIcon },
   { path: ROUTES.USUARIOS, label: 'Usuários', icon: UsersIcon },
 ];

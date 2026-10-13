@@ -24,14 +24,21 @@ import { KairoCredentialService } from './kairo-credential-service.js';
 import {
   buildStoredDeadline,
   deliveryDateError,
+  isComercialWorkflow,
   isValidProcessCombination,
   optionalHttpsUrl,
   parseIsoDate,
   processInstructionTitle,
   shouldShowDeliveryDate,
 } from '../lib/process-instruction.js';
+import {
+  mapWorkflow,
+  WorkflowService,
+} from './workflow-service.js';
+import { WorkflowStagePrismaRepository } from '../repositories/prisma/workflow-stage-repository.js';
+import type { SolicitationWithWorkflow } from '../repositories/prisma/solicitation-repository.js';
 
-function mapSolicitation(row: {
+function mapSolicitation(row: SolicitationWithWorkflow | {
   id: string;
   trackingCode: string;
   employeeId: string;
@@ -71,6 +78,8 @@ function mapSolicitation(row: {
   deletedByName: string | null;
   deletedFrom: $Enums.SolicitationDeletionSource | null;
   department: $Enums.UserDepartment;
+  requiresTooling?: boolean;
+  workflowStages?: SolicitationWithWorkflow['workflowStages'];
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -114,6 +123,11 @@ function mapSolicitation(row: {
     deletedByName: row.deletedByName,
     deletedFrom: row.deletedFrom,
     department: row.department,
+    requiresTooling: row.requiresTooling ?? false,
+    workflow: mapWorkflow({
+      requiresTooling: row.requiresTooling ?? false,
+      ...(row.workflowStages ? { workflowStages: row.workflowStages } : {}),
+    }),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -238,6 +252,8 @@ function mapPublicTicket(row: {
   status: $Enums.SolicitationStatus;
   statusUpdatedAt: Date | null;
   createdAt: Date;
+  requiresTooling?: boolean;
+  workflowStages?: SolicitationWithWorkflow['workflowStages'];
 }) {
   return {
     trackingCode: row.trackingCode,
@@ -260,6 +276,10 @@ function mapPublicTicket(row: {
     fileLink: row.fileLink,
     createdAt: row.createdAt.toISOString(),
     statusUpdatedAt: row.statusUpdatedAt?.toISOString() ?? null,
+    workflow: mapWorkflow({
+      requiresTooling: row.requiresTooling ?? false,
+      ...(row.workflowStages ? { workflowStages: row.workflowStages } : {}),
+    }),
   };
 }
 
@@ -360,6 +380,7 @@ export class SolicitationService {
           partNumbers?: string | undefined;
           fileLink?: string | undefined;
           comments?: string | undefined;
+          requiresTooling?: boolean | undefined;
         }
     ),
   ) {
@@ -380,19 +401,54 @@ export class SolicitationService {
             description: input.description.trim(),
           };
 
-    const repo = new SolicitationPrismaRepository(prisma);
-    const created = await repo.create({
-      employeeId: requester.employeeId,
-      requesterName: requester.name,
-      requesterEmail,
-      cardNumber: requester.cardNumber,
-      unit: requester.unit,
-      costCenter: sector.costCenter,
-      sectorId: sector.id,
-      sectorName: sector.name,
-      pillarOrLocation: input.pillarOrLocation.trim(),
-      department: input.department,
-      ...content,
+    const shouldCreateWorkflow =
+      input.department === 'DESENVOLVIMENTO_PROCESSOS' &&
+      isComercialWorkflow(
+        input.department,
+        input.processInstructionRequester,
+      );
+    const requiresTooling =
+      shouldCreateWorkflow && Boolean(input.requiresTooling);
+
+    const created = await prisma.$transaction(async (tx) => {
+      const repo = new SolicitationPrismaRepository(tx);
+      const solicitation = await repo.create({
+        employeeId: requester.employeeId,
+        requesterName: requester.name,
+        requesterEmail,
+        cardNumber: requester.cardNumber,
+        unit: requester.unit,
+        costCenter: sector.costCenter,
+        sectorId: sector.id,
+        sectorName: sector.name,
+        pillarOrLocation: input.pillarOrLocation.trim(),
+        department: input.department,
+        requiresTooling,
+        ...content,
+      });
+
+      if (shouldCreateWorkflow && input.department === 'DESENVOLVIMENTO_PROCESSOS') {
+        const workflowService = new WorkflowService();
+        const deliveryIso =
+          'deliveryDate' in content && content.deliveryDate
+            ? toDateOnly(content.deliveryDate)
+            : input.deliveryDate?.trim() || null;
+        const stages = workflowService.buildStagesForCreate({
+          requester: input.processInstructionRequester,
+          process: input.processInstructionProcess,
+          type: input.processInstructionType,
+          deliveryDateIso: deliveryIso,
+          requiresTooling,
+        });
+        const workflowRepo = new WorkflowStagePrismaRepository(tx);
+        const workflowStages = await workflowRepo.createStages(
+          solicitation.id,
+          stages,
+        );
+        return { ...solicitation, workflowStages };
+      }
+
+      return solicitation;
     });
 
     return mapSolicitation(created);
@@ -409,6 +465,7 @@ export class SolicitationService {
       | 'title'
       | 'status';
     sortOrder?: 'asc' | 'desc';
+    onlyWorkflow?: boolean;
   },
     actor: AccessActor,
   ) {
@@ -558,6 +615,13 @@ export class SolicitationService {
     const updated = await repo.updateStatus(id, status, actingUserId);
 
     if (
+      status === $Enums.SolicitationStatus.CANCELLED &&
+      previousStatus !== $Enums.SolicitationStatus.CANCELLED
+    ) {
+      await new WorkflowService().cancelOpenStages(id);
+    }
+
+    if (
       status === $Enums.SolicitationStatus.APPROVED &&
       previousStatus !== $Enums.SolicitationStatus.APPROVED
     ) {
@@ -631,6 +695,8 @@ export class SolicitationService {
         }
       }
     }
+
+    await new WorkflowService().cancelOpenStages(id);
 
     const updated = await repo.markDeleted(id, {
       deletedByUserId: actor.id,
@@ -811,6 +877,9 @@ export class SolicitationService {
       status: string | undefined;
       deletedAt: string | null;
       deletedByName: string | null;
+      startedAt?: string | null;
+      finishedAt?: string | null;
+      updatedAt?: string | null;
     }> = [];
     for (const cardId of linkedCardIds) {
       const kairoCard = await this.fetchKairoCardStatus(
@@ -841,12 +910,22 @@ export class SolicitationService {
         kairoCards
           .map((card) => card.deletedByName?.trim())
           .find((name): name is string => Boolean(name)) || 'Usuário do Kairo';
+      await new WorkflowService().cancelOpenStages(id);
       const updated = await repo.markDeleted(id, {
         deletedByUserId: null,
         deletedByName,
         deletedFrom: $Enums.SolicitationDeletionSource.KAIRO,
       });
       return mapSolicitation(updated);
+    }
+
+    const hasWorkflow = (existing.workflowStages?.length ?? 0) > 0;
+    if (hasWorkflow) {
+      const workflowUpdated = await new WorkflowService().applyEngineeringKairoState(
+        existing,
+        kairoCards,
+      );
+      return mapSolicitation(workflowUpdated);
     }
 
     if (!kairoCards.every((card) => card.status === 'DONE' && !card.deletedAt)) {
@@ -865,7 +944,7 @@ export class SolicitationService {
   }
 
   async syncPendingFromKairo(actor?: AccessActor) {
-    if (actor && !canManageSolicitations(actor.role)) {
+    if (actor && !canManageSolicitations(actor)) {
       throw new HttpError('Sem permissão para alterar esta solicitação', 403);
     }
     const repo = new SolicitationPrismaRepository(prisma);
@@ -921,7 +1000,7 @@ export class SolicitationService {
     if (!row || !canAccessSolicitation(actor, row)) {
       throw new HttpError('Solicitação não encontrada', 404);
     }
-    if (manage && !canManageSolicitations(actor.role)) {
+    if (manage && !canManageSolicitations(actor)) {
       throw new HttpError('Sem permissão para alterar esta solicitação', 403);
     }
   }
@@ -954,6 +1033,9 @@ export class SolicitationService {
     status: string | undefined;
     deletedAt: string | null;
     deletedByName: string | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    updatedAt?: string | null;
   } | null> {
     const fetchByKind = async (kind: $Enums.SolicitationKind) => {
       if (kind === $Enums.SolicitationKind.ATIVIDADE) {
@@ -963,6 +1045,9 @@ export class SolicitationService {
           status: activity.status,
           deletedAt: activity.deletedAt ?? null,
           deletedByName: activity.deletedByName ?? null,
+          startedAt: activity.startedAt ?? null,
+          finishedAt: activity.finishedAt ?? null,
+          updatedAt: activity.updatedAt ?? null,
         };
       }
 

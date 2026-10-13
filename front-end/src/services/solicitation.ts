@@ -63,6 +63,45 @@ export type SolicitationPriority =
 
 export type SolicitationKind = 'PROJETO' | 'ATIVIDADE';
 
+export type WorkflowStageKind = 'ENGENHARIA' | 'FERRAMENTARIA' | 'AMOSTRA';
+
+export type WorkflowStageStatus =
+  | 'PENDING'
+  | 'READY'
+  | 'IN_PROGRESS'
+  | 'DONE'
+  | 'CANCELLED';
+
+export interface WorkflowStageItem {
+  id: string;
+  stage: WorkflowStageKind;
+  status: WorkflowStageStatus;
+  order: number;
+  plannedStartAt: string | null;
+  plannedEndAt: string | null;
+  plannedDurationPercentage: string | null;
+  actualStartAt: string | null;
+  actualEndAt: string | null;
+  kairoTeamId: string | null;
+  kairoCardIds: string | null;
+  kairoSyncedAt: string | null;
+  kairoSyncedByUserId: string | null;
+  completedByUserId: string | null;
+}
+
+export interface SolicitationWorkflow {
+  requiresTooling: boolean;
+  stages: WorkflowStageItem[];
+}
+
+export interface WorkflowSummaryStage {
+  stage: WorkflowStageKind;
+  total: number;
+  inProgress: number;
+  waiting: number;
+  done: number;
+}
+
 export interface Solicitation {
   id: string;
   trackingCode: string;
@@ -103,6 +142,8 @@ export interface Solicitation {
   deletedByName: string | null;
   deletedFrom: SolicitationDeletionSource | null;
   department: UserDepartment;
+  requiresTooling: boolean;
+  workflow: SolicitationWorkflow | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,6 +169,7 @@ export interface PublicSolicitationTicket {
   fileLink: string | null;
   createdAt: string;
   statusUpdatedAt: string | null;
+  workflow: SolicitationWorkflow | null;
 }
 
 export interface ValidateRequesterResponse {
@@ -178,6 +220,7 @@ export type CreateSolicitationPayload =
       partNumbers?: string;
       fileLink?: string;
       comments?: string;
+      requiresTooling?: boolean;
     });
 
 export interface UpdateSolicitationReviewPayload {
@@ -203,6 +246,7 @@ export interface SolicitationListParams {
   pageSize?: number;
   sortBy?: SolicitationSortField;
   sortOrder?: SortOrder;
+  onlyWorkflow?: boolean;
 }
 
 export interface SolicitationListResponse {
@@ -266,8 +310,16 @@ export const solicitationApi = {
         ...(params.pageSize ? { pageSize: params.pageSize } : {}),
         ...(params.sortBy ? { sortBy: params.sortBy } : {}),
         ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
+        ...(params.onlyWorkflow ? { onlyWorkflow: 'true' } : {}),
       },
     });
+    return data;
+  },
+
+  async workflowSummary(): Promise<{ stages: WorkflowSummaryStage[] }> {
+    const { data } = await api.get<{ stages: WorkflowSummaryStage[] }>(
+      `${BASE}/workflow/summary`,
+    );
     return data;
   },
 
@@ -364,7 +416,74 @@ export const solicitationApi = {
     );
     return data.solicitation;
   },
+
+  async sendToolingToKairo(
+    id: string,
+    payload: {
+      teamId: string;
+      title?: string;
+      description?: string;
+      tagId?: string;
+    },
+  ): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(
+      `${BASE}/${id}/workflow/tooling/send-to-kairo`,
+      payload,
+      { skipErrorToast: true },
+    );
+    return data.solicitation;
+  },
+
+  async syncToolingFromKairo(id: string): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(
+      `${BASE}/${id}/workflow/tooling/sync-kairo`,
+      {},
+      { skipErrorToast: true },
+    );
+    return data.solicitation;
+  },
+
+  async sendSampleToKairo(
+    id: string,
+    payload: {
+      teamId: string;
+      title?: string;
+      description?: string;
+      tagId?: string;
+    },
+  ): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(
+      `${BASE}/${id}/workflow/sample/send-to-kairo`,
+      payload,
+      { skipErrorToast: true },
+    );
+    return data.solicitation;
+  },
+
+  async syncSampleFromKairo(id: string): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(
+      `${BASE}/${id}/workflow/sample/sync-kairo`,
+      {},
+      { skipErrorToast: true },
+    );
+    return data.solicitation;
+  },
 };
+
+export const WORKFLOW_STAGE_LABELS: Record<WorkflowStageKind, string> = {
+  ENGENHARIA: 'Engenharia',
+  FERRAMENTARIA: 'Ferramentaria',
+  AMOSTRA: 'Amostra',
+};
+
+export const WORKFLOW_STAGE_STATUS_LABELS: Record<WorkflowStageStatus, string> =
+  {
+    PENDING: 'Pendente',
+    READY: 'Liberada',
+    IN_PROGRESS: 'Em andamento',
+    DONE: 'Concluída',
+    CANCELLED: 'Cancelada',
+  };
 
 export const SOLICITATION_STATUS_LABELS: Record<SolicitationStatus, string> = {
   PENDING: 'Pendente',

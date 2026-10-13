@@ -9,13 +9,18 @@ import {
   getSectorByCostCenter,
   getSolicitationById,
   getSolicitationByTrackingCode,
+  getWorkflowSummary,
   listSolicitations,
+  sendSampleToKairo,
+  sendToolingToKairo,
   startSolicitationReview,
   updateSolicitationReview,
   updateSolicitationStatus,
   sendSolicitationToKairo,
   syncPendingSolicitationsFromKairo,
+  syncSampleFromKairo,
   syncSolicitationFromKairo,
+  syncToolingFromKairo,
   validateRequester,
 } from '../controllers/solicitation-controller.js';
 
@@ -86,6 +91,42 @@ const priorityEnum = [
 ] as const;
 
 const kindEnum = ['PROJETO', 'ATIVIDADE'] as const;
+const workflowStageEnum = ['ENGENHARIA', 'FERRAMENTARIA', 'AMOSTRA'] as const;
+const workflowStageStatusEnum = [
+  'PENDING',
+  'READY',
+  'IN_PROGRESS',
+  'DONE',
+  'CANCELLED',
+] as const;
+
+const workflowStageSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    stage: { type: 'string', enum: workflowStageEnum },
+    status: { type: 'string', enum: workflowStageStatusEnum },
+    order: { type: 'integer' },
+    plannedStartAt: { type: ['string', 'null'], format: 'date-time' },
+    plannedEndAt: { type: ['string', 'null'], format: 'date-time' },
+    plannedDurationPercentage: { type: ['string', 'null'] },
+    actualStartAt: { type: ['string', 'null'], format: 'date-time' },
+    actualEndAt: { type: ['string', 'null'], format: 'date-time' },
+    kairoTeamId: { type: ['string', 'null'] },
+    kairoCardIds: { type: ['string', 'null'] },
+    kairoSyncedAt: { type: ['string', 'null'], format: 'date-time' },
+    kairoSyncedByUserId: { type: ['string', 'null'] },
+    completedByUserId: { type: ['string', 'null'] },
+  },
+} as const;
+
+const workflowSchema = {
+  type: 'object',
+  properties: {
+    requiresTooling: { type: 'boolean' },
+    stages: { type: 'array', items: workflowStageSchema },
+  },
+} as const;
 
 const solicitationSchema = {
   type: 'object',
@@ -141,6 +182,8 @@ const solicitationSchema = {
       type: 'string',
       enum: ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'],
     },
+    requiresTooling: { type: 'boolean' },
+    workflow: { anyOf: [workflowSchema, { type: 'null' }] },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -169,6 +212,7 @@ const publicTicketSchema = {
     fileLink: { type: ['string', 'null'] },
     createdAt: { type: 'string', format: 'date-time' },
     statusUpdatedAt: { type: ['string', 'null'], format: 'date-time' },
+    workflow: { anyOf: [workflowSchema, { type: 'null' }] },
   },
 } as const;
 
@@ -312,6 +356,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
             partNumbers: { type: 'string' },
             fileLink: { type: 'string' },
             comments: { type: 'string' },
+            requiresTooling: { type: 'boolean' },
           },
         },
         response: {
@@ -381,6 +426,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
               default: 'createdAt',
             },
             sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+            onlyWorkflow: { type: 'string', enum: ['true', 'false', '1', '0'] },
           },
         },
         response: {
@@ -408,6 +454,167 @@ export async function solicitationRoutes(app: FastifyInstance) {
       },
     },
     listSolicitations,
+  );
+
+  app.get(
+    '/workflow/summary',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Resumo do workflow Comercial',
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              stages: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    stage: { type: 'string', enum: workflowStageEnum },
+                    total: { type: 'integer' },
+                    inProgress: { type: 'integer' },
+                    waiting: { type: 'integer' },
+                    done: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    getWorkflowSummary,
+  );
+
+  app.post(
+    '/:id/workflow/tooling/send-to-kairo',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Enviar etapa de ferramentaria ao Kairo',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string', format: 'uuid' } },
+        },
+        body: {
+          type: 'object',
+          required: ['teamId'],
+          properties: {
+            teamId: { type: 'string', minLength: 1 },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            tagId: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { solicitation: solicitationSchema },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+          404: errorResponseSchema,
+        },
+      },
+    },
+    sendToolingToKairo,
+  );
+
+  app.post(
+    '/:id/workflow/tooling/sync-kairo',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Sincronizar etapa de ferramentaria com o Kairo',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string', format: 'uuid' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { solicitation: solicitationSchema },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+          404: errorResponseSchema,
+        },
+      },
+    },
+    syncToolingFromKairo,
+  );
+
+  app.post(
+    '/:id/workflow/sample/send-to-kairo',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Enviar etapa de amostra ao Kairo',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string', format: 'uuid' } },
+        },
+        body: {
+          type: 'object',
+          required: ['teamId'],
+          properties: {
+            teamId: { type: 'string', minLength: 1 },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            tagId: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { solicitation: solicitationSchema },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+          404: errorResponseSchema,
+        },
+      },
+    },
+    sendSampleToKairo,
+  );
+
+  app.post(
+    '/:id/workflow/sample/sync-kairo',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Sincronizar etapa de amostra com o Kairo',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string', format: 'uuid' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { solicitation: solicitationSchema },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+          404: errorResponseSchema,
+        },
+      },
+    },
+    syncSampleFromKairo,
   );
 
   app.post(

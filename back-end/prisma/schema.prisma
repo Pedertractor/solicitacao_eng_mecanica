@@ -14,14 +14,30 @@ enum Unit {
 
 enum UserRole {
   SUPER_ADMIN
-  ADMIN_ENG
-  ADMIN_PROCESSOS
+  ADMIN
   USER
+  COMERCIAL
+}
+
+enum WorkflowStage {
+  ENGENHARIA
+  FERRAMENTARIA
+  AMOSTRA
+}
+
+enum WorkflowStageStatus {
+  PENDING
+  READY
+  IN_PROGRESS
+  DONE
+  CANCELLED
 }
 
 enum UserDepartment {
   ENG_MECANICA
   DESENVOLVIMENTO_PROCESSOS
+  FERRAMENTARIA
+  AMOSTRA
 }
 
 enum UserApprovalStatus {
@@ -125,6 +141,8 @@ model User {
   kairoSyncs    Solicitation[] @relation("SolicitationKairoSyncer")
   deletions     Solicitation[] @relation("SolicitationDeletedBy")
   kairoCredential UserKairoCredential?
+  workflowStageCompletions SolicitationWorkflowStage[] @relation("WorkflowStageCompletedBy")
+  workflowStageKairoSyncs  SolicitationWorkflowStage[] @relation("WorkflowStageKairoSyncer")
 
   @@unique([cardNumber, unit])
   @@index([role])
@@ -198,6 +216,8 @@ model Solicitation {
   kairoSyncedAt        DateTime?
   kairoSyncedByUserId  String?
 
+  requiresTooling Boolean @default(false)
+
   deletedAt       DateTime?
   deletedByUserId String?
   deletedByName   String?
@@ -209,6 +229,7 @@ model Solicitation {
   statusUpdatedBy User? @relation("SolicitationStatusUpdater", fields: [statusUpdatedByUserId], references: [id])
   kairoSyncedBy   User? @relation("SolicitationKairoSyncer", fields: [kairoSyncedByUserId], references: [id])
   deletedBy       User? @relation("SolicitationDeletedBy", fields: [deletedByUserId], references: [id])
+  workflowStages  SolicitationWorkflowStage[]
 
   @@index([status])
   @@index([createdAt])
@@ -216,4 +237,36 @@ model Solicitation {
   @@index([costCenter])
   @@index([deletedAt])
   @@index([department])
+}
+
+model SolicitationWorkflowStage {
+  id             String              @id @default(uuid())
+  solicitationId String
+  stage          WorkflowStage
+  status         WorkflowStageStatus @default(PENDING)
+  order          Int
+
+  plannedStartAt             DateTime?
+  plannedEndAt               DateTime?
+  plannedDurationPercentage  Decimal?  @db.Decimal(5, 2)
+  actualStartAt              DateTime?
+  actualEndAt                DateTime?
+
+  kairoTeamId         String?
+  kairoCardIds        String?
+  kairoSyncedAt       DateTime?
+  kairoSyncedByUserId String?
+
+  completedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  solicitation Solicitation @relation(fields: [solicitationId], references: [id], onDelete: Cascade)
+  completedBy  User?        @relation("WorkflowStageCompletedBy", fields: [completedByUserId], references: [id])
+  kairoSyncedBy User?       @relation("WorkflowStageKairoSyncer", fields: [kairoSyncedByUserId], references: [id])
+
+  @@unique([solicitationId, stage])
+  @@index([stage, status])
+  @@index([solicitationId])
 }

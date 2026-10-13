@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { actorFromSession } from '../../auth/access-policy.js';
 import { $Enums } from '../../generated/prisma/client.js';
 import { SolicitationService } from '../../services/solicitation-service.js';
+import { WorkflowService } from '../../services/workflow-service.js';
 
 export async function validateRequester(
   request: FastifyRequest,
@@ -75,6 +76,7 @@ export async function createSolicitation(
       partNumbers: z.string().optional(),
       fileLink: z.string().optional(),
       comments: z.string().optional(),
+      requiresTooling: z.boolean().optional(),
     }),
   ]);
   const body = bodySchema.parse(request.body);
@@ -95,6 +97,10 @@ export async function listSolicitations(
       .enum(['createdAt', 'requesterName', 'sectorName', 'title', 'status'])
       .default('createdAt'),
     sortOrder: z.enum(['asc', 'desc']).default('desc'),
+    onlyWorkflow: z
+      .enum(['true', 'false', '1', '0'])
+      .optional()
+      .transform((value) => value === 'true' || value === '1'),
   });
   const query = querySchema.parse(request.query);
   const service = new SolicitationService();
@@ -104,8 +110,122 @@ export async function listSolicitations(
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     ...(query.status !== undefined ? { status: query.status } : {}),
+    ...(query.onlyWorkflow ? { onlyWorkflow: true } : {}),
   }, actorFromSession(request.user));
   return reply.status(200).send(result);
+}
+
+export async function getWorkflowSummary(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const service = new WorkflowService();
+  const summary = await service.summary(actorFromSession(request.user));
+  return reply.status(200).send(summary);
+}
+
+export async function sendToolingToKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const bodySchema = z.object({
+    teamId: z.string().min(1, 'Time é obrigatório'),
+    title: z.string().trim().min(1).optional(),
+    description: z.string().trim().min(1).optional(),
+    tagId: z.string().min(1).optional(),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const body = bodySchema.parse(request.body);
+  const service = new WorkflowService();
+  const row = await service.sendToolingToKairo(
+    id,
+    {
+      teamId: body.teamId,
+      ...(body.title ? { title: body.title } : {}),
+      ...(body.description ? { description: body.description } : {}),
+      ...(body.tagId ? { tagId: body.tagId } : {}),
+    },
+    request.user.sub,
+  );
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
+}
+
+export async function syncToolingFromKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const service = new WorkflowService();
+  const row = await service.syncToolingFromKairo(id, request.user.sub);
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
+}
+
+export async function sendSampleToKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const bodySchema = z.object({
+    teamId: z.string().min(1, 'Time é obrigatório'),
+    title: z.string().trim().min(1).optional(),
+    description: z.string().trim().min(1).optional(),
+    tagId: z.string().min(1).optional(),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const body = bodySchema.parse(request.body);
+  const service = new WorkflowService();
+  const row = await service.sendSampleToKairo(
+    id,
+    {
+      teamId: body.teamId,
+      ...(body.title ? { title: body.title } : {}),
+      ...(body.description ? { description: body.description } : {}),
+      ...(body.tagId ? { tagId: body.tagId } : {}),
+    },
+    request.user.sub,
+  );
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
+}
+
+export async function syncSampleFromKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const service = new WorkflowService();
+  const row = await service.syncSampleFromKairo(id, request.user.sub);
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
 }
 
 export async function getSolicitationById(

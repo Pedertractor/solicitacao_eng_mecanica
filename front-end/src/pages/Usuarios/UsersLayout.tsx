@@ -18,7 +18,8 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
 export function UsersLayout() {
   const { user: authUser } = useAuth();
   const showRequestsTab =
-    authUser?.role != null && canApproveUsers(authUser.role);
+    authUser?.role != null &&
+    canApproveUsers(authUser.role, authUser.department);
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],

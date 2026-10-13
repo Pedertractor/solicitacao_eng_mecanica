@@ -13,13 +13,13 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/useAuth';
 import { getSidebarNavItemsForRole } from '@/config/roleAccess';
-import { formattedRoles } from '@/utils/roles';
+import { roleLabel } from '@/utils/roles';
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
 
   const navItems = user
-    ? getSidebarNavItemsForRole(user.role).map((item) => ({
+    ? getSidebarNavItemsForRole(user.role, user.department).map((item) => ({
         title: item.label,
         url: item.path,
         icon: item.icon,
@@ -30,6 +30,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         })),
       }))
     : [];
+
+  const displayRole = user
+    ? roleLabel(user.role, user.department)
+    : 'App';
 
   const initials = user?.name
     ? user.name
@@ -48,7 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {
               name: 'Solicitação Pedertractor',
               logo: CogIcon,
-              plan: user?.role ? formattedRoles[user.role] : 'App',
+              plan: displayRole,
             },
           ]}
         />
@@ -60,7 +64,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUser
           user={{
             name: user?.name ?? 'Usuário',
-            email: user?.role ? formattedRoles[user.role] : '',
+            email: user ? displayRole : '',
             avatar: '',
             initials,
           }}

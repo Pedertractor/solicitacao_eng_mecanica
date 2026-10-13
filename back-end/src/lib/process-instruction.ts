@@ -266,8 +266,23 @@ function formatPtBr(date: Date): string {
   return date.toLocaleDateString('pt-BR');
 }
 
-export function calcularDataLimite(diasUteis: number, now = new Date()): string {
-  if (!Number.isFinite(diasUteis) || diasUteis <= 0) return '';
+export const WORKFLOW_ENGINEERING_PERCENTAGE = 20;
+
+export function isComercialWorkflow(
+  department: string,
+  processInstructionRequester: string | null | undefined,
+): boolean {
+  return (
+    department === 'DESENVOLVIMENTO_PROCESSOS' &&
+    processInstructionRequester?.trim() === 'Comercial'
+  );
+}
+
+export function calcularDataLimiteDate(
+  diasUteis: number,
+  now = new Date(),
+): Date | null {
+  if (!Number.isFinite(diasUteis) || diasUteis <= 0) return null;
   const data = startOfToday(now);
   let diasAdicionados = 0;
   while (diasAdicionados < diasUteis) {
@@ -277,25 +292,31 @@ export function calcularDataLimite(diasUteis: number, now = new Date()): string 
       diasAdicionados++;
     }
   }
-  return formatPtBr(data);
+  return data;
 }
 
-export function calcularPrazoVintePorCento(
+export function calcularDataLimite(diasUteis: number, now = new Date()): string {
+  const data = calcularDataLimiteDate(diasUteis, now);
+  return data ? formatPtBr(data) : '';
+}
+
+export function calcularDataLimiteVintePorCentoDate(
   dataEntregaStr: string,
   now = new Date(),
-): { diasUteis: number; dataLimiteStr: string | null } {
+  percentage = WORKFLOW_ENGINEERING_PERCENTAGE,
+): { diasUteis: number; dataLimite: Date | null } {
   if (!dataEntregaStr) {
-    return { diasUteis: 0, dataLimiteStr: null };
+    return { diasUteis: 0, dataLimite: null };
   }
 
   const parsed = parseIsoDate(dataEntregaStr);
   if (!parsed) {
-    return { diasUteis: 0, dataLimiteStr: null };
+    return { diasUteis: 0, dataLimite: null };
   }
 
   const hoje = startOfToday(now);
   if (parsed <= hoje) {
-    return { diasUteis: 0, dataLimiteStr: null };
+    return { diasUteis: 0, dataLimite: null };
   }
 
   let totalDiasUteis = 0;
@@ -311,24 +332,57 @@ export function calcularPrazoVintePorCento(
   }
 
   if (totalDiasUteis <= 0) {
-    return { diasUteis: 0, dataLimiteStr: null };
+    return { diasUteis: 0, dataLimite: null };
   }
 
-  const diasUteisPrazo = Math.max(1, Math.ceil(totalDiasUteis * 0.2));
-  const dataLimite = new Date(hoje);
-  let diasAdicionados = 0;
-  while (diasAdicionados < diasUteisPrazo) {
-    dataLimite.setDate(dataLimite.getDate() + 1);
-    const diaSemana = dataLimite.getDay();
-    if (diaSemana !== 0 && diaSemana !== 6) {
-      diasAdicionados++;
-    }
-  }
+  const diasUteisPrazo = Math.max(
+    1,
+    Math.ceil(totalDiasUteis * (percentage / 100)),
+  );
+  const dataLimite = calcularDataLimiteDate(diasUteisPrazo, now);
 
   return {
     diasUteis: diasUteisPrazo,
-    dataLimiteStr: formatPtBr(dataLimite),
+    dataLimite,
   };
+}
+
+export function calcularPrazoVintePorCento(
+  dataEntregaStr: string,
+  now = new Date(),
+): { diasUteis: number; dataLimiteStr: string | null } {
+  const calc = calcularDataLimiteVintePorCentoDate(dataEntregaStr, now);
+  return {
+    diasUteis: calc.diasUteis,
+    dataLimiteStr: calc.dataLimite ? formatPtBr(calc.dataLimite) : null,
+  };
+}
+
+export function engineeringStagePlannedEndAt(input: {
+  requester: string;
+  process: string;
+  type: string;
+  deliveryDateIso: string | null;
+  now?: Date;
+}): Date | null {
+  const now = input.now ?? new Date();
+  const prazoVal = lookupDeadline(input.requester, input.process, input.type);
+  const isSample = shouldShowDeliveryDate(
+    input.requester,
+    input.process,
+    input.type,
+  );
+
+  if (typeof prazoVal === 'number') {
+    return calcularDataLimiteDate(prazoVal, now);
+  }
+
+  if (isSample && input.deliveryDateIso) {
+    return calcularDataLimiteVintePorCentoDate(input.deliveryDateIso, now)
+      .dataLimite;
+  }
+
+  return null;
 }
 
 export function parseIsoDate(value: string): Date | null {

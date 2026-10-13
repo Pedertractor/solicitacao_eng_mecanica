@@ -8,7 +8,11 @@ import { ROUTES } from '@/routes/constants';
 import { UNIT, type Unit, type UserDepartment, type UserRole } from '@/types/auth';
 import { ROLE_OPTIONS } from '@/pages/Usuarios/userFormConstants';
 import { useAuth } from '@/contexts/useAuth';
-import { assignableRoles, canCreateUser } from '@/config/permissions';
+import {
+  assignableDepartments,
+  assignableRoles,
+  canCreateUser,
+} from '@/config/permissions';
 import { DEPARTMENT_LABELS } from '@/utils/roles';
 import {
   cardNumberForApi,
@@ -34,18 +38,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-function resolveDepartment(
-  actorRole: UserRole | undefined,
-  role: UserRole,
-  draft: UserDepartment,
-): UserDepartment {
-  if (role === 'ADMIN_ENG') return 'ENG_MECANICA';
-  if (role === 'ADMIN_PROCESSOS') return 'DESENVOLVIMENTO_PROCESSOS';
-  if (actorRole === 'ADMIN_ENG') return 'ENG_MECANICA';
-  if (actorRole === 'ADMIN_PROCESSOS') return 'DESENVOLVIMENTO_PROCESSOS';
-  return draft;
-}
-
 export function NewUserPage() {
   const { user: authUser } = useAuth();
   const navigate = useNavigate();
@@ -53,16 +45,29 @@ export function NewUserPage() {
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [employeeName, setEmployeeName] = useState<string | null>(null);
-  const allowedRoles = authUser ? assignableRoles(authUser.role) : [];
+  const allowedRoles = authUser
+    ? assignableRoles(authUser.role, authUser.department)
+    : [];
   const [roleDraft, setRoleDraft] = useState<UserRole>('USER');
   const role = allowedRoles.includes(roleDraft) ? roleDraft : 'USER';
+  const departmentOptions = authUser
+    ? assignableDepartments(authUser.role, authUser.department, role)
+    : [];
   const [departmentDraft, setDepartmentDraft] = useState<UserDepartment>(
     authUser?.department ?? 'ENG_MECANICA',
   );
-  const department = resolveDepartment(authUser?.role, role, departmentDraft);
+  const department = departmentOptions.includes(departmentDraft)
+    ? departmentDraft
+    : (departmentOptions[0] ?? 'ENG_MECANICA');
   const [validateError, setValidateError] = useState<string | null>(null);
   const [validateLoading, setValidateLoading] = useState(false);
   const validateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!departmentOptions.includes(departmentDraft) && departmentOptions[0]) {
+      setDepartmentDraft(departmentOptions[0]);
+    }
+  }, [departmentDraft, departmentOptions]);
 
   const validateEmployee = useCallback(async () => {
     const card = cardNumberForApi(cardNumber);
@@ -119,16 +124,22 @@ export function NewUserPage() {
     registerMutation.mutate();
   };
 
-  if (authUser && !canCreateUser(authUser.role)) {
+  if (
+    authUser &&
+    !canCreateUser(authUser.role, authUser.department)
+  ) {
     return <Navigate to={ROUTES.USUARIOS} replace />;
   }
 
   const roleOptions = ROLE_OPTIONS.filter((opt) =>
     allowedRoles.includes(opt.value),
   );
-  const showDepartment = authUser?.role === 'SUPER_ADMIN';
-  const departmentLocked =
-    role === 'ADMIN_ENG' || role === 'ADMIN_PROCESSOS';
+  const showDepartment =
+    role === 'ADMIN' ||
+    role === 'USER' ||
+    role === 'COMERCIAL' ||
+    authUser?.role === 'SUPER_ADMIN';
+  const departmentLocked = role === 'COMERCIAL' || departmentOptions.length <= 1;
 
   return (
     <div className='space-y-6'>
@@ -227,18 +238,18 @@ export function NewUserPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(
-                      Object.entries(DEPARTMENT_LABELS) as [
-                        UserDepartment,
-                        string,
-                      ][]
-                    ).map(([value, label]) => (
+                    {departmentOptions.map((value) => (
                       <SelectItem key={value} value={value}>
-                        {label}
+                        {DEPARTMENT_LABELS[value]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {role === 'ADMIN' ? (
+                  <p className='text-xs text-muted-foreground'>
+                    O departamento define a área que este administrador lidera.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 

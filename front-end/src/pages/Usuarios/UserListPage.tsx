@@ -4,10 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus, Search } from 'lucide-react';
 import { userApi } from '@/services/user';
 import { ROUTES } from '@/routes/constants';
-import type { ListUser, UserRole } from '@/types/auth';
+import type { ListUser } from '@/types/auth';
 import { useAuth } from '@/contexts/useAuth';
 import { canCreateUser, canEditUserAsAdmin } from '@/config/permissions';
-import { DEPARTMENT_LABELS, formattedRoles } from '@/utils/roles';
+import { DEPARTMENT_LABELS, roleLabel } from '@/utils/roles';
 import { EditUserModal } from '@/pages/Usuarios/EditUserModal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,8 +25,6 @@ import { TablePagination } from '@/components/ui/table-pagination';
 
 const PAGE_SIZE = 10;
 
-const ROLE_LABELS: Record<UserRole, string> = formattedRoles;
-
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -39,9 +37,12 @@ function getInitials(name: string): string {
 export function UserListPage() {
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
-  const showNewUser = authUser?.role != null && canCreateUser(authUser.role);
+  const showNewUser =
+    authUser?.role != null &&
+    canCreateUser(authUser.role, authUser.department);
   const allowAdminEdit =
-    authUser?.role != null && canEditUserAsAdmin(authUser.role);
+    authUser?.role != null &&
+    canEditUserAsAdmin(authUser.role, authUser.department);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [editUser, setEditUser] = useState<ListUser | null>(null);
@@ -180,10 +181,16 @@ export function UserListPage() {
   );
 }
 
-function RoleBadge({ role }: { role: UserRole }) {
+function RoleBadge({
+  role,
+  department,
+}: {
+  role: ListUser['role'];
+  department: ListUser['department'];
+}) {
   return (
     <Badge variant={role === 'USER' ? 'outline' : 'secondary'}>
-      {ROLE_LABELS[role]}
+      {roleLabel(role, department)}
     </Badge>
   );
 }
@@ -234,7 +241,7 @@ function UserRow({
       <TableCell>{user.unit}</TableCell>
       <TableCell>{DEPARTMENT_LABELS[user.department]}</TableCell>
       <TableCell>
-        <RoleBadge role={user.role} />
+        <RoleBadge role={user.role} department={user.department} />
       </TableCell>
       <TableCell>
         <ActiveBadge active={user.active} />
@@ -283,7 +290,7 @@ function UserCard({
         </div>
       </div>
       <div className='mt-3 flex flex-wrap items-center gap-2'>
-        <RoleBadge role={user.role} />
+        <RoleBadge role={user.role} department={user.department} />
         <ActiveBadge active={user.active} />
         <span className='text-xs text-muted-foreground'>{user.unit}</span>
         <span className='text-xs text-muted-foreground'>

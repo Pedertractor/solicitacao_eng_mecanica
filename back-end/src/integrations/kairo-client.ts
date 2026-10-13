@@ -46,6 +46,10 @@ export type KairoActivity = {
   deletedAt?: string | null;
   deletedByName?: string | null;
   integrationSource?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  updatedAt?: string | null;
+  workers?: Array<{ id: string; name: string }>;
 };
 
 export type KairoProject = {

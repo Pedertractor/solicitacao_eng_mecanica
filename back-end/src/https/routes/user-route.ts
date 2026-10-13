@@ -20,11 +20,16 @@ import { roleMiddleware } from '../../middlewares/auth-role-middleware.js';
 const unitEnum = ['PEDERTRACTOR', 'TRACTOR'] as const;
 const userRoleEnum = [
   'SUPER_ADMIN',
-  'ADMIN_ENG',
-  'ADMIN_PROCESSOS',
+  'ADMIN',
   'USER',
+  'COMERCIAL',
 ] as const;
-const departmentEnum = ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'] as const;
+const departmentEnum = [
+  'ENG_MECANICA',
+  'DESENVOLVIMENTO_PROCESSOS',
+  'FERRAMENTARIA',
+  'AMOSTRA',
+] as const;
 const approvalStatusEnum = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 
 const userSchema = {
@@ -423,6 +428,7 @@ export async function userRoutes(app: FastifyInstance) {
           required: ['role'],
           properties: {
             role: { type: 'string', enum: userRoleEnum },
+            department: { type: 'string', enum: departmentEnum },
           },
         },
         response: {

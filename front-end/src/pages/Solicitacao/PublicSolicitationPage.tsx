@@ -29,7 +29,7 @@ import {
   type Solicitation,
   type SolicitationClient,
 } from '@/services/solicitation';
-import { type Unit, type UserDepartment } from '@/types/auth';
+import { type Unit } from '@/types/auth';
 import { DEPARTMENT_LABELS } from '@/utils/roles';
 import {
   cardNumberForApi,
@@ -89,12 +89,19 @@ const UNIT_OPTIONS: { value: Unit; label: string }[] = [
   { value: 'TRACTOR', label: 'T' },
 ];
 
-const DEPARTMENT_OPTIONS: { value: UserDepartment; label: string }[] = [
+type PublicSolicitationDepartment =
+  | 'ENG_MECANICA'
+  | 'DESENVOLVIMENTO_PROCESSOS';
+
+const DEPARTMENT_OPTIONS: {
+  value: PublicSolicitationDepartment;
+  label: string;
+}[] = [
   { value: 'ENG_MECANICA', label: 'Engenharia' },
   { value: 'DESENVOLVIMENTO_PROCESSOS', label: 'Processos' },
 ];
 
-const DEPARTMENT_DESCRIPTION: Record<UserDepartment, string> = {
+const DEPARTMENT_DESCRIPTION: Record<PublicSolicitationDepartment, string> = {
   ENG_MECANICA:
     'Engenharia Mecânica. Página para fazer solicitações para a equipe.',
   DESENVOLVIMENTO_PROCESSOS:
@@ -127,7 +134,7 @@ async function copyText(value: string) {
 
 export function PublicSolicitationPage() {
   const [department, setDepartment] =
-    useState<UserDepartment>('ENG_MECANICA');
+    useState<PublicSolicitationDepartment>('ENG_MECANICA');
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [requesterName, setRequesterName] = useState<string | null>(null);
@@ -265,6 +272,9 @@ export function PublicSolicitationPage() {
             : {}),
           ...(processDraft.comments.trim()
             ? { comments: processDraft.comments.trim() }
+            : {}),
+          ...(processDraft.requester === 'Comercial'
+            ? { requiresTooling: processDraft.requiresTooling }
             : {}),
         });
       }

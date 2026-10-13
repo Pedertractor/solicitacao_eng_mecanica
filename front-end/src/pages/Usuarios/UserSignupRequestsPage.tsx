@@ -7,7 +7,7 @@ import { userApi } from '@/services/user';
 import type { ListUser } from '@/types/auth';
 import { useAuth } from '@/contexts/useAuth';
 import { canApproveUsers } from '@/config/permissions';
-import { DEPARTMENT_LABELS, formattedRoles } from '@/utils/roles';
+import { DEPARTMENT_LABELS, roleLabel } from '@/utils/roles';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -35,7 +35,8 @@ function getInitials(name: string): string {
 export function UserSignupRequestsPage() {
   const { user: authUser } = useAuth();
   const allowApproval =
-    authUser?.role != null && canApproveUsers(authUser.role);
+    authUser?.role != null &&
+    canApproveUsers(authUser.role, authUser.department);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
 
@@ -225,7 +226,7 @@ function PendingSignupRow({
       <TableCell>
         <div>{DEPARTMENT_LABELS[user.department]}</div>
         <Badge variant='outline' className='mt-1'>
-          {formattedRoles[user.role]}
+          {roleLabel(user.role, user.department)}
         </Badge>
       </TableCell>
       <TableCell className='text-right'>
@@ -287,7 +288,9 @@ function PendingSignupCard({
       </div>
       <div className='flex flex-wrap gap-2'>
         <Badge variant='outline'>{DEPARTMENT_LABELS[user.department]}</Badge>
-        <Badge variant='secondary'>{formattedRoles[user.role]}</Badge>
+        <Badge variant='secondary'>
+          {roleLabel(user.role, user.department)}
+        </Badge>
       </div>
       <div className='flex gap-2'>
         <Button
