@@ -6,10 +6,12 @@ import {
   createSolicitation,
   deleteSolicitation,
   getPartByNumber,
+  getProcessCharts,
   getSectorByCostCenter,
   getSolicitationById,
   getSolicitationByTrackingCode,
   getWorkflowSummary,
+  getEngineeringQueue,
   listSolicitations,
   sendSampleToKairo,
   sendToolingToKairo,
@@ -489,6 +491,32 @@ export async function solicitationRoutes(app: FastifyInstance) {
     getWorkflowSummary,
   );
 
+  app.get(
+    '/workflow/engineering',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Projetos com etapa de Engenharia aberta, por prazo mais próximo',
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              solicitations: {
+                type: 'array',
+                items: solicitationSchema,
+              },
+            },
+            required: ['solicitations'],
+          },
+          403: errorResponseSchema,
+        },
+      },
+    },
+    getEngineeringQueue,
+  );
+
   app.post(
     '/:id/workflow/tooling/send-to-kairo',
     {
@@ -639,6 +667,74 @@ export async function solicitationRoutes(app: FastifyInstance) {
       },
     },
     syncPendingSolicitationsFromKairo,
+  );
+
+  app.get(
+    '/process-charts',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Indicadores de pedidos por time (admin de processos)',
+        security: [{ bearerAuth: [] }],
+        querystring: {
+          type: 'object',
+          required: ['teamId'],
+          properties: {
+            teamId: { type: 'string', minLength: 1 },
+            period: { type: 'string', enum: ['year', 'month', 'week'] },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            required: ['period', 'teamId', 'byClient', 'byActivityType', 'byResponsible'],
+            properties: {
+              period: { type: 'string', enum: ['year', 'month', 'week'] },
+              teamId: { type: 'string' },
+              byClient: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['key', 'label', 'count'],
+                  properties: {
+                    key: { type: 'string' },
+                    label: { type: 'string' },
+                    count: { type: 'integer' },
+                  },
+                },
+              },
+              byActivityType: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['key', 'label', 'count'],
+                  properties: {
+                    key: { type: 'string' },
+                    label: { type: 'string' },
+                    count: { type: 'integer' },
+                  },
+                },
+              },
+              byResponsible: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['key', 'label', 'count'],
+                  properties: {
+                    key: { type: 'string' },
+                    label: { type: 'string' },
+                    count: { type: 'integer' },
+                  },
+                },
+              },
+            },
+          },
+          403: errorResponseSchema,
+        },
+      },
+    },
+    getProcessCharts,
   );
 
   app.get(

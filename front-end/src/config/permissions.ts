@@ -133,6 +133,13 @@ export function canManageSolicitations(
   return isSolicitationAreaAdmin({ role, department });
 }
 
+export function canAccessProcessCharts(
+  role: UserRole,
+  department?: UserDepartment,
+): boolean {
+  return role === 'ADMIN' && department === 'DESENVOLVIMENTO_PROCESSOS';
+}
+
 export function canAccessWorkflow(
   role: UserRole,
   department?: UserDepartment,
@@ -152,10 +159,7 @@ export function canManageToolingStage(
 ): boolean {
   if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
-  return (
-    department === 'DESENVOLVIMENTO_PROCESSOS' ||
-    department === 'FERRAMENTARIA'
-  );
+  return department === 'FERRAMENTARIA';
 }
 
 export function canManageSampleStage(
@@ -164,13 +168,26 @@ export function canManageSampleStage(
 ): boolean {
   if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
-  return (
-    department === 'DESENVOLVIMENTO_PROCESSOS' || department === 'AMOSTRA'
-  );
+  return department === 'AMOSTRA';
+}
+
+/** Líder de Desenvolvimento de Processos: acompanha só a etapa de Engenharia. */
+export function isProcessEngineeringLead(
+  role: UserRole,
+  department?: UserDepartment,
+): boolean {
+  return role === 'ADMIN' && department === 'DESENVOLVIMENTO_PROCESSOS';
 }
 
 export function canAccessSettings(role: UserRole): boolean {
   return role === 'SUPER_ADMIN';
+}
+
+export function canAccessOfTracking(
+  role: UserRole,
+  _department?: UserDepartment,
+): boolean {
+  return role === 'SUPER_ADMIN' || role === 'ADMIN';
 }
 
 export function isWorkflowOnlyRole(

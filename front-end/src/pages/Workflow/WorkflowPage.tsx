@@ -14,6 +14,9 @@ import {
   type Solicitation,
 } from '@/services/solicitation';
 import { solicitationDetailPath } from '@/routes/constants';
+import { useAuth } from '@/contexts/useAuth';
+import { isProcessEngineeringLead } from '@/config/permissions';
+import { EngineeringQueue } from './EngineeringQueue';
 
 function SummaryCards() {
   const summaryQuery = useQuery({
@@ -106,6 +109,16 @@ function WorkflowCard({ solicitation }: { solicitation: Solicitation }) {
 }
 
 export function WorkflowPage() {
+  const { user } = useAuth();
+
+  if (user && isProcessEngineeringLead(user.role, user.department)) {
+    return <EngineeringQueue />;
+  }
+
+  return <FullWorkflowView />;
+}
+
+function FullWorkflowView() {
   const listQuery = useQuery({
     queryKey: ['solicitations', 'workflow'],
     queryFn: () =>

@@ -63,7 +63,6 @@ export function canManageToolingStage(
 ): boolean {
   return (
     isSuperAdmin(actor.role) ||
-    isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS) ||
     isAdminOf(actor, $Enums.UserDepartment.FERRAMENTARIA)
   );
 }
@@ -73,9 +72,35 @@ export function canManageSampleStage(
 ): boolean {
   return (
     isSuperAdmin(actor.role) ||
-    isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS) ||
     isAdminOf(actor, $Enums.UserDepartment.AMOSTRA)
   );
+}
+
+/** Líder de Desenvolvimento de Processos: acompanha só a etapa de Engenharia. */
+export function isProcessEngineeringLead(
+  actor: Pick<AccessActor, 'role' | 'department'>,
+): boolean {
+  return isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS);
+}
+
+export function visibleWorkflowStages(
+  actor: Pick<AccessActor, 'role' | 'department'>,
+): $Enums.WorkflowStage[] {
+  if (isProcessEngineeringLead(actor)) {
+    return [$Enums.WorkflowStage.ENGENHARIA];
+  }
+  return [
+    $Enums.WorkflowStage.ENGENHARIA,
+    $Enums.WorkflowStage.FERRAMENTARIA,
+    $Enums.WorkflowStage.AMOSTRA,
+  ];
+}
+
+/** Indicadores de pedidos. Só o admin de Desenvolvimento de Processos. */
+export function canAccessProcessCharts(
+  actor: Pick<AccessActor, 'role' | 'department'>,
+): boolean {
+  return isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS);
 }
 
 export function canAccessWorkflow(

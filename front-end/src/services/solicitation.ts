@@ -261,7 +261,33 @@ export interface SolicitationListResponse {
 
 const BASE = '/solicitations';
 
+export type ProcessChartPeriod = 'year' | 'month' | 'week';
+
+export interface ProcessChartBucket {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface ProcessCharts {
+  period: ProcessChartPeriod;
+  teamId: string;
+  byClient: ProcessChartBucket[];
+  byActivityType: ProcessChartBucket[];
+  byResponsible: ProcessChartBucket[];
+}
+
 export const solicitationApi = {
+  async processCharts(
+    teamId: string,
+    period: ProcessChartPeriod,
+  ): Promise<ProcessCharts> {
+    const { data } = await api.get<ProcessCharts>(`${BASE}/process-charts`, {
+      params: { teamId, period },
+    });
+    return data;
+  },
+
   async validateRequester(
     cardNumber: string,
     unit: Unit,
@@ -319,6 +345,13 @@ export const solicitationApi = {
   async workflowSummary(): Promise<{ stages: WorkflowSummaryStage[] }> {
     const { data } = await api.get<{ stages: WorkflowSummaryStage[] }>(
       `${BASE}/workflow/summary`,
+    );
+    return data;
+  },
+
+  async engineeringQueue(): Promise<{ solicitations: Solicitation[] }> {
+    const { data } = await api.get<{ solicitations: Solicitation[] }>(
+      `${BASE}/workflow/engineering`,
     );
     return data;
   },

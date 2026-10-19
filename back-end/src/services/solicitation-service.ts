@@ -3,7 +3,9 @@ import { prisma } from '../lib/prisma.js';
 import { $Enums } from '../generated/prisma/client.js';
 import {
   type AccessActor,
+  canAccessProcessCharts,
   canAccessSolicitation,
+  canAccessWorkflow,
   canManageSolicitations,
   isSuperAdmin,
   solicitationScope,
@@ -22,6 +24,11 @@ import {
 import { SolicitationPrismaRepository } from '../repositories/prisma/solicitation-repository.js';
 import { KairoCredentialService } from './kairo-credential-service.js';
 import {
+  buildProcessCharts,
+  periodRange,
+  type ChartPeriod,
+} from '../lib/process-charts.js';
+import {
   buildStoredDeadline,
   deliveryDateError,
   isComercialWorkflow,
@@ -37,6 +44,8 @@ import {
 } from './workflow-service.js';
 import { WorkflowStagePrismaRepository } from '../repositories/prisma/workflow-stage-repository.js';
 import type { SolicitationWithWorkflow } from '../repositories/prisma/solicitation-repository.js';
+
+const ENGINEERING_QUEUE_LIMIT = 200;
 
 function mapSolicitation(row: SolicitationWithWorkflow | {
   id: string;
@@ -284,6 +293,29 @@ function mapPublicTicket(row: {
 }
 
 export class SolicitationService {
+  async getProcessCharts(
+    actor: AccessActor,
+    input: { teamId: string; period: ChartPeriod },
+  ) {
+    if (!canAccessProcessCharts(actor)) {
+      throw new HttpError('Sem permissão para ver os indicadores', 403);
+    }
+
+    const range = periodRange(input.period);
+    const repo = new SolicitationPrismaRepository(prisma);
+    const rows = await repo.findProcessChartRows({
+      teamId: input.teamId,
+      start: range.start,
+      end: range.end,
+    });
+
+    return {
+      period: input.period,
+      teamId: input.teamId,
+      ...buildProcessCharts(rows),
+    };
+  }
+
   async validateRequester(cardNumber: string, unit: $Enums.Unit) {
     const api = new ApiPedertractorEmployee();
     const employee = await api.getEmployee({ cardNumber, unit });
@@ -485,6 +517,18 @@ export class SolicitationService {
         totalPages,
       },
     };
+  }
+
+  async listEngineeringQueue(actor: AccessActor) {
+    if (!canAccessWorkflow(actor)) {
+      throw new HttpError('Sem permissão para ver o workflow', 403);
+    }
+    const repo = new SolicitationPrismaRepository(prisma);
+    const items = await repo.findOpenEngineeringQueue(
+      solicitationScope(actor),
+      ENGINEERING_QUEUE_LIMIT,
+    );
+    return { solicitations: items.map(mapSolicitation) };
   }
 
   async getById(id: string, actor: AccessActor) {

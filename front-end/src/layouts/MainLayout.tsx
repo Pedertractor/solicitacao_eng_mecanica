@@ -19,6 +19,7 @@ import { ROUTES } from '@/routes/constants';
 function breadcrumbLabel(pathname: string): string {
   if (pathname === ROUTES.HOME || pathname === '') return 'Solicitações';
   if (pathname.startsWith(ROUTES.SOLICITACOES + '/')) return 'Detalhe';
+  if (pathname.startsWith(ROUTES.INDICADORES)) return 'Indicadores';
   if (pathname.startsWith(ROUTES.SOLICITACOES)) return 'Solicitações';
   if (pathname.startsWith(ROUTES.USUARIOS_NOVO)) return 'Novo usuário';
   if (pathname.startsWith(ROUTES.USUARIOS)) return 'Usuários';

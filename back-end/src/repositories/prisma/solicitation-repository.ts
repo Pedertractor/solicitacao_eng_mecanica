@@ -113,6 +113,45 @@ export class SolicitationPrismaRepository {
     return { items, total };
   }
 
+  async findOpenEngineeringQueue(
+    scope: Prisma.SolicitationWhereInput,
+    limit: number,
+  ): Promise<SolicitationWithWorkflow[]> {
+    const stages = await this.prisma.solicitationWorkflowStage.findMany({
+      where: {
+        stage: $Enums.WorkflowStage.ENGENHARIA,
+        status: {
+          in: [
+            $Enums.WorkflowStageStatus.PENDING,
+            $Enums.WorkflowStageStatus.READY,
+            $Enums.WorkflowStageStatus.IN_PROGRESS,
+          ],
+        },
+        solicitation: {
+          AND: [
+            {
+              status: {
+                notIn: [
+                  $Enums.SolicitationStatus.DELETED,
+                  $Enums.SolicitationStatus.CANCELLED,
+                ],
+              },
+            },
+            scope,
+          ],
+        },
+      },
+      orderBy: [
+        { plannedEndAt: { sort: 'asc', nulls: 'last' } },
+        { createdAt: 'asc' },
+      ],
+      take: limit,
+      include: { solicitation: { include: workflowStagesInclude } },
+    });
+
+    return stages.map((stage) => stage.solicitation);
+  }
+
   async findById(id: string): Promise<SolicitationWithWorkflow | null> {
     return await this.prisma.solicitation.findUnique({
       where: { id },
@@ -280,6 +319,27 @@ export class SolicitationPrismaRepository {
       },
       include: workflowStagesInclude,
       orderBy: { updatedAt: 'asc' },
+    });
+  }
+
+  async findProcessChartRows(input: {
+    teamId: string;
+    start: Date;
+    end: Date;
+  }) {
+    return await this.prisma.solicitation.findMany({
+      where: {
+        department: $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+        kairoTeamId: input.teamId,
+        deletedAt: null,
+        status: { not: $Enums.SolicitationStatus.DELETED },
+        createdAt: { gte: input.start, lt: input.end },
+      },
+      select: {
+        client: true,
+        processInstructionType: true,
+        requesterName: true,
+      },
     });
   }
 }

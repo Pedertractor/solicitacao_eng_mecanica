@@ -5,6 +5,8 @@ import {
 } from '@/config/sidebar';
 import type { UserDepartment, UserRole } from '@/types/auth';
 import {
+  canAccessOfTracking,
+  canAccessProcessCharts,
   canAccessSettings,
   canAccessSolicitations,
   canAccessUsersArea,
@@ -21,25 +23,37 @@ const WORKFLOW_NAV: readonly string[] = [
 
 const ADMIN_PROCESSOS_NAV: readonly string[] = [
   ROUTES.SOLICITACOES,
+  ROUTES.INDICADORES,
   ROUTES.WORKFLOW,
+  ROUTES.RASTREIO,
   ROUTES.USUARIOS,
 ] as const;
 
 const ADMIN_ENG_NAV: readonly string[] = [
   ROUTES.SOLICITACOES,
+  ROUTES.RASTREIO,
   ROUTES.USUARIOS,
+] as const;
+
+const ADMIN_WORKFLOW_NAV: readonly string[] = [
+  ROUTES.WORKFLOW,
+  ROUTES.SOLICITACOES,
+  ROUTES.RASTREIO,
 ] as const;
 
 const SUPER_ADMIN_NAV: readonly string[] = [
   ROUTES.SOLICITACOES,
   ROUTES.WORKFLOW,
+  ROUTES.RASTREIO,
   ROUTES.USUARIOS,
 ] as const;
 
 const PROTECTED_PATH_PATTERNS: RegExp[] = [
   /^\/$/,
   /^\/solicitacoes(\/.*)?$/,
+  /^\/indicadores(\/.*)?$/,
   /^\/workflow(\/.*)?$/,
+  /^\/rastreio(\/.*)?$/,
   /^\/usuarios(\/.*)?$/,
   /^\/configuracoes(\/.*)?$/,
 ];
@@ -55,7 +69,7 @@ export function getNavPaths(
     if (department === 'ENG_MECANICA') return ADMIN_ENG_NAV;
     if (department === 'DESENVOLVIMENTO_PROCESSOS') return ADMIN_PROCESSOS_NAV;
     if (department === 'FERRAMENTARIA' || department === 'AMOSTRA') {
-      return WORKFLOW_NAV;
+      return ADMIN_WORKFLOW_NAV;
     }
   }
   return SOLICITATION_NAV;
@@ -100,10 +114,24 @@ export function canRoleAccessPath(
   }
 
   if (
+    normalized === ROUTES.INDICADORES ||
+    normalized.startsWith(`${ROUTES.INDICADORES}/`)
+  ) {
+    return canAccessProcessCharts(role, department);
+  }
+
+  if (
     normalized === ROUTES.WORKFLOW ||
     normalized.startsWith(`${ROUTES.WORKFLOW}/`)
   ) {
     return canAccessWorkflow(role, department);
+  }
+
+  if (
+    normalized === ROUTES.RASTREIO ||
+    normalized.startsWith(`${ROUTES.RASTREIO}/`)
+  ) {
+    return canAccessOfTracking(role, department);
   }
 
   if (
@@ -141,6 +169,18 @@ export function getSidebarNavItemsForRole(
       return false;
     }
     if (item.path === ROUTES.WORKFLOW && !canAccessWorkflow(role, department)) {
+      return false;
+    }
+    if (
+      item.path === ROUTES.INDICADORES &&
+      !canAccessProcessCharts(role, department)
+    ) {
+      return false;
+    }
+    if (
+      item.path === ROUTES.RASTREIO &&
+      !canAccessOfTracking(role, department)
+    ) {
       return false;
     }
     return true;

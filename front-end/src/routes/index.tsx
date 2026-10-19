@@ -15,6 +15,8 @@ import { SolicitationListPage } from '@/pages/Solicitacao/SolicitationListPage';
 import { SolicitationDetailPage } from '@/pages/Solicitacao/SolicitationDetailPage';
 import { SettingsPage } from '@/pages/Configuracoes/SettingsPage';
 import { WorkflowPage } from '@/pages/Workflow/WorkflowPage';
+import { ProcessChartsPage } from '@/pages/Indicadores/ProcessChartsPage';
+import { OfTrackingPage } from '@/pages/Rastreio/OfTrackingPage';
 import { HomeRedirect } from '@/components/HomeRedirect';
 import { ROUTES } from './constants';
 
@@ -60,8 +62,16 @@ const router = createBrowserRouter([
                 element: <SolicitationDetailPage />,
               },
               {
+                path: ROUTES.INDICADORES,
+                element: <ProcessChartsPage />,
+              },
+              {
                 path: ROUTES.WORKFLOW,
                 element: <WorkflowPage />,
+              },
+              {
+                path: ROUTES.RASTREIO,
+                element: <OfTrackingPage />,
               },
               {
                 path: ROUTES.USUARIOS,

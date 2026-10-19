@@ -115,6 +115,23 @@ export async function listSolicitations(
   return reply.status(200).send(result);
 }
 
+export async function getProcessCharts(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const querySchema = z.object({
+    teamId: z.string().min(1, 'Time é obrigatório'),
+    period: z.enum(['year', 'month', 'week']).default('month'),
+  });
+  const query = querySchema.parse(request.query);
+  const service = new SolicitationService();
+  const charts = await service.getProcessCharts(actorFromSession(request.user), {
+    teamId: query.teamId,
+    period: query.period,
+  });
+  return reply.status(200).send(charts);
+}
+
 export async function getWorkflowSummary(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -122,6 +139,17 @@ export async function getWorkflowSummary(
   const service = new WorkflowService();
   const summary = await service.summary(actorFromSession(request.user));
   return reply.status(200).send(summary);
+}
+
+export async function getEngineeringQueue(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const service = new SolicitationService();
+  const result = await service.listEngineeringQueue(
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send(result);
 }
 
 export async function sendToolingToKairo(

@@ -7,6 +7,7 @@ import {
   canManageSampleStage,
   canManageToolingStage,
   solicitationScope,
+  visibleWorkflowStages,
 } from '../auth/access-policy.js';
 import {
   KAIRO_INTEGRATION_SOURCE,
@@ -476,12 +477,7 @@ export class WorkflowService {
   async summary(actor: AccessActor) {
     const workflowRepo = new WorkflowStagePrismaRepository(prisma);
     const rows = await workflowRepo.summary(solicitationScope(actor));
-
-    const stages: $Enums.WorkflowStage[] = [
-      $Enums.WorkflowStage.ENGENHARIA,
-      $Enums.WorkflowStage.FERRAMENTARIA,
-      $Enums.WorkflowStage.AMOSTRA,
-    ];
+    const stages = visibleWorkflowStages(actor);
 
     return {
       stages: stages.map((stage) => {
