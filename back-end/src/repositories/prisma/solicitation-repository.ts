@@ -85,6 +85,9 @@ export class SolicitationPrismaRepository {
     sortOrder?: 'asc' | 'desc';
     scope?: Prisma.SolicitationWhereInput;
     onlyWorkflow?: boolean;
+    createdFrom?: Date;
+    createdTo?: Date;
+    search?: string;
   }): Promise<{ items: SolicitationWithWorkflow[]; total: number }> {
     const statusWhere = input.status
       ? { status: input.status }
@@ -92,8 +95,35 @@ export class SolicitationPrismaRepository {
     const workflowWhere: Prisma.SolicitationWhereInput = input.onlyWorkflow
       ? { workflowStages: { some: {} } }
       : {};
+    const dateWhere: Prisma.SolicitationWhereInput =
+      input.createdFrom || input.createdTo
+        ? {
+            createdAt: {
+              ...(input.createdFrom ? { gte: input.createdFrom } : {}),
+              ...(input.createdTo ? { lte: input.createdTo } : {}),
+            },
+          }
+        : {};
+    const term = input.search?.trim();
+    const searchWhere: Prisma.SolicitationWhereInput = term
+      ? {
+          OR: [
+            { title: { contains: term, mode: 'insensitive' } },
+            { requesterName: { contains: term, mode: 'insensitive' } },
+            { trackingCode: { contains: term, mode: 'insensitive' } },
+            { sectorName: { contains: term, mode: 'insensitive' } },
+            { cardNumber: { contains: term, mode: 'insensitive' } },
+          ],
+        }
+      : {};
     const where: Prisma.SolicitationWhereInput = {
-      AND: [statusWhere, workflowWhere, input.scope ?? {}],
+      AND: [
+        statusWhere,
+        workflowWhere,
+        dateWhere,
+        searchWhere,
+        input.scope ?? {},
+      ],
     };
     const skip = (input.page - 1) * input.pageSize;
     const sortBy = input.sortBy ?? 'createdAt';

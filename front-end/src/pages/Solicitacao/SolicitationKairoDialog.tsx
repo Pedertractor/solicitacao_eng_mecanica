@@ -123,7 +123,7 @@ function KairoSendView({
   const teamsQuery = useQuery({
     queryKey: ['kairo-teams'],
     queryFn: () => kairoApi.listTeams(),
-    enabled: statusQuery.data?.linked === true && !solicitation.kairoCardId,
+    enabled: statusQuery.data?.linked === true,
   });
 
   const effectiveKindForQuery: SolicitationKind = sendOnePerPartNumber
@@ -199,6 +199,14 @@ function KairoSendView({
   const linked = statusQuery.data?.linked === true;
   const linkedCardIds = listKairoCardIds(solicitation);
   const alreadySent = linkedCardIds.length > 0;
+  const teamName =
+    (teamsQuery.data ?? []).find((team) => team.id === solicitation.kairoTeamId)
+      ?.name ?? null;
+  const teamLabel =
+    teamName ??
+    (solicitation.kairoTeamId && (statusQuery.isLoading || teamsQuery.isLoading)
+      ? 'Carregando…'
+      : '—');
   const effectiveKind: SolicitationKind = sendOnePerPartNumber
     ? 'ATIVIDADE'
     : kind;
@@ -236,7 +244,7 @@ function KairoSendView({
               label={linkedCardIds.length > 1 ? 'Cards Kairo' : 'Card Kairo'}
               value={linkedCardIds.join(', ') || '—'}
             />
-            <SentField label="Time" value={solicitation.kairoTeamId ?? '—'} />
+            <SentField label="Time" value={teamLabel} />
             <SentField
               label="Enviado em"
               value={

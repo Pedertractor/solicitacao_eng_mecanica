@@ -30,7 +30,6 @@ import {
   type SolicitationClient,
 } from '@/services/solicitation';
 import { type Unit } from '@/types/auth';
-import { DEPARTMENT_LABELS } from '@/utils/roles';
 import {
   cardNumberForApi,
 } from '@/utils/card-number-input';
@@ -97,8 +96,8 @@ const DEPARTMENT_OPTIONS: {
   value: PublicSolicitationDepartment;
   label: string;
 }[] = [
-  { value: 'ENG_MECANICA', label: 'Engenharia' },
-  { value: 'DESENVOLVIMENTO_PROCESSOS', label: 'Processos' },
+  { value: 'ENG_MECANICA', label: 'Engenharia (Mecânica)' },
+  { value: 'DESENVOLVIMENTO_PROCESSOS', label: 'Engenharia (Processos)' },
 ];
 
 const DEPARTMENT_DESCRIPTION: Record<PublicSolicitationDepartment, string> = {
@@ -721,9 +720,9 @@ export function PublicSolicitationPage() {
                     key={value}
                     type='button'
                     variant={department === value ? 'default' : 'outline'}
-                    className='h-9 text-sm font-medium'
+                    className='h-auto min-h-9 whitespace-normal px-2 py-2 text-center text-sm font-medium leading-snug'
                     aria-pressed={department === value}
-                    aria-label={DEPARTMENT_LABELS[value]}
+                    aria-label={label}
                     onClick={() => {
                       if (value === department) return;
                       if (value === 'ENG_MECANICA') {

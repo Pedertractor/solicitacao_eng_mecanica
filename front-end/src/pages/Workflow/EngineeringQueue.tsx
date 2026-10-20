@@ -146,7 +146,7 @@ function WorkflowDialog({
 }) {
   return (
     <Dialog open={solicitation != null} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-3xl'>
+      <DialogContent className='sm:max-w-4xl'>
         {solicitation ? (
           <>
             <DialogHeader>

@@ -247,6 +247,12 @@ export interface SolicitationListParams {
   sortBy?: SolicitationSortField;
   sortOrder?: SortOrder;
   onlyWorkflow?: boolean;
+  /** Dia inicial (YYYY-MM-DD), inclusive, no fuso de São Paulo. */
+  createdFrom?: string;
+  /** Dia final (YYYY-MM-DD), inclusive, no fuso de São Paulo. */
+  createdTo?: string;
+  /** Título, solicitante, código, setor ou cartão. */
+  q?: string;
 }
 
 export interface SolicitationListResponse {
@@ -337,6 +343,9 @@ export const solicitationApi = {
         ...(params.sortBy ? { sortBy: params.sortBy } : {}),
         ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
         ...(params.onlyWorkflow ? { onlyWorkflow: 'true' } : {}),
+        ...(params.createdFrom ? { createdFrom: params.createdFrom } : {}),
+        ...(params.createdTo ? { createdTo: params.createdTo } : {}),
+        ...(params.q ? { q: params.q } : {}),
       },
     });
     return data;

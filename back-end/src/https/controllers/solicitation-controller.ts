@@ -2,6 +2,7 @@ import z from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { actorFromSession } from '../../auth/access-policy.js';
 import { $Enums } from '../../generated/prisma/client.js';
+import { HttpError } from '../errors/index.js';
 import { SolicitationService } from '../../services/solicitation-service.js';
 import { WorkflowService } from '../../services/workflow-service.js';
 
@@ -85,23 +86,65 @@ export async function createSolicitation(
   return reply.status(201).send({ solicitation });
 }
 
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida');
+
+/** Limites do dia civil em America/Sao_Paulo (UTC-3, sem horário de verão). */
+function saoPauloDayBound(date: string, bound: 'start' | 'end'): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) {
+    throw new HttpError('Data inválida', 400);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  const isRealDay =
+    probe.getUTCFullYear() === year &&
+    probe.getUTCMonth() === month - 1 &&
+    probe.getUTCDate() === day;
+  if (!isRealDay) {
+    throw new HttpError('Data inválida', 400);
+  }
+  const time =
+    bound === 'start' ? 'T00:00:00.000-03:00' : 'T23:59:59.999-03:00';
+  return new Date(`${date}${time}`);
+}
+
 export async function listSolicitations(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const querySchema = z.object({
-    status: z.enum($Enums.SolicitationStatus).optional(),
-    page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(100).default(10),
-    sortBy: z
-      .enum(['createdAt', 'requesterName', 'sectorName', 'title', 'status'])
-      .default('createdAt'),
-    sortOrder: z.enum(['asc', 'desc']).default('desc'),
-    onlyWorkflow: z
-      .enum(['true', 'false', '1', '0'])
-      .optional()
-      .transform((value) => value === 'true' || value === '1'),
-  });
+  const querySchema = z
+    .object({
+      status: z.enum($Enums.SolicitationStatus).optional(),
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(100).default(10),
+      sortBy: z
+        .enum(['createdAt', 'requesterName', 'sectorName', 'title', 'status'])
+        .default('createdAt'),
+      sortOrder: z.enum(['asc', 'desc']).default('desc'),
+      onlyWorkflow: z
+        .enum(['true', 'false', '1', '0'])
+        .optional()
+        .transform((value) => value === 'true' || value === '1'),
+      createdFrom: calendarDateSchema.optional(),
+      createdTo: calendarDateSchema.optional(),
+      q: z
+        .string()
+        .trim()
+        .max(120, 'A busca pode ter no máximo 120 caracteres')
+        .optional()
+        .transform((value) => (value ? value : undefined)),
+    })
+    .refine(
+      (value) =>
+        !value.createdFrom ||
+        !value.createdTo ||
+        value.createdFrom <= value.createdTo,
+      { message: 'A data inicial não pode ser maior que a data final.' },
+    );
   const query = querySchema.parse(request.query);
   const service = new SolicitationService();
   const result = await service.list({
@@ -111,6 +154,13 @@ export async function listSolicitations(
     sortOrder: query.sortOrder,
     ...(query.status !== undefined ? { status: query.status } : {}),
     ...(query.onlyWorkflow ? { onlyWorkflow: true } : {}),
+    ...(query.createdFrom
+      ? { createdFrom: saoPauloDayBound(query.createdFrom, 'start') }
+      : {}),
+    ...(query.createdTo
+      ? { createdTo: saoPauloDayBound(query.createdTo, 'end') }
+      : {}),
+    ...(query.q ? { search: query.q } : {}),
   }, actorFromSession(request.user));
   return reply.status(200).send(result);
 }

@@ -42,14 +42,18 @@ function isLate(stage: WorkflowStageItem) {
   return new Date(stage.plannedEndAt).getTime() < Date.now();
 }
 
-function formatShare(value: string | null) {
+function formatShare(value: string | null): {
+  label: string;
+  amount: number;
+} | null {
   if (!value) return null;
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return null;
+  const bounded = Math.min(amount, 100);
   const label = Number.isInteger(amount)
     ? String(amount)
     : amount.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-  return `${label}%`;
+  return { label: `${label}%`, amount: bounded };
 }
 
 function displayStatus(stage: WorkflowStageItem, stages: WorkflowStageItem[]): {
@@ -135,6 +139,24 @@ function markerTone(state: TimelineStepState, late: boolean) {
   }
 }
 
+function barTone(state: TimelineStepState, late: boolean) {
+  if (late && state !== 'completed' && state !== 'cancelled') {
+    return 'bg-rose-500';
+  }
+  switch (state) {
+    case 'completed':
+      return 'bg-emerald-500';
+    case 'current':
+      return 'bg-amber-500';
+    case 'waiting':
+      return 'bg-violet-500';
+    case 'cancelled':
+      return 'bg-rose-500';
+    default:
+      return 'bg-muted-foreground/40';
+  }
+}
+
 function statusTextTone(state: TimelineStepState, late: boolean) {
   if (late && state !== 'completed' && state !== 'cancelled') {
     return 'text-rose-700 dark:text-rose-300';
@@ -165,7 +187,7 @@ export function WorkflowTimeline({
   return (
     <div className={cn('@container w-full', className)}>
       <div
-        className='flex flex-col gap-2 @3xl:flex-row @3xl:items-stretch'
+        className='flex flex-col gap-2 @xl:flex-row @xl:items-stretch @xl:gap-0'
         role='list'
       >
         {stages.map((stage, index) => {
@@ -183,50 +205,85 @@ export function WorkflowTimeline({
                 role='listitem'
                 aria-current={isFocus ? 'step' : undefined}
                 className={cn(
-                  'flex min-w-0 flex-1 items-start gap-3 rounded-xl border px-3.5 py-3',
+                  'flex min-w-0 flex-1 flex-col rounded-xl border px-3.5 py-3',
                   panelTone(state, late),
                 )}
               >
-                <div
-                  className={cn(
-                    'flex size-9 shrink-0 items-center justify-center rounded-full',
-                    markerTone(state, late),
-                  )}
-                >
-                  {state === 'completed' ? (
-                    <Check className='size-4' />
-                  ) : state === 'cancelled' ? (
-                    <X className='size-4' />
-                  ) : (
-                    <Icon className='size-4' />
-                  )}
-                </div>
-                <div className='min-w-0 space-y-1'>
-                  <p className='text-sm font-semibold leading-none'>
-                    {WORKFLOW_STAGE_LABELS[stage.stage]}
-                  </p>
-                  <p
+                <div className='flex items-center gap-2.5'>
+                  <div
                     className={cn(
-                      'text-xs font-medium leading-snug',
-                      statusTextTone(state, late),
+                      'flex size-9 shrink-0 items-center justify-center rounded-full',
+                      markerTone(state, late),
                     )}
                   >
-                    {late ? `Atrasada · ${label}` : label}
+                    {state === 'completed' ? (
+                      <Check className='size-4' />
+                    ) : state === 'cancelled' ? (
+                      <X className='size-4' />
+                    ) : (
+                      <Icon className='size-4' />
+                    )}
+                  </div>
+                  <p className='min-w-0 text-sm font-semibold leading-tight'>
+                    {WORKFLOW_STAGE_LABELS[stage.stage]}
                   </p>
-                  {due ? (
-                    <p className='text-xs leading-snug text-muted-foreground'>
-                      Prazo {due}
-                      {share ? ` · ${share}` : ''}
-                    </p>
-                  ) : null}
                 </div>
+                <p
+                  className={cn(
+                    'mt-2.5 text-xs font-medium leading-snug',
+                    statusTextTone(state, late),
+                  )}
+                >
+                  {late ? `Atrasada · ${label}` : label}
+                </p>
+                {due || share ? (
+                  <>
+                    <div className='min-h-3 flex-1' aria-hidden />
+                    <div className='space-y-2 border-t border-black/5 pt-2.5 dark:border-white/10'>
+                    {due ? (
+                      <p className='text-xs leading-snug text-muted-foreground'>
+                        Prazo{' '}
+                        <span className='font-medium text-foreground/80'>
+                          {due}
+                        </span>
+                      </p>
+                    ) : null}
+                    {share ? (
+                      <div className='flex items-center gap-2'>
+                        <div
+                          className='h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10'
+                          role='meter'
+                          aria-label='Duração planejada'
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={Math.round(share.amount)}
+                        >
+                          <div
+                            className={cn(
+                              'h-full rounded-full',
+                              barTone(state, late),
+                            )}
+                            style={{ width: `${share.amount}%` }}
+                          />
+                        </div>
+                        <span className='shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground'>
+                          {share.label}
+                        </span>
+                      </div>
+                    ) : null}
+                    </div>
+                  </>
+                ) : null}
               </article>
               {!isLast ? (
                 <div
-                  className='hidden shrink-0 items-center @3xl:flex'
+                  className='relative hidden w-7 shrink-0 items-center @xl:flex'
                   aria-hidden
                 >
-                  <ChevronRight className='size-4 text-muted-foreground/50' />
+                  <span className='absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border' />
+                  <span className='relative mx-auto flex size-5 items-center justify-center rounded-full border bg-background text-muted-foreground'>
+                    <ChevronRight className='size-3' />
+                  </span>
                 </div>
               ) : null}
             </Fragment>

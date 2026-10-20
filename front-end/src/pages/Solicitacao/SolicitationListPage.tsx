@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { SearchIcon, type SearchIconHandle } from 'lucide-animated';
 import {
   SOLICITATION_STATUS_LABELS,
   solicitationApi,
@@ -14,7 +13,6 @@ import {
 } from '@/services/solicitation';
 import { solicitationDetailPath } from '@/routes/constants';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
   Select,
@@ -27,30 +25,81 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
 import { TablePagination } from '@/components/ui/table-pagination';
 import { SortableTableHead } from '@/components/ui/sortable-table-head';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
 const STATUS_FILTER_ALL = 'ALL';
 const PAGE_SIZE = 5;
 
-function SolicitationDetailAction({ id }: { id: string }) {
-  const iconRef = useRef<SearchIconHandle>(null);
+type PeriodPreset = '7' | '30' | '90' | 'month' | 'custom' | 'all';
 
-  return (
-    <Button asChild variant="ghost" size="icon" className="size-8">
-      <Link
-        to={solicitationDetailPath(id)}
-        aria-label="Ver detalhes"
-        onMouseEnter={() => iconRef.current?.startAnimation()}
-        onMouseLeave={() => iconRef.current?.stopAnimation()}
-      >
-        <SearchIcon ref={iconRef} size={18} />
-      </Link>
-    </Button>
-  );
+function formatDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDays(days: number): string {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return formatDateInput(date);
+}
+
+function resolvePeriod(
+  period: PeriodPreset,
+  customFrom: string,
+  customTo: string,
+): { from: string; to: string } {
+  const today = formatDateInput(new Date());
+  if (period === '7') return { from: shiftDays(-6), to: today };
+  if (period === '30') return { from: shiftDays(-29), to: today };
+  if (period === '90') return { from: shiftDays(-89), to: today };
+  if (period === 'month') {
+    const now = new Date();
+    return {
+      from: formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+      to: today,
+    };
+  }
+  if (period === 'custom') return { from: customFrom, to: customTo };
+  return { from: '', to: '' };
+}
+
+function formatDisplayDate(value: string): string {
+  const [year, month, day] = value.split('-');
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+}
+
+function periodHintText(input: {
+  period: PeriodPreset;
+  createdFrom: string;
+  createdTo: string;
+  dateRangeInvalid: boolean;
+}): string {
+  if (input.dateRangeInvalid) {
+    return 'A data inicial não pode ser maior que a data final.';
+  }
+  if (input.period === 'custom' && !input.createdFrom && !input.createdTo) {
+    return 'Informe as datas para limitar o período. Sem datas, a lista traz todos os registros.';
+  }
+  if (input.createdFrom && input.createdTo) {
+    return `Exibindo criações de ${formatDisplayDate(input.createdFrom)} até ${formatDisplayDate(input.createdTo)}.`;
+  }
+  if (input.createdFrom) {
+    return `Exibindo criações a partir de ${formatDisplayDate(input.createdFrom)}.`;
+  }
+  if (input.createdTo) {
+    return `Exibindo criações até ${formatDisplayDate(input.createdTo)}.`;
+  }
+  return 'Exibindo solicitações de todas as datas.';
 }
 
 function SolicitationCard({ item }: { item: Solicitation }) {
@@ -83,8 +132,23 @@ function SolicitationCard({ item }: { item: Solicitation }) {
 }
 
 function SolicitationRow({ item }: { item: Solicitation }) {
+  const navigate = useNavigate();
+  const openDetail = () => navigate(solicitationDetailPath(item.id));
+
   return (
-    <TableRow>
+    <TableRow
+      role="link"
+      tabIndex={0}
+      aria-label={`Ver solicitação: ${item.title}`}
+      className="cursor-pointer focus-visible:outline-none focus-visible:bg-muted/50"
+      onClick={openDetail}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openDetail();
+        }
+      }}
+    >
       <TableCell className="whitespace-nowrap text-sm tabular-nums">
         {format(new Date(item.createdAt), 'dd/MM/yyyy HH:mm', {
           locale: ptBR,
@@ -104,14 +168,13 @@ function SolicitationRow({ item }: { item: Solicitation }) {
           CC {item.costCenter}
         </div>
       </TableCell>
-      <TableCell>
-        <div className="max-w-[240px] truncate">{item.title}</div>
+      <TableCell className="w-40 max-w-40">
+        <div className="truncate" title={item.title}>
+          {item.title}
+        </div>
       </TableCell>
       <TableCell>
         <SolicitationStatusBadge status={item.status} />
-      </TableCell>
-      <TableCell className="text-right">
-        <SolicitationDetailAction id={item.id} />
       </TableCell>
     </TableRow>
   );
@@ -120,13 +183,50 @@ function SolicitationRow({ item }: { item: Solicitation }) {
 export function SolicitationListPage() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>(STATUS_FILTER_ALL);
+  const [period, setPeriod] = useState<PeriodPreset>('30');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SolicitationSortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const syncStartedRef = useRef(false);
 
+  const appliedSearchRef = useRef(search);
+  appliedSearchRef.current = search;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = searchInput.trim();
+      if (appliedSearchRef.current === next) return;
+      setSearch(next);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  const { from: createdFrom, to: createdTo } = resolvePeriod(
+    period,
+    customFrom,
+    customTo,
+  );
+  const dateRangeInvalid = Boolean(
+    createdFrom && createdTo && createdFrom > createdTo,
+  );
+
   const query = useQuery({
-    queryKey: ['solicitations', statusFilter, page, sortBy, sortOrder],
+    queryKey: [
+      'solicitations',
+      statusFilter,
+      createdFrom,
+      createdTo,
+      search,
+      page,
+      sortBy,
+      sortOrder,
+    ],
+    enabled: !dateRangeInvalid,
     queryFn: () =>
       solicitationApi.list({
         page,
@@ -136,6 +236,9 @@ export function SolicitationListPage() {
         ...(statusFilter === STATUS_FILTER_ALL
           ? {}
           : { status: statusFilter as SolicitationStatus }),
+        ...(createdFrom ? { createdFrom } : {}),
+        ...(createdTo ? { createdTo } : {}),
+        ...(search ? { q: search } : {}),
       }),
   });
 
@@ -172,17 +275,26 @@ export function SolicitationListPage() {
   const start = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const end = Math.min(page * PAGE_SIZE, total);
 
+  const periodHint = periodHintText({
+    period,
+    createdFrom,
+    createdTo,
+    dateRangeInvalid,
+  });
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1>Solicitações</h1>
-          <p className="text-muted-foreground">
-            Consulte as solicitações recebidas, filtre por status e abra um
-            registro para analisar e dar andamento.
-          </p>
-        </div>
-        <div className="w-full sm:w-48">
+      <div>
+        <h1>Solicitações</h1>
+        <p className="text-muted-foreground">
+          A lista começa nos últimos 30 dias. Ajuste o período, o status ou a
+          busca para ver outros registros.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,12rem)_minmax(0,14rem)_minmax(0,1fr)]">
+        <div className="space-y-1.5">
+          <Label htmlFor="solicitation-status">Status</Label>
           <Select
             value={statusFilter}
             onValueChange={(value) => {
@@ -190,7 +302,7 @@ export function SolicitationListPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger id="solicitation-status">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -205,10 +317,90 @@ export function SolicitationListPage() {
             </SelectContent>
           </Select>
         </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="solicitation-period">Período</Label>
+          <Select
+            value={period}
+            onValueChange={(value) => {
+              setPeriod(value as PeriodPreset);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger id="solicitation-period">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="month">Este mês</SelectItem>
+              <SelectItem value="custom">Período personalizado</SelectItem>
+              <SelectItem value="all">Todas as datas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+          <Label htmlFor="solicitation-search">Busca</Label>
+          <Input
+            id="solicitation-search"
+            value={searchInput}
+            placeholder="Título, solicitante, código, setor ou cartão"
+            onChange={(event) => setSearchInput(event.target.value)}
+          />
+        </div>
       </div>
 
+      {period === 'custom' && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:max-w-md">
+          <div className="space-y-1.5">
+            <Label htmlFor="solicitation-from">De</Label>
+            <Input
+              id="solicitation-from"
+              type="date"
+              value={customFrom}
+              max={customTo || undefined}
+              onChange={(event) => {
+                setCustomFrom(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="solicitation-to">Até</Label>
+            <Input
+              id="solicitation-to"
+              type="date"
+              value={customTo}
+              min={customFrom || undefined}
+              onChange={(event) => {
+                setCustomTo(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <p
+        className={
+          dateRangeInvalid
+            ? 'text-sm text-destructive'
+            : 'text-sm text-muted-foreground'
+        }
+      >
+        {periodHint}
+      </p>
+
       <Card className="gap-0 overflow-hidden py-0">
-        {query.isLoading && (
+        {dateRangeInvalid && (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            Ajuste as datas para carregar as solicitações.
+          </div>
+        )}
+
+        {!dateRangeInvalid && query.isLoading && (
           <div className="p-8">
             <div className="animate-pulse space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -218,7 +410,7 @@ export function SolicitationListPage() {
           </div>
         )}
 
-        {query.isError && (
+        {!dateRangeInvalid && query.isError && (
           <div className="m-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             {query.error instanceof Error
               ? query.error.message
@@ -226,10 +418,10 @@ export function SolicitationListPage() {
           </div>
         )}
 
-        {!query.isLoading && !query.isError && (
+        {!dateRangeInvalid && !query.isLoading && !query.isError && (
           <>
             <div className="hidden sm:block">
-              <Table>
+              <Table className="table-fixed">
                 <TableHeader>
                   <TableRow>
                     <SortableTableHead
@@ -260,6 +452,7 @@ export function SolicitationListPage() {
                       activeField={sortBy}
                       activeOrder={sortOrder}
                       onSort={handleSort}
+                      className="w-40"
                     />
                     <SortableTableHead
                       label="Status"
@@ -269,14 +462,13 @@ export function SolicitationListPage() {
                       onSort={handleSort}
                       className="w-[120px]"
                     />
-                    <TableHead className="w-12" aria-hidden />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={5}
                         className="h-24 text-center text-muted-foreground"
                       >
                         Nenhuma solicitação encontrada.

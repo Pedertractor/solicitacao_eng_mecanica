@@ -429,6 +429,9 @@ export async function solicitationRoutes(app: FastifyInstance) {
             },
             sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
             onlyWorkflow: { type: 'string', enum: ['true', 'false', '1', '0'] },
+            createdFrom: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+            createdTo: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+            q: { type: 'string', maxLength: 120 },
           },
         },
         response: {

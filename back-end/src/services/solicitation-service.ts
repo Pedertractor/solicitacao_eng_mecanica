@@ -498,6 +498,9 @@ export class SolicitationService {
       | 'status';
     sortOrder?: 'asc' | 'desc';
     onlyWorkflow?: boolean;
+    createdFrom?: Date;
+    createdTo?: Date;
+    search?: string;
   },
     actor: AccessActor,
   ) {
