@@ -17,6 +17,7 @@ export interface UserDetail {
   department: UserDepartment;
   approvalStatus: AuthUser['approvalStatus'];
   mustChangePassword: boolean;
+  notificationEmail?: string | null;
   active?: boolean;
   createdAt?: string;
 }

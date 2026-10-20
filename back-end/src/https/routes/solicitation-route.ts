@@ -18,6 +18,7 @@ import {
   startSolicitationReview,
   updateSolicitationReview,
   updateSolicitationStatus,
+  updateSolicitationOf,
   sendSolicitationToKairo,
   syncPendingSolicitationsFromKairo,
   syncSampleFromKairo,
@@ -154,6 +155,7 @@ const solicitationSchema = {
     deliveryDate: { type: ['string', 'null'] },
     partNumbers: { type: ['string', 'null'] },
     fileLink: { type: ['string', 'null'] },
+    ofNumber: { type: ['string', 'null'] },
     client: { type: ['string', 'null'], enum: [...clientEnum, null] },
     kind: { type: ['string', 'null'], enum: [...kindEnum, null] },
     activityType: {
@@ -921,6 +923,43 @@ export async function solicitationRoutes(app: FastifyInstance) {
       },
     },
     updateSolicitationStatus,
+  );
+
+  app.patch(
+    '/:id/of',
+    {
+      preHandler: [authMiddleware, roleMiddleware(AREA_ADMIN_ROLES)],
+      schema: {
+        tags: ['solicitations'],
+        summary: 'Vincular número de OF à solicitação (admin)',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['ofNumber'],
+          properties: {
+            ofNumber: { type: ['string', 'null'] },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              solicitation: solicitationSchema,
+            },
+          },
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+        },
+      },
+    },
+    updateSolicitationOf,
   );
 
   app.post(

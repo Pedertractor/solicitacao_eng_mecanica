@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
@@ -17,6 +18,12 @@ import { solicitationDetailPath } from '@/routes/constants';
 import { useAuth } from '@/contexts/useAuth';
 import { isProcessEngineeringLead } from '@/config/permissions';
 import { EngineeringQueue } from './EngineeringQueue';
+import {
+  ComercialFilters,
+  EMPTY_COMERCIAL_FILTERS,
+  filterComercialItems,
+  type ComercialFilterState,
+} from './comercial-filters';
 
 function SummaryCards() {
   const summaryQuery = useQuery({
@@ -78,33 +85,32 @@ function WorkflowCard({ solicitation }: { solicitation: Solicitation }) {
     : null;
 
   return (
-    <Card className='gap-4 py-5'>
-      <CardHeader className='gap-1.5'>
-        <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
-          <Link
-            to={solicitationDetailPath(solicitation.id)}
-            className='font-mono text-xs font-medium tracking-wide text-muted-foreground hover:text-foreground hover:underline'
-          >
-            {solicitation.trackingCode}
-          </Link>
-          <SolicitationStatusBadge status={solicitation.status} />
-        </div>
-        <CardTitle className='text-base leading-snug'>
-          <Link
-            to={solicitationDetailPath(solicitation.id)}
-            className='hover:underline'
-          >
+    <Link
+      to={solicitationDetailPath(solicitation.id)}
+      state={{ from: 'comercial' }}
+      className='block rounded-xl transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+      aria-label={`Abrir chamado: ${solicitation.title}`}
+    >
+      <Card className='gap-4 py-5'>
+        <CardHeader className='gap-1.5'>
+          <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+            <span className='font-mono text-xs font-medium tracking-wide text-muted-foreground'>
+              {solicitation.trackingCode}
+            </span>
+            <SolicitationStatusBadge status={solicitation.status} />
+          </div>
+          <CardTitle className='text-base leading-snug'>
             {solicitation.title}
-          </Link>
-        </CardTitle>
-        {clientLabel ? (
-          <p className='text-sm text-muted-foreground'>{clientLabel}</p>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        <WorkflowTimeline workflow={solicitation.workflow} />
-      </CardContent>
-    </Card>
+          </CardTitle>
+          {clientLabel ? (
+            <p className='text-sm text-muted-foreground'>{clientLabel}</p>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <WorkflowTimeline workflow={solicitation.workflow} />
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -119,6 +125,9 @@ export function WorkflowPage() {
 }
 
 function FullWorkflowView() {
+  const [filters, setFilters] = useState<ComercialFilterState>(
+    EMPTY_COMERCIAL_FILTERS,
+  );
   const listQuery = useQuery({
     queryKey: ['solicitations', 'workflow'],
     queryFn: () =>
@@ -137,19 +146,30 @@ function FullWorkflowView() {
     },
   });
 
+  const items = listQuery.data?.solicitations ?? [];
+  const visible = filterComercialItems(items, filters, 'board');
+  const filtersActive =
+    filters.query.trim() !== '' ||
+    filters.client !== 'ALL' ||
+    filters.stage !== 'ALL' ||
+    filters.deadline !== 'ALL';
+
   return (
     <div className='space-y-6'>
       <div>
-        <h1 className='text-2xl font-semibold tracking-tight'>Workflow</h1>
+        <h1 className='text-2xl font-semibold tracking-tight'>Comercial</h1>
         <p className='text-sm text-muted-foreground'>
-          Acompanhe o fluxo Comercial → Engenharia → Ferramentaria → Amostra.
+          Acompanhe o fluxo Engenharia → Ferramentaria → Amostra. Clique em um
+          card para abrir o chamado.
         </p>
       </div>
 
       <SummaryCards />
 
+      <ComercialFilters mode='board' value={filters} onChange={setFilters} />
+
       <div className='space-y-3'>
-        <h2 className='text-lg font-medium'>Solicitações em workflow</h2>
+        <h2 className='text-lg font-medium'>Chamados</h2>
         {listQuery.isLoading ? (
           <div className='space-y-3'>
             {[0, 1, 2].map((key) => (
@@ -158,15 +178,25 @@ function FullWorkflowView() {
           </div>
         ) : listQuery.isError ? (
           <p className='text-sm text-destructive'>
-            Não foi possível carregar o workflow.
+            Não foi possível carregar os chamados.
           </p>
-        ) : (listQuery.data?.solicitations.length ?? 0) === 0 ? (
+        ) : items.length === 0 ? (
           <p className='text-sm text-muted-foreground'>
-            Nenhuma solicitação Comercial em workflow no momento.
+            Nenhuma solicitação Comercial no momento.
+          </p>
+        ) : visible.length === 0 ? (
+          <p className='text-sm text-muted-foreground'>
+            Nenhum chamado corresponde aos filtros.
           </p>
         ) : (
           <div className='space-y-3'>
-            {listQuery.data!.solicitations.map((solicitation) => (
+            {filtersActive ? (
+              <p className='text-sm text-muted-foreground'>
+                {visible.length} de {items.length}{' '}
+                {items.length === 1 ? 'chamado' : 'chamados'}
+              </p>
+            ) : null}
+            {visible.map((solicitation) => (
               <WorkflowCard key={solicitation.id} solicitation={solicitation} />
             ))}
           </div>

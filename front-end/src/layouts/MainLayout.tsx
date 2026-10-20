@@ -21,8 +21,11 @@ function breadcrumbLabel(pathname: string): string {
   if (pathname.startsWith(ROUTES.SOLICITACOES + '/')) return 'Detalhe';
   if (pathname.startsWith(ROUTES.INDICADORES)) return 'Indicadores';
   if (pathname.startsWith(ROUTES.SOLICITACOES)) return 'Solicitações';
+  if (pathname.startsWith(ROUTES.WORKFLOW)) return 'Comercial';
   if (pathname.startsWith(ROUTES.USUARIOS_NOVO)) return 'Novo usuário';
   if (pathname.startsWith(ROUTES.USUARIOS)) return 'Usuários';
+  if (pathname.startsWith(ROUTES.PERFIL)) return 'Perfil';
+  if (pathname.startsWith(ROUTES.CONFIGURACOES)) return 'Configurações';
   return 'Solicitação Pedertractor';
 }
 

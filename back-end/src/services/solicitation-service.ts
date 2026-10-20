@@ -18,11 +18,13 @@ import {
   KairoClient,
 } from '../integrations/kairo-client.js';
 import {
+  notifyNewSolicitationToAreaAdmins,
   notifySolicitationApproved,
   notifySolicitationCompleted,
 } from '../lib/solicitation-mail.js';
 import { SolicitationPrismaRepository } from '../repositories/prisma/solicitation-repository.js';
 import { KairoCredentialService } from './kairo-credential-service.js';
+import { UserService } from './user-service.js';
 import {
   buildProcessCharts,
   periodRange,
@@ -114,6 +116,7 @@ function mapSolicitation(row: SolicitationWithWorkflow | {
     deliveryDate: toDateOnly(row.deliveryDate),
     partNumbers: row.partNumbers,
     fileLink: row.fileLink,
+    ofNumber: row.ofNumber ?? null,
     kind: row.kind,
     client: row.client,
     activityType: row.activityType,
@@ -483,7 +486,48 @@ export class SolicitationService {
       return solicitation;
     });
 
-    return mapSolicitation(created);
+    const mapped = mapSolicitation(created);
+    await this.notifyAreaAdminsOfNewSolicitation(mapped);
+    return mapped;
+  }
+
+  private async notifyAreaAdminsOfNewSolicitation(solicitation: {
+    id: string;
+    trackingCode: string;
+    title: string;
+    requesterName: string;
+    department: $Enums.UserDepartment;
+  }) {
+    try {
+      const userService = new UserService();
+      const admins =
+        await userService.listAreaAdminsWithNotificationEmail(
+          solicitation.department,
+        );
+      const recipients = admins
+        .map((admin) => ({
+          name: admin.name,
+          email: admin.notificationEmail?.trim() ?? '',
+        }))
+        .filter((item) => item.email.length > 0);
+
+      if (recipients.length === 0) {
+        return;
+      }
+
+      await notifyNewSolicitationToAreaAdmins({
+        solicitationId: solicitation.id,
+        requesterName: solicitation.requesterName,
+        trackingCode: solicitation.trackingCode,
+        title: solicitation.title,
+        recipients,
+      });
+    } catch (error) {
+      console.error(
+        `[mail] Falha ao notificar admins da área [${solicitation.trackingCode}]:`,
+        error,
+      );
+    }
   }
 
   async list(input: {
@@ -632,6 +676,32 @@ export class SolicitationService {
     }
 
     const updated = await repo.updateReview(id, review);
+    return mapSolicitation(updated);
+  }
+
+  async updateOfNumber(
+    id: string,
+    ofNumber: string | null,
+    actingUserId: string,
+  ) {
+    await this.assertAccessible(id, await this.loadActor(actingUserId), true);
+    const repo = new SolicitationPrismaRepository(prisma);
+    const existing = await repo.findById(id);
+    if (!existing) {
+      throw new HttpError('Solicitação não encontrada', 404);
+    }
+
+    const normalized =
+      ofNumber == null ? null : ofNumber.trim().replace(/\s+/g, '');
+    if (normalized === '') {
+      const updated = await repo.updateOfNumber(id, null);
+      return mapSolicitation(updated);
+    }
+    if (normalized != null && !/^\d+$/.test(normalized)) {
+      throw new HttpError('Número da OF deve conter apenas dígitos', 400);
+    }
+
+    const updated = await repo.updateOfNumber(id, normalized);
     return mapSolicitation(updated);
   }
 

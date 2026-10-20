@@ -26,11 +26,15 @@ export async function authMiddleware(
   const routeUrl = request.routeOptions.url ?? request.url;
   const isPasswordChangeRoute = routeUrl.endsWith('/users/me/change-password');
   const isCurrentUserRoute = routeUrl.endsWith('/users/me');
+  const isNotificationEmailRoute = routeUrl.endsWith(
+    '/users/me/notification-email',
+  );
 
   if (
     principal.mustChangePassword &&
     !isPasswordChangeRoute &&
-    !isCurrentUserRoute
+    !isCurrentUserRoute &&
+    !isNotificationEmailRoute
   ) {
     throw new HttpError('Altere sua senha para continuar', 403);
   }

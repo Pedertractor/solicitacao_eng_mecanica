@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -13,6 +13,10 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import {
+  SolicitationOfPanel,
+  SolicitationOfToggle,
+} from '@/components/of/SolicitationOfPanel';
 import {
   StampIcon,
   type StampIconHandle,
@@ -92,6 +96,7 @@ async function copyText(value: string) {
 
 export function SolicitationDetailPage() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const canManage =
     user?.role != null &&
@@ -107,6 +112,7 @@ export function SolicitationDetailPage() {
   const [toolingDialogOpen, setToolingDialogOpen] = useState(false);
   const [sampleDialogOpen, setSampleDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [ofPanelOpen, setOfPanelOpen] = useState(false);
   const [trackLinkCopied, setTrackLinkCopied] = useState(false);
   const kairoOpenTimeoutRef = useRef<number | null>(null);
 
@@ -210,11 +216,13 @@ export function SolicitationDetailPage() {
 
   const item = query.data;
   const canDelete = item ? item.status !== 'DELETED' : false;
+  const fromComercial =
+    (location.state as { from?: string } | null)?.from === 'comercial';
 
   return (
     <div className="min-w-0 max-w-full space-y-4 md:p-6">
       <Button asChild variant="ghost" size="sm">
-        <Link to={ROUTES.SOLICITACOES}>
+        <Link to={fromComercial ? ROUTES.WORKFLOW : ROUTES.SOLICITACOES}>
           <ArrowLeft className="mr-2 size-4" /> Voltar
         </Link>
       </Button>
@@ -224,6 +232,33 @@ export function SolicitationDetailPage() {
 
       {item && (
         <>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start">
+            <div className="flex min-w-0 flex-1 items-start gap-2">
+              {item.workflow ? (
+                <div className="min-w-0 flex-1">
+                  <WorkflowActionsCard
+                    item={item}
+                    canTooling={canTooling}
+                    canSample={canSample}
+                    onOpenTooling={() => setToolingDialogOpen(true)}
+                    onOpenSample={() => setSampleDialogOpen(true)}
+                  />
+                </div>
+              ) : null}
+              <SolicitationOfToggle
+                open={ofPanelOpen}
+                onOpenChange={setOfPanelOpen}
+                hasOf={Boolean(item.ofNumber)}
+              />
+            </div>
+            <SolicitationOfPanel
+              item={item}
+              canManage={canManage}
+              open={ofPanelOpen}
+              onOpenChange={setOfPanelOpen}
+            />
+          </div>
+
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -426,16 +461,6 @@ export function SolicitationDetailPage() {
           </Card>
 
           {item.workflow ? (
-            <WorkflowActionsCard
-              item={item}
-              canTooling={canTooling}
-              canSample={canSample}
-              onOpenTooling={() => setToolingDialogOpen(true)}
-              onOpenSample={() => setSampleDialogOpen(true)}
-            />
-          ) : null}
-
-          {item.workflow ? (
             <>
               <ToolingKairoDialog
                 open={toolingDialogOpen}
@@ -583,7 +608,7 @@ function WorkflowActionsCard({
   });
 
   return (
-    <Card>
+    <Card id="workflow">
       <CardHeader>
         <CardTitle>Workflow</CardTitle>
         <CardDescription>

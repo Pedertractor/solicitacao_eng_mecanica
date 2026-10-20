@@ -64,7 +64,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUser
           user={{
             name: user?.name ?? 'Usuário',
-            email: user ? displayRole : '',
+            email: user?.notificationEmail?.trim()
+              ? user.notificationEmail
+              : user
+                ? displayRole
+                : '',
             avatar: '',
             initials,
           }}

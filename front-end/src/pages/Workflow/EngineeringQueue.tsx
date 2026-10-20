@@ -1,25 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { differenceInCalendarDays, format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { CalendarClock } from 'lucide-react';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  WorkflowTimeline,
-  workflowHasActiveStage,
-} from '@/components/workflow/WorkflowTimeline';
+import { workflowHasActiveStage } from '@/components/workflow/WorkflowTimeline';
 import { cn } from '@/lib/utils';
 import { solicitationDetailPath } from '@/routes/constants';
 import {
@@ -28,43 +14,19 @@ import {
   WORKFLOW_STAGE_STATUS_LABELS,
   type Solicitation,
 } from '@/services/solicitation';
-
-type DeadlineTone = 'late' | 'today' | 'soon' | 'normal' | 'none';
+import {
+  ComercialFilters,
+  deadlineInfo,
+  EMPTY_COMERCIAL_FILTERS,
+  filterComercialItems,
+  type ComercialFilterState,
+  type DeadlineTone,
+} from './comercial-filters';
 
 function engineeringStage(solicitation: Solicitation) {
   return solicitation.workflow?.stages.find(
     (stage) => stage.stage === 'ENGENHARIA',
   );
-}
-
-function deadlineInfo(plannedEndAt: string | null | undefined): {
-  label: string;
-  date: string | null;
-  tone: DeadlineTone;
-} {
-  if (!plannedEndAt) {
-    return { label: 'Sem prazo definido', date: null, tone: 'none' };
-  }
-
-  const due = new Date(plannedEndAt);
-  const date = format(due, 'dd/MM/yyyy', { locale: ptBR });
-  const days = differenceInCalendarDays(due, new Date());
-
-  if (days < 0) {
-    const late = Math.abs(days);
-    return {
-      label: `Atrasado há ${late} ${late === 1 ? 'dia' : 'dias'}`,
-      date,
-      tone: 'late',
-    };
-  }
-  if (days === 0) return { label: 'Vence hoje', date, tone: 'today' };
-  if (days === 1) return { label: 'Vence amanhã', date, tone: 'soon' };
-  return {
-    label: `Vence em ${days} dias`,
-    date,
-    tone: days <= 3 ? 'soon' : 'normal',
-  };
 }
 
 const DEADLINE_TONE_CLASSES: Record<DeadlineTone, string> = {
@@ -76,13 +38,7 @@ const DEADLINE_TONE_CLASSES: Record<DeadlineTone, string> = {
   none: 'border-border bg-muted/40 text-muted-foreground',
 };
 
-function EngineeringCard({
-  solicitation,
-  onOpen,
-}: {
-  solicitation: Solicitation;
-  onOpen: () => void;
-}) {
+function EngineeringCard({ solicitation }: { solicitation: Solicitation }) {
   const stage = engineeringStage(solicitation);
   const deadline = deadlineInfo(stage?.plannedEndAt);
   const clientLabel = solicitation.client
@@ -90,11 +46,11 @@ function EngineeringCard({
     : null;
 
   return (
-    <button
-      type='button'
-      onClick={onOpen}
+    <Link
+      to={solicitationDetailPath(solicitation.id)}
+      state={{ from: 'comercial' }}
       className='block w-full rounded-xl text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-      aria-label={`Ver workflow: ${solicitation.title}`}
+      aria-label={`Abrir chamado: ${solicitation.title}`}
     >
       <Card className='h-full gap-3 py-4'>
         <CardHeader className='gap-1.5 px-4'>
@@ -133,49 +89,14 @@ function EngineeringCard({
           ) : null}
         </CardContent>
       </Card>
-    </button>
-  );
-}
-
-function WorkflowDialog({
-  solicitation,
-  onOpenChange,
-}: {
-  solicitation: Solicitation | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Dialog open={solicitation != null} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-4xl'>
-        {solicitation ? (
-          <>
-            <DialogHeader>
-              <DialogTitle className='leading-snug'>
-                {solicitation.title}
-              </DialogTitle>
-              <DialogDescription className='font-mono text-xs tracking-wide'>
-                {solicitation.trackingCode}
-              </DialogDescription>
-            </DialogHeader>
-            {solicitation.workflow ? (
-              <WorkflowTimeline workflow={solicitation.workflow} />
-            ) : null}
-            <DialogFooter>
-              <Button asChild variant='outline'>
-                <Link to={solicitationDetailPath(solicitation.id)}>
-                  Abrir solicitação
-                </Link>
-              </Button>
-            </DialogFooter>
-          </>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    </Link>
   );
 }
 
 export function EngineeringQueue() {
-  const [selected, setSelected] = useState<Solicitation | null>(null);
+  const [filters, setFilters] = useState<ComercialFilterState>(
+    EMPTY_COMERCIAL_FILTERS,
+  );
 
   const queueQuery = useQuery({
     queryKey: ['solicitations', 'workflow', 'engineering'],
@@ -189,16 +110,28 @@ export function EngineeringQueue() {
   });
 
   const items = queueQuery.data?.solicitations ?? [];
+  const visible = filterComercialItems(items, filters, 'engineering');
+  const filtersActive =
+    filters.query.trim() !== '' ||
+    filters.client !== 'ALL' ||
+    filters.stageStatus !== 'ALL' ||
+    filters.deadline !== 'ALL';
 
   return (
     <div className='space-y-6'>
       <div>
-        <h1 className='text-2xl font-semibold tracking-tight'>Workflow</h1>
+        <h1 className='text-2xl font-semibold tracking-tight'>Comercial</h1>
         <p className='text-sm text-muted-foreground'>
           Projetos sob responsabilidade da Engenharia, do prazo mais próximo
-          para o mais distante. Clique em um card para ver o workflow.
+          para o mais distante. Clique em um card para abrir o chamado.
         </p>
       </div>
+
+      <ComercialFilters
+        mode='engineering'
+        value={filters}
+        onChange={setFilters}
+      />
 
       {queueQuery.isLoading ? (
         <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
@@ -214,24 +147,28 @@ export function EngineeringQueue() {
         <p className='text-sm text-muted-foreground'>
           Nenhum projeto com etapa de Engenharia em aberto.
         </p>
+      ) : visible.length === 0 ? (
+        <p className='text-sm text-muted-foreground'>
+          Nenhum projeto corresponde aos filtros.
+        </p>
       ) : (
-        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
-          {items.map((solicitation) => (
-            <EngineeringCard
-              key={solicitation.id}
-              solicitation={solicitation}
-              onOpen={() => setSelected(solicitation)}
-            />
-          ))}
-        </div>
+        <>
+          {filtersActive ? (
+            <p className='text-sm text-muted-foreground'>
+              {visible.length} de {items.length}{' '}
+              {items.length === 1 ? 'projeto' : 'projetos'}
+            </p>
+          ) : null}
+          <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+            {visible.map((solicitation) => (
+              <EngineeringCard
+                key={solicitation.id}
+                solicitation={solicitation}
+              />
+            ))}
+          </div>
+        </>
       )}
-
-      <WorkflowDialog
-        solicitation={selected}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null);
-        }}
-      />
     </div>
   );
 }

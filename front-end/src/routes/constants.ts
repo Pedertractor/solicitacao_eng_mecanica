@@ -17,6 +17,7 @@ export const ROUTES = {
   USUARIOS_SOLICITACOES: '/usuarios/solicitacoes',
   USUARIOS_NOVO: '/usuarios/novo',
   CONFIGURACOES: '/configuracoes',
+  PERFIL: '/perfil',
   NOT_FOUND: '*',
 } as const;
 

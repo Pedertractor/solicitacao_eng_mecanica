@@ -34,6 +34,8 @@ export interface AuthUser {
   approvalStatus: UserApprovalStatus;
   /** Indica que o usuário deve trocar a senha (ex.: primeiro login) */
   mustChangePassword?: boolean;
+  /** E-mail para avisos de novas solicitações da área (opcional) */
+  notificationEmail?: string | null;
   active?: boolean;
   createdAt?: string;
 }

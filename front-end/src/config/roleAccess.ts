@@ -56,6 +56,7 @@ const PROTECTED_PATH_PATTERNS: RegExp[] = [
   /^\/rastreio(\/.*)?$/,
   /^\/usuarios(\/.*)?$/,
   /^\/configuracoes(\/.*)?$/,
+  /^\/perfil(\/.*)?$/,
 ];
 
 export function getNavPaths(
@@ -146,6 +147,13 @@ export function canRoleAccessPath(
     normalized.startsWith(`${ROUTES.CONFIGURACOES}/`)
   ) {
     return canAccessSettings(role);
+  }
+
+  if (
+    normalized === ROUTES.PERFIL ||
+    normalized.startsWith(`${ROUTES.PERFIL}/`)
+  ) {
+    return true;
   }
 
   const allowed = getNavPaths(role, department);

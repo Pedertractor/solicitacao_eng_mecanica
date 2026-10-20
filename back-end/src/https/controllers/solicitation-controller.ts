@@ -401,6 +401,27 @@ export async function updateSolicitationStatus(
   return reply.status(200).send({ solicitation });
 }
 
+export async function updateSolicitationOf(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const bodySchema = z.object({
+    ofNumber: z.string().nullable(),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const { ofNumber } = bodySchema.parse(request.body);
+  const service = new SolicitationService();
+  const solicitation = await service.updateOfNumber(
+    id,
+    ofNumber,
+    request.user.sub,
+  );
+  return reply.status(200).send({ solicitation });
+}
+
 export async function sendSolicitationToKairo(
   request: FastifyRequest,
   reply: FastifyReply,

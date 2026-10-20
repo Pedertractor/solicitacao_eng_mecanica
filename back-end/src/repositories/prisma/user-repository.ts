@@ -17,6 +17,7 @@ const userSafeSelect = {
   approvalStatus: true,
   active: true,
   mustChangePassword: true,
+  notificationEmail: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -142,6 +143,33 @@ export class UserPrismaRepository {
     return await this.prisma.user.update({
       where: { id: userId },
       data,
+      select: userSafeSelect,
+    });
+  }
+
+  async updateNotificationEmail(
+    userId: string,
+    notificationEmail: string | null,
+  ): Promise<UserWithoutPassword> {
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: { notificationEmail },
+      select: userSafeSelect,
+    });
+  }
+
+  async findAreaAdminsWithNotificationEmail(
+    department: $Enums.UserDepartment,
+  ): Promise<UserWithoutPassword[]> {
+    return await this.prisma.user.findMany({
+      where: {
+        role: $Enums.UserRole.ADMIN,
+        department,
+        active: true,
+        approvalStatus: $Enums.UserApprovalStatus.APPROVED,
+        notificationEmail: { not: null },
+      },
+      orderBy: { name: 'asc' },
       select: userSafeSelect,
     });
   }

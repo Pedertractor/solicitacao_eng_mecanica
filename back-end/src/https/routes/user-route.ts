@@ -10,6 +10,7 @@ import {
   rejectUser,
   resetUserPasswordByAdmin,
   signup,
+  updateMyNotificationEmail,
   updateUserByAdmin,
   validateEmployee,
 } from '../controllers/user-controller.js';
@@ -57,6 +58,10 @@ const userSchema = {
     mustChangePassword: {
       type: 'boolean',
       description: 'Se o usuário precisa trocar a senha no próximo login',
+    },
+    notificationEmail: {
+      type: ['string', 'null'],
+      description: 'E-mail para notificações de novas solicitações',
     },
     active: {
       type: 'boolean',
@@ -306,6 +311,49 @@ export async function userRoutes(app: FastifyInstance) {
       },
     },
     changePasswordFirstLogin,
+  );
+
+  app.put(
+    '/me/notification-email',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['users'],
+        summary: 'Atualizar e-mail de notificação',
+        description:
+          'Define ou remove o e-mail usado para avisar sobre novas solicitações da área. Requer token JWT.',
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: 'object',
+          required: ['email'],
+          properties: {
+            email: {
+              type: ['string', 'null'],
+              description:
+                'E-mail de notificação. Null ou string vazia remove o endereço.',
+            },
+          },
+        },
+        response: {
+          200: {
+            description: 'E-mail de notificação atualizado',
+            type: 'object',
+            properties: {
+              user: userSchema,
+            },
+          },
+          400: {
+            description: 'Dados inválidos',
+            ...errorResponseSchema,
+          },
+          401: {
+            description: 'Não autorizado',
+            ...errorResponseSchema,
+          },
+        },
+      },
+    },
+    updateMyNotificationEmail,
   );
 
   app.get(

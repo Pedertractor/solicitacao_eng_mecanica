@@ -48,6 +48,7 @@ function mapUserResponse(user: UserWithoutPassword) {
     department: user.department,
     approvalStatus: user.approvalStatus,
     mustChangePassword: user.mustChangePassword,
+    notificationEmail: user.notificationEmail,
     active: user.active,
     createdAt: user.createdAt.toISOString(),
   };
@@ -257,6 +258,32 @@ export class UserService {
     }
     const synced = await this.syncBootstrapSuperAdminIfNeeded(user);
     return mapUserResponse(synced);
+  }
+
+  async updateNotificationEmail(
+    userId: string,
+    email: string | null | '',
+  ) {
+    const userRepository = new UserPrismaRepository(prisma);
+    const existing = await userRepository.findById(userId);
+    if (!existing) {
+      throw new HttpError('Usuário não encontrado', 404);
+    }
+
+    const trimmed = typeof email === 'string' ? email.trim() : '';
+    const notificationEmail = trimmed.length > 0 ? trimmed.toLowerCase() : null;
+    const updated = await userRepository.updateNotificationEmail(
+      userId,
+      notificationEmail,
+    );
+    return mapUserResponse(updated);
+  }
+
+  async listAreaAdminsWithNotificationEmail(
+    department: $Enums.UserDepartment,
+  ) {
+    const userRepository = new UserPrismaRepository(prisma);
+    return userRepository.findAreaAdminsWithNotificationEmail(department);
   }
 
   async getManagedById(actor: AccessActor, userId: string) {

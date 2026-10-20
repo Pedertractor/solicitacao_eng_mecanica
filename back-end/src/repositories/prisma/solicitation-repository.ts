@@ -271,6 +271,17 @@ export class SolicitationPrismaRepository {
     });
   }
 
+  async updateOfNumber(
+    id: string,
+    ofNumber: string | null,
+  ): Promise<SolicitationWithWorkflow> {
+    return await this.prisma.solicitation.update({
+      where: { id },
+      data: { ofNumber },
+      include: workflowStagesInclude,
+    });
+  }
+
   async markKairoSynced(
     id: string,
     data: {

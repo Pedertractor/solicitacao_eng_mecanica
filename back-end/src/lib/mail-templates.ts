@@ -15,9 +15,16 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#39;');
 }
 
+function frontendBaseUrl() {
+  return env.PUBLIC_FRONTEND_URL.replace(/\/$/, '');
+}
+
 function trackUrl(trackingCode: string) {
-  const base = env.PUBLIC_FRONTEND_URL.replace(/\/$/, '');
-  return `${base}/solicitacao/acompanhar/${encodeURIComponent(trackingCode)}`;
+  return `${frontendBaseUrl()}/solicitacao/acompanhar/${encodeURIComponent(trackingCode)}`;
+}
+
+function detailUrl(solicitationId: string) {
+  return `${frontendBaseUrl()}/solicitacoes/${encodeURIComponent(solicitationId)}`;
 }
 
 function baseLayout(input: {
@@ -28,28 +35,30 @@ function baseLayout(input: {
   bodyHtml: string;
   trackingCode: string;
   title: string;
-  requesterName: string;
-  showTrackButton?: boolean;
+  greetingName: string;
+  action?: { url: string; label: string };
 }) {
-  const name = escapeHtml(input.requesterName);
+  const name = escapeHtml(input.greetingName);
   const code = escapeHtml(input.trackingCode);
   const title = escapeHtml(input.title);
-  const url = trackUrl(input.trackingCode);
+  const action = input.action;
+  const actionUrl = action ? escapeHtml(action.url) : '';
+  const actionLabel = action ? escapeHtml(action.label) : '';
 
-  const trackSection = input.showTrackButton
+  const trackSection = action
     ? `
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;">
                 <tr>
                   <td align="center" bgcolor="#0f172a" style="padding:14px 28px;background-color:#0f172a;border-radius:8px;">
-                    <a href="${url}" target="_blank" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;line-height:1.25;color:#f8fafc;text-decoration:none;white-space:nowrap;">
-                      Acompanhar solicita&ccedil;&atilde;o
+                    <a href="${actionUrl}" target="_blank" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;line-height:1.25;color:#f8fafc;text-decoration:none;white-space:nowrap;">
+                      ${actionLabel}
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:16px 0 0;font-size:12px;line-height:1.5;color:#94a3b8;">
                 Se o bot&atilde;o n&atilde;o funcionar, copie e cole este link no navegador:<br />
-                <a href="${url}" style="color:#64748b;word-break:break-all;">${url}</a>
+                <a href="${actionUrl}" style="color:#64748b;word-break:break-all;">${actionUrl}</a>
               </p>`
     : '';
 
@@ -120,6 +129,15 @@ export function completedMailSubject(trackingCode: string) {
   return `Solicitação concluída — ${trackingCode}`;
 }
 
+export function newSolicitationMailSubject(trackingCode: string) {
+  return `Nova solicitação — ${trackingCode}`;
+}
+
+export type NewSolicitationMailPayload = SolicitationMailPayload & {
+  solicitationId: string;
+  recipientName: string;
+};
+
 export function approvedMailHtml(payload: SolicitationMailPayload) {
   return baseLayout({
     badgeLabel: 'Aprovada',
@@ -131,8 +149,11 @@ export function approvedMailHtml(payload: SolicitationMailPayload) {
     </p>`,
     trackingCode: payload.trackingCode,
     title: payload.title,
-    requesterName: payload.requesterName,
-    showTrackButton: true,
+    greetingName: payload.requesterName,
+    action: {
+      url: trackUrl(payload.trackingCode),
+      label: 'Acompanhar solicita\u00e7\u00e3o',
+    },
   });
 }
 
@@ -147,7 +168,27 @@ export function completedMailHtml(payload: SolicitationMailPayload) {
     </p>`,
     trackingCode: payload.trackingCode,
     title: payload.title,
-    requesterName: payload.requesterName,
-    showTrackButton: false,
+    greetingName: payload.requesterName,
+  });
+}
+
+export function newSolicitationMailHtml(payload: NewSolicitationMailPayload) {
+  const requester = escapeHtml(payload.requesterName);
+  return baseLayout({
+    badgeLabel: 'Nova',
+    badgeBg: '#eff6ff',
+    badgeColor: '#1d4ed8',
+    headline: 'Nova solicitação para a sua área',
+    bodyHtml: `<p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">
+      Voc&ecirc; e a sua equipe receberam uma nova solicita&ccedil;&atilde;o de
+      <strong style="color:#020817;">${requester}</strong>.
+    </p>`,
+    trackingCode: payload.trackingCode,
+    title: payload.title,
+    greetingName: payload.recipientName,
+    action: {
+      url: detailUrl(payload.solicitationId),
+      label: 'Abrir solicita\u00e7\u00e3o',
+    },
   });
 }

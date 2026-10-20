@@ -14,6 +14,7 @@ import { PublicSolicitationTrackPage } from '@/pages/Solicitacao/PublicSolicitat
 import { SolicitationListPage } from '@/pages/Solicitacao/SolicitationListPage';
 import { SolicitationDetailPage } from '@/pages/Solicitacao/SolicitationDetailPage';
 import { SettingsPage } from '@/pages/Configuracoes/SettingsPage';
+import { ProfilePage } from '@/pages/Perfil/ProfilePage';
 import { WorkflowPage } from '@/pages/Workflow/WorkflowPage';
 import { ProcessChartsPage } from '@/pages/Indicadores/ProcessChartsPage';
 import { OfTrackingPage } from '@/pages/Rastreio/OfTrackingPage';
@@ -86,6 +87,7 @@ const router = createBrowserRouter([
               },
               { path: ROUTES.USUARIOS_NOVO, element: <NewUserPage /> },
               { path: ROUTES.CONFIGURACOES, element: <SettingsPage /> },
+              { path: ROUTES.PERFIL, element: <ProfilePage /> },
               {
                 path: ROUTES.NOT_FOUND,
                 element: <NotFoundPage />,

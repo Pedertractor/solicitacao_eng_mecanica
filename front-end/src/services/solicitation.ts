@@ -124,6 +124,7 @@ export interface Solicitation {
   deliveryDate: string | null;
   partNumbers: string | null;
   fileLink: string | null;
+  ofNumber: string | null;
   kind: SolicitationKind | null;
   client: SolicitationClient | null;
   activityType: SolicitationActivityType | null;
@@ -407,6 +408,17 @@ export const solicitationApi = {
     const { data } = await api.patch<{ solicitation: Solicitation }>(
       `${BASE}/${id}/status`,
       { status },
+    );
+    return data.solicitation;
+  },
+
+  async linkOf(
+    id: string,
+    ofNumber: string | null,
+  ): Promise<Solicitation> {
+    const { data } = await api.patch<{ solicitation: Solicitation }>(
+      `${BASE}/${id}/of`,
+      { ofNumber },
     );
     return data.solicitation;
   },
