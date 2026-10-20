@@ -1,5 +1,5 @@
 import { Fragment, useMemo } from 'react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Check, Clock3, Factory, UserRound, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,25 +12,40 @@ const UNIT_LABELS: Record<string, string> = {
 
 type ProcessStepState = 'completed' | 'current' | 'pending';
 
-function formatDateTime(value: string | null) {
+function formatDateTime(value: string | null | undefined) {
   if (!value) return null;
   try {
-    return format(new Date(value), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
   } catch {
     return null;
   }
 }
 
-function formatRelative(value: string | null) {
-  if (!value) return null;
-  try {
-    return formatDistanceToNow(new Date(value), {
-      addSuffix: true,
-      locale: ptBR,
-    });
-  } catch {
-    return null;
-  }
+/** Prefers API-base BR label (DTH_INI_BR), then ISO fields. */
+function formatProcessStart(process: OfProcess | null | undefined): string | null {
+  if (!process) return null;
+  const br = process.DTH_INI_BR?.trim();
+  if (br) return br;
+  return (
+    formatDateTime(process.DTH_INI) ??
+    formatDateTime(process.startedAt) ??
+    formatDateTime(process.pointedAt) ??
+    formatDateTime(process.processDate)
+  );
+}
+
+function processMoment(process: OfProcess | null | undefined): string | null {
+  if (!process) return null;
+  return (
+    process.DTH_INI ??
+    process.finishedAt ??
+    process.startedAt ??
+    process.pointedAt ??
+    process.processDate ??
+    null
+  );
 }
 
 function formatEmployee(process: OfProcess) {
@@ -73,7 +88,7 @@ function stepState(
     ratio > 0 ||
     status.includes('produz') ||
     status.includes('andamento') ||
-    Boolean(process.pointedAt)
+    Boolean(process.DTH_INI || process.pointedAt)
   ) {
     return 'current';
   }
@@ -136,11 +151,18 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
       (item, index) => stepState(item, index, ordered) === 'completed',
     ).length;
 
-    const lastPointedProcess = [...ordered]
-      .filter((item) => Boolean(item.pointedAt) || progressRatio(item) > 0)
+    const lastActiveProcess = [...ordered]
+      .filter(
+        (item) =>
+          Boolean(processMoment(item)) || progressRatio(item) > 0,
+      )
       .sort((a, b) => {
-        const aTime = a.pointedAt ? new Date(a.pointedAt).getTime() : 0;
-        const bTime = b.pointedAt ? new Date(b.pointedAt).getTime() : 0;
+        const aTime = processMoment(a)
+          ? new Date(processMoment(a)!).getTime()
+          : 0;
+        const bTime = processMoment(b)
+          ? new Date(processMoment(b)!).getTime()
+          : 0;
         if (aTime !== bTime) return bTime - aTime;
         return b.OP - a.OP;
       })[0];
@@ -150,21 +172,22 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
         (item, index) => stepState(item, index, ordered) !== 'completed',
       ) ?? null;
 
-    const lastEmployee = lastPointedProcess
-      ? formatEmployee(lastPointedProcess)
+    const lastEmployee = lastActiveProcess
+      ? formatEmployee(lastActiveProcess)
       : null;
 
     return {
       total: ordered.length,
       completed,
-      lastPointedProcess,
-      lastSector: sectorLabel(lastPointedProcess),
-      lastCostCenter: lastPointedProcess?.costCenter ?? null,
-      lastPointedAt: lastPointedProcess?.pointedAt ?? null,
+      lastActiveProcess,
+      lastSector: sectorLabel(lastActiveProcess),
+      lastCostCenter: lastActiveProcess?.costCenter ?? null,
+      lastMoment: processMoment(lastActiveProcess),
+      lastStartedLabel: formatProcessStart(lastActiveProcess),
       lastEmployee,
       lastQty:
-        lastPointedProcess != null
-          ? `${lastPointedProcess.QTD_APT}/${lastPointedProcess.QTD}`
+        lastActiveProcess != null
+          ? `${lastActiveProcess.QTD_APT}/${lastActiveProcess.QTD}`
           : null,
       pendingProcess,
       pendingSector: sectorLabel(pendingProcess),
@@ -190,19 +213,17 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
         </div>
         <div className='rounded-xl border bg-card px-4 py-3'>
           <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
-            Último apontamento
+            Última operação
           </p>
-          {summary.lastPointedProcess ? (
+          {summary.lastActiveProcess ? (
             <>
               <p className='mt-1 text-sm font-semibold leading-snug'>
                 {summary.lastSector}
               </p>
-              <p className='mt-0.5 text-xs text-muted-foreground'>
-                {formatDateTime(summary.lastPointedAt) ??
-                  'Data não informada'}
-                {formatRelative(summary.lastPointedAt)
-                  ? ` · ${formatRelative(summary.lastPointedAt)}`
-                  : ''}
+              <p className='mt-0.5 text-xs tabular-nums text-muted-foreground'>
+                {summary.lastStartedLabel
+                  ? `Início: ${summary.lastStartedLabel}`
+                  : 'Data/hora não informada'}
               </p>
               <p className='mt-1 text-xs text-muted-foreground'>
                 CC {summary.lastCostCenter}
@@ -213,10 +234,10 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
           ) : (
             <>
               <p className='mt-1 text-sm font-semibold leading-snug'>
-                Sem apontamento
+                Sem operação registrada
               </p>
               <p className='mt-0.5 text-xs text-muted-foreground'>
-                nenhum setor apontou ainda
+                nenhuma data/hora disponível ainda
               </p>
             </>
           )}
@@ -278,9 +299,8 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
           const percent = Math.round(ratio * 100);
           const employee = formatEmployee(process);
           const unit = formatUnit(process.employeeUnit);
-          const pointedAt = formatDateTime(process.pointedAt);
-          const pointedRelative = formatRelative(process.pointedAt);
-          const processDate = formatDateTime(process.processDate);
+          const startedLabel = formatProcessStart(process);
+          const finishedAt = formatDateTime(process.finishedAt);
           const isLast = index === ordered.length - 1;
 
           return (
@@ -341,6 +361,13 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
                           ? ` · ${process.statusDetail}`
                           : ''}
                       </p>
+                      <p className='mt-1 text-xs tabular-nums text-muted-foreground'>
+                        {startedLabel ? (
+                          <span>Início: {startedLabel}</span>
+                        ) : (
+                          <span>Data/hora não informada</span>
+                        )}
+                      </p>
                     </div>
                     <div className='text-right text-xs tabular-nums text-muted-foreground'>
                       <p>
@@ -368,29 +395,24 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
                     <div className='flex items-start gap-2'>
                       <Clock3 className='mt-0.5 size-3.5 shrink-0 text-muted-foreground' />
                       <div>
-                        <dt className='text-muted-foreground'>Apontamento</dt>
-                        <dd className='font-medium text-foreground'>
-                          {pointedAt ?? 'Ainda não apontado'}
+                        <dt className='text-muted-foreground'>Início</dt>
+                        <dd className='font-medium tabular-nums text-foreground'>
+                          {startedLabel ?? 'Data/hora não informada'}
                         </dd>
-                        {pointedRelative ? (
-                          <dd className='text-muted-foreground'>
-                            {pointedRelative}
-                          </dd>
-                        ) : null}
                       </div>
                     </div>
 
-                    <div className='flex items-start gap-2'>
-                      <Factory className='mt-0.5 size-3.5 shrink-0 text-muted-foreground' />
-                      <div>
-                        <dt className='text-muted-foreground'>
-                          Data do processo
-                        </dt>
-                        <dd className='font-medium text-foreground'>
-                          {processDate ?? '—'}
-                        </dd>
+                    {finishedAt ? (
+                      <div className='flex items-start gap-2'>
+                        <Check className='mt-0.5 size-3.5 shrink-0 text-muted-foreground' />
+                        <div>
+                          <dt className='text-muted-foreground'>Fim</dt>
+                          <dd className='font-medium tabular-nums text-foreground'>
+                            {finishedAt}
+                          </dd>
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
 
                     <div className='flex items-start gap-2'>
                       <UserRound className='mt-0.5 size-3.5 shrink-0 text-muted-foreground' />

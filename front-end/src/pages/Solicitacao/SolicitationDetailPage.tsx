@@ -232,31 +232,30 @@ export function SolicitationDetailPage() {
 
       {item && (
         <>
-          <div className="flex flex-col gap-3 md:flex-row md:items-start">
-            <div className="flex min-w-0 flex-1 items-start gap-2">
-              {item.workflow ? (
-                <div className="min-w-0 flex-1">
-                  <WorkflowActionsCard
-                    item={item}
-                    canTooling={canTooling}
-                    canSample={canSample}
-                    onOpenTooling={() => setToolingDialogOpen(true)}
-                    onOpenSample={() => setSampleDialogOpen(true)}
-                  />
-                </div>
-              ) : null}
+          <div className="space-y-3">
+            {item.workflow ? (
+              <WorkflowActionsCard
+                item={item}
+                canTooling={canTooling}
+                canSample={canSample}
+                onOpenTooling={() => setToolingDialogOpen(true)}
+                onOpenSample={() => setSampleDialogOpen(true)}
+              />
+            ) : null}
+            <div className="space-y-2">
               <SolicitationOfToggle
                 open={ofPanelOpen}
                 onOpenChange={setOfPanelOpen}
                 hasOf={Boolean(item.ofNumber)}
+                ofNumber={item.ofNumber}
+              />
+              <SolicitationOfPanel
+                item={item}
+                canManage={canManage}
+                open={ofPanelOpen}
+                onOpenChange={setOfPanelOpen}
               />
             </div>
-            <SolicitationOfPanel
-              item={item}
-              canManage={canManage}
-              open={ofPanelOpen}
-              onOpenChange={setOfPanelOpen}
-            />
           </div>
 
           <Card className="min-w-0 overflow-hidden">

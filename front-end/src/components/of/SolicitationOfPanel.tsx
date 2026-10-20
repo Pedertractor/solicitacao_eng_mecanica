@@ -31,24 +31,41 @@ export function SolicitationOfToggle({
   open,
   onOpenChange,
   hasOf,
+  ofNumber,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   hasOf: boolean;
+  ofNumber?: string | null;
 }) {
+  const linkedLabel = ofNumber?.trim() ? `OF ${ofNumber.trim()}` : null;
+
   return (
     <Button
       type='button'
       variant={open ? 'secondary' : 'outline'}
-      size='icon'
-      className='shrink-0'
+      className='h-auto w-full justify-start gap-3 px-4 py-3 text-left'
       aria-expanded={open}
       aria-controls='solicitation-of-panel'
-      aria-label={open ? 'Fechar progresso da OF' : 'Abrir progresso da OF'}
-      title={open ? 'Fechar progresso da OF' : 'Ver progresso da OF'}
       onClick={() => onOpenChange(!open)}
     >
-      <Factory className={cn('size-4', hasOf && !open && 'text-amber-600')} />
+      <Factory
+        className={cn(
+          'size-4 shrink-0',
+          hasOf && !open && 'text-amber-600',
+        )}
+      />
+      <span className='min-w-0 flex-1'>
+        <span className='block text-sm font-medium'>Progresso da OF</span>
+        <span className='block text-xs font-normal text-muted-foreground'>
+          {linkedLabel
+            ? `Acompanhar produção · ${linkedLabel}`
+            : 'Vincular OF e acompanhar a produção'}
+        </span>
+      </span>
+      <span className='shrink-0 text-xs text-muted-foreground'>
+        {open ? 'Fechar' : 'Abrir'}
+      </span>
     </Button>
   );
 }
@@ -121,13 +138,10 @@ export function SolicitationOfPanel({
   if (!open) return null;
 
   return (
-    <Card id='solicitation-of-panel' className='min-w-0 md:max-w-xl md:flex-1'>
+    <Card id='solicitation-of-panel' className='min-w-0'>
       <CardHeader className='flex flex-row items-start justify-between gap-3 space-y-0'>
         <div className='min-w-0'>
-          <CardTitle className='flex items-center gap-2'>
-            <Factory className='size-4 shrink-0' />
-            Progresso da OF
-          </CardTitle>
+          <CardTitle>Linha do tempo da produção</CardTitle>
           <CardDescription>
             {ofNumber
               ? `OF ${ofNumber} vinculada a esta solicitação`

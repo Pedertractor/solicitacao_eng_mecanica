@@ -13,11 +13,14 @@ const errorResponseSchema = {
 
 const ofProcessSchema = {
   type: 'object',
+  additionalProperties: true,
   properties: {
     OF: { type: 'number' },
     OP: { type: 'number' },
     QTD: { type: 'number' },
     QTD_APT: { type: 'number' },
+    DTH_INI: { type: ['string', 'null'] },
+    DTH_INI_BR: { type: ['string', 'null'] },
     employeeName: { type: ['string', 'null'] },
     employeeCard: { type: ['string', 'null'] },
     employeeUnit: { type: ['string', 'null'] },
