@@ -14,10 +14,10 @@ export function LoginPage() {
           href="/"
           className="group flex items-center gap-3 self-center text-foreground transition-opacity hover:opacity-90"
         >
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-shadow group-hover:shadow-md">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-shadow group-hover:shadow-md">
             <Cog size={18} className="shrink-0" />
           </div>
-          <span className="text-base font-semibold tracking-tight">
+          <span className="text-lg font-bold tracking-tight">
             Solicitação Pedertractor
           </span>
         </a>

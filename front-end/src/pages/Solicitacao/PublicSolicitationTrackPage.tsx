@@ -124,7 +124,7 @@ export function PublicSolicitationTrackPage() {
           <NewSolicitationLink />
           <Card
             className={cn(
-              'flex w-full min-w-0 max-w-full flex-col gap-0 overflow-hidden rounded-xl py-0',
+              'flex w-full min-w-0 max-w-full flex-col gap-0 overflow-hidden py-0',
               publicSolicitationTicketCardClass,
             )}
           >

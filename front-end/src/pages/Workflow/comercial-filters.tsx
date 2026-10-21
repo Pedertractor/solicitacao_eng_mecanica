@@ -1,5 +1,7 @@
 import { differenceInCalendarDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Search } from 'lucide-react';
+import { FilterPanel } from '@/components/layout';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -9,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { surfaceStyles } from '@/lib/surface-styles';
 import {
   SOLICITATION_CLIENT_LABELS,
   SOLICITATION_CLIENT_OPTIONS,
@@ -160,116 +163,162 @@ export function ComercialFilters({
   onChange: (next: ComercialFilterState) => void;
   mode: 'engineering' | 'board';
 }) {
+  const activeFilterCount = [
+    value.query.trim() !== '',
+    value.client !== ALL,
+    mode === 'engineering' ? value.stageStatus !== ALL : value.stage !== ALL,
+    value.deadline !== ALL,
+  ].filter(Boolean).length;
+
   return (
-    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-      <div className='space-y-1.5 sm:col-span-2 xl:col-span-1'>
-        <Label htmlFor='comercial-search'>Busca</Label>
-        <Input
-          id='comercial-search'
-          value={value.query}
-          placeholder='Título, código, cliente ou solicitante'
-          onChange={(event) =>
-            onChange({ ...value, query: event.target.value })
-          }
-        />
-      </div>
+    <FilterPanel
+      description='Refine os resultados da operação'
+      activeCount={activeFilterCount}
+      onClear={() => onChange(EMPTY_COMERCIAL_FILTERS)}
+    >
+      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+        <div className='space-y-1.5 sm:col-span-2 xl:col-span-1'>
+          <Label htmlFor='comercial-search' className='text-xs font-medium'>
+            Busca
+          </Label>
+          <div className='relative'>
+            <Search className='pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
+            <Input
+              id='comercial-search'
+              className={`${surfaceStyles.field} pl-9`}
+              value={value.query}
+              placeholder='Título, código ou solicitante'
+              onChange={(event) =>
+                onChange({ ...value, query: event.target.value })
+              }
+            />
+          </div>
+        </div>
 
-      <div className='space-y-1.5'>
-        <Label htmlFor='comercial-client'>Cliente</Label>
-        <Select
-          value={value.client}
-          onValueChange={(client) =>
-            onChange({
-              ...value,
-              client: client as ComercialFilterState['client'],
-            })
-          }
-        >
-          <SelectTrigger id='comercial-client' className='w-full'>
-            <SelectValue placeholder='Cliente' />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todos os clientes</SelectItem>
-            {SOLICITATION_CLIENT_OPTIONS.map((client) => (
-              <SelectItem key={client} value={client}>
-                {SOLICITATION_CLIENT_LABELS[client]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {mode === 'engineering' ? (
         <div className='space-y-1.5'>
-          <Label htmlFor='comercial-stage-status'>Etapa de engenharia</Label>
+          <Label htmlFor='comercial-client' className='text-xs font-medium'>
+            Cliente
+          </Label>
           <Select
-            value={value.stageStatus}
-            onValueChange={(stageStatus) =>
+            value={value.client}
+            onValueChange={(client) =>
               onChange({
                 ...value,
-                stageStatus: stageStatus as StageStatusFilter,
+                client: client as ComercialFilterState['client'],
               })
             }
           >
-            <SelectTrigger id='comercial-stage-status' className='w-full'>
-              <SelectValue placeholder='Etapa' />
+            <SelectTrigger
+              id='comercial-client'
+              className={`w-full ${surfaceStyles.field}`}
+            >
+              <SelectValue placeholder='Cliente' />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Todos os status</SelectItem>
-              {STAGE_STATUS_OPTIONS.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {WORKFLOW_STAGE_STATUS_LABELS[status as WorkflowStageStatus]}
+              <SelectItem value={ALL}>Todos os clientes</SelectItem>
+              {SOLICITATION_CLIENT_OPTIONS.map((client) => (
+                <SelectItem key={client} value={client}>
+                  {SOLICITATION_CLIENT_LABELS[client]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-      ) : (
-        <div className='space-y-1.5'>
-          <Label htmlFor='comercial-stage'>Etapa atual</Label>
-          <Select
-            value={value.stage}
-            onValueChange={(stage) =>
-              onChange({ ...value, stage: stage as StageFilter })
-            }
-          >
-            <SelectTrigger id='comercial-stage' className='w-full'>
-              <SelectValue placeholder='Etapa' />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as etapas</SelectItem>
-              {(Object.keys(WORKFLOW_STAGE_LABELS) as WorkflowStageKind[]).map(
-                (stage) => (
+
+        {mode === 'engineering' ? (
+          <div className='space-y-1.5'>
+            <Label
+              htmlFor='comercial-stage-status'
+              className='text-xs font-medium'
+            >
+              Etapa de engenharia
+            </Label>
+            <Select
+              value={value.stageStatus}
+              onValueChange={(stageStatus) =>
+                onChange({
+                  ...value,
+                  stageStatus: stageStatus as StageStatusFilter,
+                })
+              }
+            >
+              <SelectTrigger
+                id='comercial-stage-status'
+                className={`w-full ${surfaceStyles.field}`}
+              >
+                <SelectValue placeholder='Etapa' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos os status</SelectItem>
+                {STAGE_STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {
+                      WORKFLOW_STAGE_STATUS_LABELS[
+                        status as WorkflowStageStatus
+                      ]
+                    }
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <div className='space-y-1.5'>
+            <Label htmlFor='comercial-stage' className='text-xs font-medium'>
+              Etapa atual
+            </Label>
+            <Select
+              value={value.stage}
+              onValueChange={(stage) =>
+                onChange({ ...value, stage: stage as StageFilter })
+              }
+            >
+              <SelectTrigger
+                id='comercial-stage'
+                className={`w-full ${surfaceStyles.field}`}
+              >
+                <SelectValue placeholder='Etapa' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas as etapas</SelectItem>
+                {(
+                  Object.keys(WORKFLOW_STAGE_LABELS) as WorkflowStageKind[]
+                ).map((stage) => (
                   <SelectItem key={stage} value={stage}>
                     {WORKFLOW_STAGE_LABELS[stage]}
                   </SelectItem>
-                ),
-              )}
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <div className='space-y-1.5'>
+          <Label htmlFor='comercial-deadline' className='text-xs font-medium'>
+            Prazo
+          </Label>
+          <Select
+            value={value.deadline}
+            onValueChange={(deadline) =>
+              onChange({ ...value, deadline: deadline as DeadlineFilter })
+            }
+          >
+            <SelectTrigger
+              id='comercial-deadline'
+              className={`w-full ${surfaceStyles.field}`}
+            >
+              <SelectValue placeholder='Prazo' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos os prazos</SelectItem>
+              <SelectItem value='late'>Atrasados</SelectItem>
+              <SelectItem value='today'>Vence hoje</SelectItem>
+              <SelectItem value='soon'>Próximos 7 dias</SelectItem>
+              <SelectItem value='none'>Sem prazo</SelectItem>
             </SelectContent>
           </Select>
         </div>
-      )}
-
-      <div className='space-y-1.5'>
-        <Label htmlFor='comercial-deadline'>Prazo</Label>
-        <Select
-          value={value.deadline}
-          onValueChange={(deadline) =>
-            onChange({ ...value, deadline: deadline as DeadlineFilter })
-          }
-        >
-          <SelectTrigger id='comercial-deadline' className='w-full'>
-            <SelectValue placeholder='Prazo' />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todos os prazos</SelectItem>
-            <SelectItem value='late'>Atrasados</SelectItem>
-            <SelectItem value='today'>Vence hoje</SelectItem>
-            <SelectItem value='soon'>Próximos 7 dias</SelectItem>
-            <SelectItem value='none'>Sem prazo</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
-    </div>
+    </FilterPanel>
   );
 }

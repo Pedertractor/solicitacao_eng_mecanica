@@ -1,12 +1,20 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { CalendarClock } from 'lucide-react';
+import { ArrowUpRight, CalendarClock, Compass, FolderKanban } from 'lucide-react';
+import {
+  AppPageContainer,
+  ListEmptyState,
+  ListErrorState,
+  PageHero,
+  PageSectionHeader,
+} from '@/components/layout';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { workflowHasActiveStage } from '@/components/workflow/WorkflowTimeline';
 import { cn } from '@/lib/utils';
+import { surfaceStyles } from '@/lib/surface-styles';
 import { solicitationDetailPath } from '@/routes/constants';
 import {
   solicitationApi,
@@ -49,23 +57,34 @@ function EngineeringCard({ solicitation }: { solicitation: Solicitation }) {
     <Link
       to={solicitationDetailPath(solicitation.id)}
       state={{ from: 'comercial' }}
-      className='block w-full rounded-xl text-left transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+      className='group block w-full rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
       aria-label={`Abrir chamado: ${solicitation.title}`}
     >
-      <Card className='h-full gap-3 py-4'>
-        <CardHeader className='gap-1.5 px-4'>
-          <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
-            <span className='font-mono text-xs font-medium tracking-wide text-muted-foreground'>
-              {solicitation.trackingCode}
-            </span>
-            <SolicitationStatusBadge status={solicitation.status} />
+      <Card
+        className={cn(
+          'h-full gap-3 py-4',
+          surfaceStyles.interactiveCard,
+          'group-hover:-translate-y-0.5 group-hover:border-foreground/15 group-hover:shadow-lg',
+        )}
+      >
+        <CardHeader className='grid-cols-[1fr_auto] gap-1.5 px-4'>
+          <div className='min-w-0 space-y-1.5'>
+            <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+              <span className={surfaceStyles.monoCode}>
+                {solicitation.trackingCode}
+              </span>
+              <SolicitationStatusBadge status={solicitation.status} />
+            </div>
+            <CardTitle className='text-base leading-snug transition-colors group-hover:text-foreground'>
+              {solicitation.title}
+            </CardTitle>
+            {clientLabel ? (
+              <p className='text-sm text-muted-foreground'>{clientLabel}</p>
+            ) : null}
           </div>
-          <CardTitle className='text-base leading-snug'>
-            {solicitation.title}
-          </CardTitle>
-          {clientLabel ? (
-            <p className='text-sm text-muted-foreground'>{clientLabel}</p>
-          ) : null}
+          <div className='flex size-8 items-center justify-center rounded-full border bg-background text-muted-foreground transition-all group-hover:border-foreground/20 group-hover:bg-foreground group-hover:text-background'>
+            <ArrowUpRight className='size-3.5' />
+          </div>
         </CardHeader>
         <CardContent className='space-y-2 px-4'>
           <div
@@ -118,14 +137,13 @@ export function EngineeringQueue() {
     filters.deadline !== 'ALL';
 
   return (
-    <div className='space-y-6'>
-      <div>
-        <h1 className='text-2xl font-semibold tracking-tight'>Comercial</h1>
-        <p className='text-sm text-muted-foreground'>
-          Projetos sob responsabilidade da Engenharia, do prazo mais próximo
-          para o mais distante. Clique em um card para abrir o chamado.
-        </p>
-      </div>
+    <AppPageContainer>
+      <PageHero
+        eyebrow='Fila de engenharia'
+        eyebrowIcon={Compass}
+        title='Operação Comercial'
+        description='Projetos sob responsabilidade da Engenharia, do prazo mais próximo para o mais distante.'
+      />
 
       <ComercialFilters
         mode='engineering'
@@ -133,42 +151,55 @@ export function EngineeringQueue() {
         onChange={setFilters}
       />
 
-      {queueQuery.isLoading ? (
-        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
-          {[0, 1, 2].map((key) => (
-            <Skeleton key={key} className='h-40 rounded-xl' />
-          ))}
-        </div>
-      ) : queueQuery.isError ? (
-        <p className='text-sm text-destructive'>
-          Não foi possível carregar os projetos.
-        </p>
-      ) : items.length === 0 ? (
-        <p className='text-sm text-muted-foreground'>
-          Nenhum projeto com etapa de Engenharia em aberto.
-        </p>
-      ) : visible.length === 0 ? (
-        <p className='text-sm text-muted-foreground'>
-          Nenhum projeto corresponde aos filtros.
-        </p>
-      ) : (
-        <>
-          {filtersActive ? (
-            <p className='text-sm text-muted-foreground'>
-              {visible.length} de {items.length}{' '}
-              {items.length === 1 ? 'projeto' : 'projetos'}
-            </p>
-          ) : null}
+      <div className='space-y-4'>
+        <PageSectionHeader
+          icon={FolderKanban}
+          title='Projetos'
+          description='Priorizados por proximidade de prazo'
+          badge={
+            !queueQuery.isLoading && !queueQuery.isError
+              ? `${visible.length} ${visible.length === 1 ? 'projeto' : 'projetos'}`
+              : undefined
+          }
+        />
+
+        {queueQuery.isLoading ? (
           <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
-            {visible.map((solicitation) => (
-              <EngineeringCard
-                key={solicitation.id}
-                solicitation={solicitation}
-              />
+            {[0, 1, 2].map((key) => (
+              <Skeleton key={key} className='h-40 rounded-2xl' />
             ))}
           </div>
-        </>
-      )}
-    </div>
+        ) : queueQuery.isError ? (
+          <ListErrorState>
+            Não foi possível carregar os projetos.
+          </ListErrorState>
+        ) : items.length === 0 ? (
+          <ListEmptyState>
+            Nenhum projeto com etapa de Engenharia em aberto.
+          </ListEmptyState>
+        ) : visible.length === 0 ? (
+          <ListEmptyState>
+            Nenhum projeto corresponde aos filtros.
+          </ListEmptyState>
+        ) : (
+          <>
+            {filtersActive ? (
+              <p className='text-sm text-muted-foreground'>
+                {visible.length} de {items.length}{' '}
+                {items.length === 1 ? 'projeto' : 'projetos'}
+              </p>
+            ) : null}
+            <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+              {visible.map((solicitation) => (
+                <EngineeringCard
+                  key={solicitation.id}
+                  solicitation={solicitation}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </AppPageContainer>
   );
 }

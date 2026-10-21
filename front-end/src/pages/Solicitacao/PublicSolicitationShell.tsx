@@ -6,7 +6,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export const publicSolicitationCardClass =
-  'overflow-hidden rounded-xl border-border/60 bg-card/95 shadow-xl shadow-primary/[0.07] backdrop-blur-sm';
+  'overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-xl shadow-primary/[0.07] backdrop-blur-sm';
 
 export const publicSolicitationTicketCardClass = publicSolicitationCardClass;
 
@@ -59,7 +59,7 @@ export function TicketStub({ children, className }: TicketStubProps) {
   return (
     <div
       className={cn(
-        'relative min-w-0 shrink-0 overflow-hidden rounded-b-xl',
+        'relative min-w-0 shrink-0 overflow-hidden rounded-b-2xl',
         className,
       )}
     >

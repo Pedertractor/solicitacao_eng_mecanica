@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { UserRound } from 'lucide-react';
+import { AppPageContainer, PageHero } from '@/components/layout';
 import { authApi } from '@/services/auth';
 import { useAuth } from '@/contexts/useAuth';
 import { Button } from '@/components/ui/button';
@@ -13,6 +15,8 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { surfaceStyles } from '@/lib/surface-styles';
+import { cn } from '@/lib/utils';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -49,15 +53,16 @@ export function ProfilePage() {
   };
 
   return (
-    <div className='space-y-6'>
-      <div>
-        <h1 className='text-xl font-semibold tracking-tight'>Perfil</h1>
-        <p className='text-muted-foreground text-sm'>
-          Dados da conta e preferências de notificação.
-        </p>
-      </div>
+    <AppPageContainer width='narrow'>
+      <PageHero
+        eyebrow='Conta'
+        eyebrowIcon={UserRound}
+        title='Perfil'
+        description='Dados da conta e preferências de notificação.'
+        compact
+      />
 
-      <Card>
+      <Card className={cn(surfaceStyles.card)}>
         <CardHeader>
           <CardTitle>E-mail de notificação</CardTitle>
           <CardDescription>
@@ -74,6 +79,7 @@ export function ProfilePage() {
               type='email'
               autoComplete='email'
               placeholder='nome@empresa.com'
+              className={surfaceStyles.field}
               value={email}
               onChange={(e) => {
                 setError(null);
@@ -81,7 +87,7 @@ export function ProfilePage() {
               }}
               aria-invalid={!!error}
             />
-            {error && <p className='text-sm text-destructive'>{error}</p>}
+            {error ? <p className='text-sm text-destructive'>{error}</p> : null}
           </div>
 
           <div className='flex justify-end'>
@@ -95,6 +101,6 @@ export function ProfilePage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </AppPageContainer>
   );
 }

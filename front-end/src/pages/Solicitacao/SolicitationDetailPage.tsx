@@ -9,10 +9,17 @@ import {
   Check,
   CircleCheck,
   Copy,
+  FileText,
   Pencil,
   Trash2,
   X,
 } from 'lucide-react';
+import {
+  AppPageContainer,
+  ListErrorState,
+  ListLoadingState,
+  PageHero,
+} from '@/components/layout';
 import {
   SolicitationOfPanel,
   SolicitationOfToggle,
@@ -34,6 +41,7 @@ import {
 import { ROUTES, solicitationTrackPath } from '@/routes/constants';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
 import { Button } from '@/components/ui/button';
+import { surfaceStyles } from '@/lib/surface-styles';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -220,18 +228,89 @@ export function SolicitationDetailPage() {
     (location.state as { from?: string } | null)?.from === 'comercial';
 
   return (
-    <div className="min-w-0 max-w-full space-y-4 md:p-6">
-      <Button asChild variant="ghost" size="sm">
+    <AppPageContainer className="min-w-0">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
         <Link to={fromComercial ? ROUTES.WORKFLOW : ROUTES.SOLICITACOES}>
           <ArrowLeft className="mr-2 size-4" /> Voltar
         </Link>
       </Button>
 
-      {query.isLoading && <p>Carregando…</p>}
-      {query.isError && <p>Não foi possível carregar a solicitação.</p>}
+      {query.isLoading ? <ListLoadingState count={2} heightClass="h-40" /> : null}
+      {query.isError ? (
+        <ListErrorState>
+          Não foi possível carregar a solicitação.
+        </ListErrorState>
+      ) : null}
 
       {item && (
         <>
+          <PageHero
+            eyebrow="Detalhe do chamado"
+            eyebrowIcon={FileText}
+            title={item.title}
+            description={`Criada em ${format(new Date(item.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`}
+            compact
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                {canManage ? (
+                  <EditableSolicitationStatus
+                    status={item.status}
+                    disabled={
+                      statusMutation.isPending ||
+                      item.status === 'DELETED' ||
+                      item.status === 'COMPLETED'
+                    }
+                    onStatusChange={(status) => statusMutation.mutate(status)}
+                  />
+                ) : (
+                  <SolicitationStatusBadge status={item.status} />
+                )}
+                {canManage && canDelete ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                  >
+                    <Trash2 className="mr-1.5 size-3.5" />
+                    Excluir
+                  </Button>
+                ) : null}
+              </div>
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={surfaceStyles.monoCode}>{item.trackingCode}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground"
+                aria-label={
+                  trackLinkCopied ? 'Link copiado' : 'Copiar link público'
+                }
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await copyText(trackAbsoluteUrl(item.trackingCode));
+                      setTrackLinkCopied(true);
+                      window.setTimeout(() => setTrackLinkCopied(false), 2000);
+                    } catch {
+                      toast.error('Não foi possível copiar o link.');
+                    }
+                  })();
+                }}
+              >
+                {trackLinkCopied ? (
+                  <CircleCheck className="size-3 text-green-600" />
+                ) : (
+                  <Copy className="size-3" />
+                )}
+              </Button>
+            </div>
+          </PageHero>
+
           <div className="space-y-3">
             {item.workflow ? (
               <WorkflowActionsCard
@@ -258,48 +337,16 @@ export function SolicitationDetailPage() {
             </div>
           </div>
 
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <CardTitle className="break-words">{item.title}</CardTitle>
-                <CardDescription>
-                  Criada em{' '}
-                  {format(new Date(item.createdAt), "dd/MM/yyyy 'às' HH:mm", {
-                    locale: ptBR,
-                  })}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {canManage ? (
-                  <EditableSolicitationStatus
-                    status={item.status}
-                    disabled={
-                      statusMutation.isPending ||
-                      item.status === 'DELETED' ||
-                      item.status === 'COMPLETED'
-                    }
-                    onStatusChange={(status) => statusMutation.mutate(status)}
-                  />
-                ) : (
-                  <SolicitationStatusBadge status={item.status} />
-                )}
-                {canManage && canDelete ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                    onClick={() => setDeleteConfirmOpen(true)}
-                  >
-                    <Trash2 className="mr-1.5 size-3.5" />
-                    Excluir
-                  </Button>
-                ) : null}
-              </div>
+          <Card className={cn('min-w-0 overflow-hidden', surfaceStyles.card)}>
+            <CardHeader>
+              <CardTitle>Dados da solicitação</CardTitle>
+              <CardDescription>
+                Informações do solicitante e da instrução de processo
+              </CardDescription>
             </CardHeader>
             <CardContent className="grid min-w-0 max-w-full gap-4 md:grid-cols-2">
               {item.status === 'DELETED' ? (
-                <div className="min-w-0 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 md:col-span-2 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+                <div className="min-w-0 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 md:col-span-2 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
                   <p className="font-medium">Solicitação excluída</p>
                   <p className="mt-1 text-muted-foreground dark:text-red-200/80">
                     Por {item.deletedByName ?? '—'}
@@ -312,47 +359,6 @@ export function SolicitationDetailPage() {
                   </p>
                 </div>
               ) : null}
-              <div className="min-w-0 md:col-span-2">
-                <div className="text-muted-foreground text-xs uppercase tracking-wide">
-                  Protocolo
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span className="break-all font-mono text-sm font-medium tracking-wide">
-                    {item.trackingCode}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="shrink-0 text-muted-foreground"
-                    aria-label={
-                      trackLinkCopied ? 'Link copiado' : 'Copiar link público'
-                    }
-                    onClick={() => {
-                      void (async () => {
-                        try {
-                          await copyText(
-                            trackAbsoluteUrl(item.trackingCode),
-                          );
-                          setTrackLinkCopied(true);
-                          window.setTimeout(
-                            () => setTrackLinkCopied(false),
-                            2000,
-                          );
-                        } catch {
-                          toast.error('Não foi possível copiar o link.');
-                        }
-                      })();
-                    }}
-                  >
-                    {trackLinkCopied ? (
-                      <CircleCheck className="size-3 text-green-600" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                  </Button>
-                </div>
-              </div>
               <Field label="Solicitante" value={item.requesterName} />
               <Field
                 label="E-mail"
@@ -531,7 +537,7 @@ export function SolicitationDetailPage() {
           ) : null}
         </>
       )}
-    </div>
+    </AppPageContainer>
   );
 }
 
@@ -607,7 +613,7 @@ function WorkflowActionsCard({
   });
 
   return (
-    <Card id="workflow">
+    <Card id="workflow" className={cn(surfaceStyles.card)}>
       <CardHeader>
         <CardTitle>Workflow</CardTitle>
         <CardDescription>
@@ -797,7 +803,7 @@ function SolicitationReviewPanel({
   }
 
   return (
-    <Card className="min-w-0 overflow-hidden">
+    <Card className={cn('min-w-0 overflow-hidden', surfaceStyles.card)}>
       <CardHeader>
         <CardTitle>Revisão</CardTitle>
         <CardDescription>{reviewDescription}</CardDescription>

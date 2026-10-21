@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, UserPlus } from 'lucide-react';
+import { AppPageContainer, PageHero } from '@/components/layout';
 import { userApi } from '@/services/user';
 import { ROUTES } from '@/routes/constants';
 import { UNIT, type Unit, type UserDepartment, type UserRole } from '@/types/auth';
@@ -37,6 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { surfaceStyles } from '@/lib/surface-styles';
+import { cn } from '@/lib/utils';
 
 export function NewUserPage() {
   const { user: authUser } = useAuth();
@@ -142,20 +145,28 @@ export function NewUserPage() {
   const departmentLocked = role === 'COMERCIAL' || departmentOptions.length <= 1;
 
   return (
-    <div className='space-y-6'>
-      <Button variant='ghost' size='sm' asChild>
+    <AppPageContainer width='form'>
+      <Button variant='ghost' size='sm' asChild className='-ml-2 w-fit'>
         <Link to={ROUTES.USUARIOS}>
           <ArrowLeft />
           Voltar
         </Link>
       </Button>
 
-      <Card className='mx-auto w-full max-w-2xl'>
+      <PageHero
+        eyebrow='Administração'
+        eyebrowIcon={UserPlus}
+        title='Novo usuário'
+        description='Crie um usuário para o painel. A senha padrão é o cartão; o usuário deverá alterá-la no primeiro login.'
+        compact
+      />
+
+      <Card className={cn('w-full', surfaceStyles.card)}>
         <CardHeader>
           <CardTitle>Configurar novo usuário</CardTitle>
           <CardDescription>
-            Crie um usuário admin/usuário para o painel. A senha padrão é o
-            cartão; o usuário deverá alterá-la no primeiro login.
+            Informe cartão, unidade, função e departamento para concluir o
+            cadastro.
           </CardDescription>
         </CardHeader>
 
@@ -294,6 +305,6 @@ export function NewUserPage() {
           </CardFooter>
         </form>
       </Card>
-    </div>
+    </AppPageContainer>
   );
 }
