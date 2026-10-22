@@ -30,7 +30,7 @@ export interface AuthUser {
   unit: Unit;
   name: string | null;
   role: UserRole;
-  department: UserDepartment;
+  department: UserDepartment | null;
   approvalStatus: UserApprovalStatus;
   /** Indica que o usuário deve trocar a senha (ex.: primeiro login) */
   mustChangePassword?: boolean;
@@ -46,7 +46,7 @@ export interface ListUser {
   cardNumber: string;
   unit: Unit;
   role: UserRole;
-  department: UserDepartment;
+  department: UserDepartment | null;
   approvalStatus: UserApprovalStatus;
   active: boolean;
   createdAt: string;

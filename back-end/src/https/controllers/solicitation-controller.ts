@@ -2,6 +2,7 @@ import z from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { actorFromSession } from '../../auth/access-policy.js';
 import { $Enums } from '../../generated/prisma/client.js';
+import { calendarDateInSaoPaulo } from '../../lib/process-charts.js';
 import { HttpError } from '../errors/index.js';
 import { SolicitationService } from '../../services/solicitation-service.js';
 import { WorkflowService } from '../../services/workflow-service.js';
@@ -172,12 +173,18 @@ export async function getProcessCharts(
   const querySchema = z.object({
     teamId: z.string().min(1, 'Time é obrigatório'),
     period: z.enum(['year', 'month', 'week']).default('month'),
+    anchor: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida')
+      .refine((value) => calendarDateInSaoPaulo(value) !== null, 'Data inválida')
+      .optional(),
   });
   const query = querySchema.parse(request.query);
   const service = new SolicitationService();
   const charts = await service.getProcessCharts(actorFromSession(request.user), {
     teamId: query.teamId,
     period: query.period,
+    ...(query.anchor ? { anchor: query.anchor } : {}),
   });
   return reply.status(200).send(charts);
 }
@@ -435,6 +442,7 @@ export async function sendSolicitationToKairo(
     title: z.string().trim().min(1, 'Título é obrigatório'),
     description: z.string().trim().min(1, 'Descrição é obrigatória'),
     tagId: z.string().min(1).optional(),
+    clientId: z.string().min(1).optional(),
     estimatedHours: z.coerce
       .number()
       .positive('Horas estimadas deve ser um valor positivo')
@@ -451,6 +459,7 @@ export async function sendSolicitationToKairo(
       title: body.title,
       description: body.description,
       ...(body.tagId ? { tagId: body.tagId } : {}),
+      ...(body.clientId ? { clientId: body.clientId } : {}),
       ...(body.estimatedHours !== undefined
         ? { estimatedHours: body.estimatedHours }
         : {}),

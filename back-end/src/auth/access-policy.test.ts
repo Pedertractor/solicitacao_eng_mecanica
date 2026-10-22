@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { $Enums } from '../generated/prisma/client.js';
 import {
   canAccessProcessCharts,
+  canAssignDepartment,
   canManageSampleStage,
   canManageToolingStage,
   visibleWorkflowStages,
@@ -68,7 +69,7 @@ describe('canManageToolingStage', () => {
     expect(
       canAccessProcessCharts({
         role: $Enums.UserRole.SUPER_ADMIN,
-        department: $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+        department: null,
       }),
     ).toBe(false);
   });
@@ -77,8 +78,27 @@ describe('canManageToolingStage', () => {
     expect(
       canManageToolingStage({
         role: $Enums.UserRole.SUPER_ADMIN,
-        department: $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+        department: null,
       }),
     ).toBe(true);
+  });
+});
+
+describe('canAssignDepartment for SUPER_ADMIN', () => {
+  it('allows only null department when assigning super admin', () => {
+    const actor = {
+      role: $Enums.UserRole.SUPER_ADMIN,
+      department: null as $Enums.UserDepartment | null,
+    };
+    expect(
+      canAssignDepartment(actor, $Enums.UserRole.SUPER_ADMIN, null),
+    ).toBe(true);
+    expect(
+      canAssignDepartment(
+        actor,
+        $Enums.UserRole.SUPER_ADMIN,
+        $Enums.UserDepartment.ENG_MECANICA,
+      ),
+    ).toBe(false);
   });
 });

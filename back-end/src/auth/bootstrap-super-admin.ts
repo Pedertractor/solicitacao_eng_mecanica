@@ -14,5 +14,5 @@ export function isBootstrapSuperAdmin(user: {
 }
 
 export const BOOTSTRAP_SUPER_ADMIN_ROLE = $Enums.UserRole.SUPER_ADMIN;
-export const BOOTSTRAP_SUPER_ADMIN_DEPARTMENT =
-  $Enums.UserDepartment.ENG_MECANICA;
+/** Super admins have no department. */
+export const BOOTSTRAP_SUPER_ADMIN_DEPARTMENT = null;

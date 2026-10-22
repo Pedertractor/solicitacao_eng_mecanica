@@ -31,6 +31,11 @@ export type KairoTag = {
   color: string;
 };
 
+export type KairoClientOption = {
+  id: string;
+  name: string;
+};
+
 export type KairoCardStatus =
   | 'TODO'
   | 'IN_PROGRESS'
@@ -127,6 +132,13 @@ export class KairoClient {
     );
   }
 
+  async listClients() {
+    return kairoFetch<{ clients: KairoClientOption[] }>(
+      '/integrations/v1/clients',
+      this.apiKey,
+    );
+  }
+
   async getActivity(teamId: string, activityId: string) {
     return kairoFetch<{ activity: KairoActivity }>(
       `/integrations/v1/teams/${encodeURIComponent(teamId)}/activities/${encodeURIComponent(activityId)}`,
@@ -147,6 +159,7 @@ export class KairoClient {
       title: string;
       description?: string;
       tagId?: string;
+      clientId?: string;
       integrationSource?: string;
     },
   ) {

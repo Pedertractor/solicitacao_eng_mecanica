@@ -45,7 +45,7 @@ function mapUserResponse(user: UserWithoutPassword) {
     cardNumber: user.cardNumber,
     unit: user.unit,
     role: user.role,
-    department: user.department,
+    department: user.department ?? null,
     approvalStatus: user.approvalStatus,
     mustChangePassword: user.mustChangePassword,
     notificationEmail: user.notificationEmail,
@@ -185,7 +185,7 @@ export class UserService {
       cardNumber: synced.cardNumber,
       unit: synced.unit,
       role: synced.role,
-      department: synced.department,
+      department: synced.department ?? null,
       approvalStatus: synced.approvalStatus,
       mustChangePassword: synced.mustChangePassword,
     };
@@ -197,25 +197,40 @@ export class UserService {
     }
 
     const userRepository = new UserPrismaRepository(prisma);
-    const users = await userRepository.findAll(
-      isSuperAdmin(actor.role)
-        ? undefined
-        : isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS)
-          ? {
-              department: {
-                in: [
-                  $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
-                  $Enums.UserDepartment.FERRAMENTARIA,
-                  $Enums.UserDepartment.AMOSTRA,
-                ],
-              },
-              role: { not: $Enums.UserRole.SUPER_ADMIN },
-            }
-          : {
-              department: actor.department,
-              role: { not: $Enums.UserRole.SUPER_ADMIN },
-            },
-    );
+    let where:
+      | {
+          department?:
+            | $Enums.UserDepartment
+            | { in: $Enums.UserDepartment[] };
+          role?: { not: $Enums.UserRole };
+        }
+      | undefined;
+
+    if (isSuperAdmin(actor.role)) {
+      where = undefined;
+    } else if (
+      isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS)
+    ) {
+      where = {
+        department: {
+          in: [
+            $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+            $Enums.UserDepartment.FERRAMENTARIA,
+            $Enums.UserDepartment.AMOSTRA,
+          ],
+        },
+        role: { not: $Enums.UserRole.SUPER_ADMIN },
+      };
+    } else if (actor.department) {
+      where = {
+        department: actor.department,
+        role: { not: $Enums.UserRole.SUPER_ADMIN },
+      };
+    } else {
+      return [];
+    }
+
+    const users = await userRepository.findAll(where);
     const synced = await Promise.all(
       users.map((user) => this.syncBootstrapSuperAdminIfNeeded(user)),
     );
@@ -225,7 +240,7 @@ export class UserService {
   async resolveSessionPrincipal(userId: string): Promise<{
     id: string;
     role: $Enums.UserRole;
-    department: $Enums.UserDepartment;
+    department: $Enums.UserDepartment | null;
     cardNumber: string;
     unit: $Enums.Unit;
     approvalStatus: $Enums.UserApprovalStatus;
@@ -241,7 +256,7 @@ export class UserService {
     return {
       id: synced.id,
       role: synced.role,
-      department: synced.department,
+      department: synced.department ?? null,
       cardNumber: synced.cardNumber,
       unit: synced.unit,
       approvalStatus: synced.approvalStatus,
@@ -315,6 +330,9 @@ export class UserService {
     this.assertRoleMatchesDepartment(role, department);
     if (!canAssignDepartment(actor, role, department)) {
       throw new HttpError('Você não pode atribuir este departamento', 403);
+    }
+    if (role !== $Enums.UserRole.SUPER_ADMIN && !department) {
+      throw new HttpError('Informe o departamento', 400);
     }
 
     const userRepository = new UserPrismaRepository(prisma);
@@ -426,11 +444,14 @@ export class UserService {
   private resolveRegisterDepartment(
     actor: AccessActor,
     input: RegisterUserInput,
-  ): $Enums.UserDepartment {
+  ): $Enums.UserDepartment | null {
     if (isBootstrapSuperAdmin(input)) {
       return BOOTSTRAP_SUPER_ADMIN_DEPARTMENT;
     }
     const role = this.resolveRegisterRole(input);
+    if (role === $Enums.UserRole.SUPER_ADMIN) {
+      return null;
+    }
     if (role === $Enums.UserRole.COMERCIAL) {
       return $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS;
     }
@@ -446,7 +467,9 @@ export class UserService {
     if (input.department) {
       return input.department;
     }
-    if (!isSuperAdmin(actor.role)) return actor.department;
+    if (!isSuperAdmin(actor.role) && actor.department) {
+      return actor.department;
+    }
     throw new HttpError('Informe o departamento', 400);
   }
 
@@ -495,8 +518,20 @@ export class UserService {
 
   private assertRoleMatchesDepartment(
     role: $Enums.UserRole,
-    department: $Enums.UserDepartment,
+    department: $Enums.UserDepartment | null,
   ) {
+    if (role === $Enums.UserRole.SUPER_ADMIN) {
+      if (department !== null) {
+        throw new HttpError(
+          'Super admin não possui departamento vinculado',
+          400,
+        );
+      }
+      return;
+    }
+    if (!department) {
+      throw new HttpError('Informe o departamento', 400);
+    }
     if (
       role === $Enums.UserRole.COMERCIAL &&
       department !== $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS

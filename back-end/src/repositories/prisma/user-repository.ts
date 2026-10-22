@@ -87,7 +87,7 @@ export class UserPrismaRepository {
     unit: $Enums.Unit;
     cardNumber: string;
     role: $Enums.UserRole;
-    department: $Enums.UserDepartment;
+    department: $Enums.UserDepartment | null;
     approvalStatus?: $Enums.UserApprovalStatus;
     active: boolean;
     mustChangePassword?: boolean;
@@ -124,7 +124,7 @@ export class UserPrismaRepository {
   async updateRole(
     userId: string,
     role: $Enums.UserRole,
-    department: $Enums.UserDepartment,
+    department: $Enums.UserDepartment | null,
   ): Promise<UserWithoutPassword> {
     return await this.prisma.user.update({
       where: { id: userId },
@@ -181,7 +181,7 @@ export class UserPrismaRepository {
       where: { id: userId },
       data: {
         role: $Enums.UserRole.SUPER_ADMIN,
-        department: $Enums.UserDepartment.ENG_MECANICA,
+        department: null,
         approvalStatus: $Enums.UserApprovalStatus.APPROVED,
         active: true,
       },

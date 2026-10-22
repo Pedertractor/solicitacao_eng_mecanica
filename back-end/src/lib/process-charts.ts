@@ -15,6 +15,29 @@ export type ProcessChartSource = {
 };
 
 const SAO_PAULO_OFFSET_MS = 3 * 60 * 60 * 1000;
+const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Interpreta `YYYY-MM-DD` como um dia no calendário de São Paulo. */
+export function calendarDateInSaoPaulo(anchor: string): Date | null {
+  const match = CALENDAR_DATE.exec(anchor);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const instant = new Date(Date.UTC(year, month - 1, day, 15, 0, 0));
+  const local = new Date(instant.getTime() - SAO_PAULO_OFFSET_MS);
+
+  if (
+    local.getUTCFullYear() !== year ||
+    local.getUTCMonth() !== month - 1 ||
+    local.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return instant;
+}
 
 const CLIENT_LABELS: Record<$Enums.SolicitationClient, string> = {
   CATERPILLAR: 'CATERPILLAR',

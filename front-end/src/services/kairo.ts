@@ -23,6 +23,11 @@ export interface KairoTagOption {
   color: string;
 }
 
+export interface KairoClientOption {
+  id: string;
+  name: string;
+}
+
 const BASE = '/me/kairo';
 
 export const kairoApi = {
@@ -53,5 +58,12 @@ export const kairoApi = {
       `${BASE}/teams/${encodeURIComponent(teamId)}/tags`,
     );
     return data.tags;
+  },
+
+  async listClients(): Promise<KairoClientOption[]> {
+    const { data } = await api.get<{ clients: KairoClientOption[] }>(
+      `${BASE}/clients`,
+    );
+    return data.clients;
   },
 };

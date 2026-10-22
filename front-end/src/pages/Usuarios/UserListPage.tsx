@@ -254,7 +254,9 @@ function UserRow({
       </TableCell>
       <TableCell>{user.cardNumber}</TableCell>
       <TableCell>{user.unit}</TableCell>
-      <TableCell>{DEPARTMENT_LABELS[user.department]}</TableCell>
+      <TableCell>
+        {user.department ? DEPARTMENT_LABELS[user.department] : '—'}
+      </TableCell>
       <TableCell>
         <RoleBadge role={user.role} department={user.department} />
       </TableCell>
@@ -309,7 +311,7 @@ function UserCard({
         <ActiveBadge active={user.active} />
         <span className='text-xs text-muted-foreground'>{user.unit}</span>
         <span className='text-xs text-muted-foreground'>
-          {DEPARTMENT_LABELS[user.department]}
+          {user.department ? DEPARTMENT_LABELS[user.department] : '—'}
         </span>
       </div>
     </div>

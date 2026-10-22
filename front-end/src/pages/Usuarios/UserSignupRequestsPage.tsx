@@ -234,7 +234,9 @@ function PendingSignupRow({
       </TableCell>
       <TableCell>{user.unit}</TableCell>
       <TableCell>
-        <div>{DEPARTMENT_LABELS[user.department]}</div>
+        <div>
+          {user.department ? DEPARTMENT_LABELS[user.department] : '—'}
+        </div>
         <Badge variant='outline' className='mt-1'>
           {roleLabel(user.role, user.department)}
         </Badge>
@@ -297,7 +299,9 @@ function PendingSignupCard({
         </div>
       </div>
       <div className='flex flex-wrap gap-2'>
-        <Badge variant='outline'>{DEPARTMENT_LABELS[user.department]}</Badge>
+        {user.department ? (
+          <Badge variant='outline'>{DEPARTMENT_LABELS[user.department]}</Badge>
+        ) : null}
         <Badge variant='secondary'>
           {roleLabel(user.role, user.department)}
         </Badge>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -14,13 +14,18 @@ import { KairoTagBadge } from '@/components/kairo-tag-badge';
 import { kairoApi } from '@/services/kairo';
 import {
   solicitationApi,
+  SOLICITATION_ACTIVITY_TYPE_LABELS,
+  SOLICITATION_CLIENT_LABELS,
   SOLICITATION_KIND_LABELS,
   type Solicitation,
   type SolicitationKind,
 } from '@/services/solicitation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { buildDefaultKairoDescription } from '@/lib/kairo-send-content';
+import {
+  buildDefaultKairoDescription,
+  findMatchingKairoOptionId,
+} from '@/lib/kairo-send-content';
 import {
   isProcessPartNumberKairoSend,
   listKairoCardIds,
@@ -44,6 +49,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
+const NO_CLIENT = '__none__';
+const NO_TAG = '__none__';
 
 export function SolicitationKairoDialog({
   open,
@@ -106,6 +114,9 @@ function KairoSendView({
     sendOnePerPartNumber ? 'ATIVIDADE' : (solicitation.kind ?? 'ATIVIDADE'),
   );
   const [tagId, setTagId] = useState('');
+  const [tagPrefillTeamId, setTagPrefillTeamId] = useState<string | null>(null);
+  const [clientId, setClientId] = useState('');
+  const [clientPrefillDone, setClientPrefillDone] = useState(false);
   const [title, setTitle] = useState(solicitation.title);
   const [description, setDescription] = useState(() =>
     buildDefaultKairoDescription(solicitation),
@@ -126,6 +137,12 @@ function KairoSendView({
     enabled: statusQuery.data?.linked === true,
   });
 
+  const clientsQuery = useQuery({
+    queryKey: ['kairo-clients'],
+    queryFn: () => kairoApi.listClients(),
+    enabled: statusQuery.data?.linked === true,
+  });
+
   const effectiveKindForQuery: SolicitationKind = sendOnePerPartNumber
     ? 'ATIVIDADE'
     : kind;
@@ -138,6 +155,51 @@ function KairoSendView({
       effectiveKindForQuery === 'ATIVIDADE' &&
       Boolean(teamId),
   });
+
+  useEffect(() => {
+    if (clientPrefillDone || !clientsQuery.data) return;
+    const preferred = findMatchingKairoOptionId(
+      clientsQuery.data,
+      solicitation.client
+        ? SOLICITATION_CLIENT_LABELS[solicitation.client]
+        : null,
+    );
+    if (preferred) {
+      setClientId(preferred);
+    }
+    setClientPrefillDone(true);
+  }, [clientsQuery.data, clientPrefillDone, solicitation.client]);
+
+  useEffect(() => {
+    if (
+      !teamId ||
+      !tagsQuery.data ||
+      tagsQuery.isLoading ||
+      tagPrefillTeamId === teamId
+    ) {
+      return;
+    }
+    const preferredName =
+      solicitation.processInstructionType?.trim() ||
+      (solicitation.activityType
+        ? SOLICITATION_ACTIVITY_TYPE_LABELS[solicitation.activityType]
+        : null);
+    const preferred = findMatchingKairoOptionId(
+      tagsQuery.data,
+      preferredName,
+    );
+    if (preferred) {
+      setTagId(preferred);
+    }
+    setTagPrefillTeamId(teamId);
+  }, [
+    teamId,
+    tagsQuery.data,
+    tagsQuery.isLoading,
+    tagPrefillTeamId,
+    solicitation.processInstructionType,
+    solicitation.activityType,
+  ]);
 
   const parsedEstimatedHours = estimatedHours.trim()
     ? Number.parseFloat(estimatedHours)
@@ -158,6 +220,9 @@ function KairoSendView({
         description: description.trim(),
         ...((sendOnePerPartNumber || kind === 'ATIVIDADE') && tagId
           ? { tagId }
+          : {}),
+        ...((sendOnePerPartNumber || kind === 'ATIVIDADE') && clientId
+          ? { clientId }
           : {}),
         ...(!sendOnePerPartNumber && kind === 'PROJETO' && validEstimatedHours
           ? { estimatedHours: validEstimatedHours }
@@ -283,6 +348,7 @@ function KairoSendView({
                 onValueChange={(value) => {
                   setTeamId(value);
                   setTagId('');
+                  setTagPrefillTeamId(null);
                 }}
               >
                 <SelectTrigger>
@@ -307,6 +373,19 @@ function KairoSendView({
                   const nextKind = value as SolicitationKind;
                   setKind(nextKind);
                   setTagId('');
+                  setTagPrefillTeamId(null);
+                  if (nextKind === 'ATIVIDADE') {
+                    setClientId(
+                      findMatchingKairoOptionId(
+                        clientsQuery.data ?? [],
+                        solicitation.client
+                          ? SOLICITATION_CLIENT_LABELS[solicitation.client]
+                          : null,
+                      ),
+                    );
+                  } else {
+                    setClientId('');
+                  }
                   if (nextKind !== 'PROJETO') {
                     setEstimatedHours('');
                   }
@@ -330,10 +409,49 @@ function KairoSendView({
 
             {effectiveKind === 'ATIVIDADE' && (
               <div className="space-y-2">
+                <Label>Cliente (opcional)</Label>
+                <Select
+                  value={clientId || NO_CLIENT}
+                  onValueChange={(value) =>
+                    setClientId(value === NO_CLIENT ? '' : value)
+                  }
+                  disabled={clientsQuery.isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        clientsQuery.isLoading
+                          ? 'Carregando clientes…'
+                          : 'Nenhum (opcional)'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_CLIENT}>Nenhum (opcional)</SelectItem>
+                    {(clientsQuery.data ?? []).map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {clientsQuery.isError ? (
+                  <p className="text-muted-foreground text-xs">
+                    Não foi possível carregar os clientes do Kairo. Você ainda
+                    pode enviar sem cliente.
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            {effectiveKind === 'ATIVIDADE' && (
+              <div className="space-y-2">
                 <Label>Etiqueta (opcional)</Label>
                 <Select
-                  value={tagId || undefined}
-                  onValueChange={setTagId}
+                  value={teamId ? tagId || NO_TAG : undefined}
+                  onValueChange={(value) =>
+                    setTagId(value === NO_TAG ? '' : value)
+                  }
                   disabled={!teamId || tagsQuery.isLoading}
                 >
                   <SelectTrigger className="h-auto min-h-8 py-1">
@@ -348,6 +466,7 @@ function KairoSendView({
                     />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={NO_TAG}>Nenhuma (opcional)</SelectItem>
                     {(tagsQuery.data ?? []).map((tag) => (
                       <SelectItem key={tag.id} value={tag.id} className="py-2">
                         <KairoTagBadge tag={tag} />

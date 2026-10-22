@@ -288,9 +288,10 @@ export const solicitationApi = {
   async processCharts(
     teamId: string,
     period: ProcessChartPeriod,
+    anchor?: string,
   ): Promise<ProcessCharts> {
     const { data } = await api.get<ProcessCharts>(`${BASE}/process-charts`, {
-      params: { teamId, period },
+      params: { teamId, period, ...(anchor ? { anchor } : {}) },
     });
     return data;
   },
@@ -431,6 +432,7 @@ export const solicitationApi = {
       title: string;
       description: string;
       tagId?: string;
+      clientId?: string;
       estimatedHours?: number;
     },
   ): Promise<Solicitation> {

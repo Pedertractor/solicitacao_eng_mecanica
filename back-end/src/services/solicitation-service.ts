@@ -27,6 +27,7 @@ import { KairoCredentialService } from './kairo-credential-service.js';
 import { UserService } from './user-service.js';
 import {
   buildProcessCharts,
+  calendarDateInSaoPaulo,
   periodRange,
   type ChartPeriod,
 } from '../lib/process-charts.js';
@@ -298,13 +299,18 @@ function mapPublicTicket(row: {
 export class SolicitationService {
   async getProcessCharts(
     actor: AccessActor,
-    input: { teamId: string; period: ChartPeriod },
+    input: { teamId: string; period: ChartPeriod; anchor?: string },
   ) {
     if (!canAccessProcessCharts(actor)) {
       throw new HttpError('Sem permissão para ver os indicadores', 403);
     }
 
-    const range = periodRange(input.period);
+    const anchor = input.anchor ? calendarDateInSaoPaulo(input.anchor) : null;
+    if (input.anchor && !anchor) {
+      throw new HttpError('Data inválida', 400);
+    }
+
+    const range = periodRange(input.period, anchor ?? new Date());
     const repo = new SolicitationPrismaRepository(prisma);
     const rows = await repo.findProcessChartRows({
       teamId: input.teamId,
@@ -832,6 +838,7 @@ export class SolicitationService {
       title: string;
       description: string;
       tagId?: string;
+      clientId?: string;
       estimatedHours?: number;
     },
     actingUserId: string,
@@ -861,6 +868,7 @@ export class SolicitationService {
     const sendOneActivityPerPart = partNumbers.length > 0;
 
     const trimmedTagId = input.tagId?.trim() || undefined;
+    const trimmedClientId = input.clientId?.trim() || undefined;
 
     if (sendOneActivityPerPart && input.kind !== $Enums.SolicitationKind.ATIVIDADE) {
       throw new HttpError(
@@ -893,6 +901,7 @@ export class SolicitationService {
             description: appendPartNumber(input.description, partNumber),
             integrationSource: KAIRO_INTEGRATION_SOURCE,
             ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
+            ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
           });
           cardIds.push(activity.id);
         }
@@ -906,6 +915,7 @@ export class SolicitationService {
         description: input.description,
         integrationSource: KAIRO_INTEGRATION_SOURCE,
         ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
+        ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
       });
       cardIds = [activity.id];
     } else {
@@ -1066,7 +1076,9 @@ export class SolicitationService {
     }
     const repo = new SolicitationPrismaRepository(prisma);
     const pending = await repo.findPendingKairoSync(
-      actor && !isSuperAdmin(actor.role) ? actor.department : undefined,
+      actor && !isSuperAdmin(actor.role)
+        ? (actor.department ?? undefined)
+        : undefined,
     );
     let completed = 0;
     let deleted = 0;

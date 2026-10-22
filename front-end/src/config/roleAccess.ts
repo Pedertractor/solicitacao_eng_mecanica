@@ -61,7 +61,7 @@ const PROTECTED_PATH_PATTERNS: RegExp[] = [
 
 export function getNavPaths(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): readonly string[] {
   if (role === 'SUPER_ADMIN') return SUPER_ADMIN_NAV;
   if (role === 'COMERCIAL') return WORKFLOW_NAV;
@@ -95,7 +95,7 @@ export function pathMatchesNavExact(pathname: string, navPath: string): boolean 
 export function canRoleAccessPath(
   role: UserRole,
   pathname: string,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   const normalized = pathname || '/';
   if (!isAppShellPath(normalized)) return true;
@@ -162,7 +162,7 @@ export function canRoleAccessPath(
 
 export function getSidebarNavItemsForRole(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): SidebarNavItem[] {
   const allowed = new Set(getNavPaths(role, department));
   return SIDEBAR_NAV_ITEMS.filter((item) => {
@@ -197,7 +197,7 @@ export function getSidebarNavItemsForRole(
 
 export function getHomePathForRole(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): string {
   if (isWorkflowOnlyRole(role, department)) return ROUTES.WORKFLOW;
   return ROUTES.SOLICITACOES;

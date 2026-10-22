@@ -14,7 +14,7 @@ export interface UserDetail {
   cardNumber: string;
   unit: Unit;
   role: UserRole;
-  department: UserDepartment;
+  department: UserDepartment | null;
   approvalStatus: AuthUser['approvalStatus'];
   mustChangePassword: boolean;
   notificationEmail?: string | null;

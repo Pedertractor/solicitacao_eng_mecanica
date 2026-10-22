@@ -128,7 +128,7 @@ model User {
   passwordHash String
 
   role             UserRole           @default(USER)
-  department       UserDepartment     @default(ENG_MECANICA)
+  department       UserDepartment?    @default(ENG_MECANICA)
   approvalStatus   UserApprovalStatus @default(APPROVED)
   active           Boolean            @default(true)
 

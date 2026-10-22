@@ -57,7 +57,7 @@ function EditUserFormBody({
   const queryClient = useQueryClient();
   const { user: authUser } = useAuth();
   const [role, setRole] = useState<UserRole>(detail.role);
-  const [department, setDepartment] = useState<UserDepartment>(
+  const [department, setDepartment] = useState<UserDepartment | null>(
     detail.department,
   );
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -70,7 +70,7 @@ function EditUserFormBody({
 
   const roleOptions = useMemo(() => {
     const allowedRoles = authUser
-      ? assignableRoles(authUser.role, authUser.department)
+      ? assignableRoles(authUser.role, authUser.department ?? undefined)
       : [];
     const base = ROLE_OPTIONS.filter((opt) => allowedRoles.includes(opt.value));
     if (base.some((o) => o.value === detail.role)) return base;
@@ -79,13 +79,19 @@ function EditUserFormBody({
   }, [authUser, detail.role]);
 
   const departmentOptions = useMemo(() => {
-    if (!authUser) return [detail.department];
+    if (!authUser) {
+      return detail.department ? [detail.department] : [];
+    }
     const options = assignableDepartments(
       authUser.role,
       authUser.department,
       role,
     );
-    if (!options.includes(detail.department) && role === detail.role) {
+    if (
+      detail.department &&
+      !options.includes(detail.department) &&
+      role === detail.role
+    ) {
       return [detail.department, ...options];
     }
     return options;
@@ -93,7 +99,12 @@ function EditUserFormBody({
 
   const updateMutation = useMutation({
     mutationFn: () =>
-      userApi.updateByAdmin(detail.id, { role, department }),
+      userApi.updateByAdmin(detail.id, {
+        role,
+        ...(role === 'SUPER_ADMIN'
+          ? {}
+          : { department: department ?? undefined }),
+      }),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('Usuário atualizado.');
@@ -163,6 +174,10 @@ function EditUserFormBody({
           onValueChange={(v) => {
             const nextRole = v as UserRole;
             setRole(nextRole);
+            if (nextRole === 'SUPER_ADMIN') {
+              setDepartment(null);
+              return;
+            }
             const nextDepts = authUser
               ? assignableDepartments(
                   authUser.role,
@@ -170,7 +185,10 @@ function EditUserFormBody({
                   nextRole,
                 )
               : [];
-            if (nextDepts.length > 0 && !nextDepts.includes(department)) {
+            if (
+              nextDepts.length > 0 &&
+              (department === null || !nextDepts.includes(department))
+            ) {
               setDepartment(nextDepts[0]!);
             }
           }}
@@ -193,29 +211,31 @@ function EditUserFormBody({
         ) : null}
       </div>
 
-      <div className='space-y-2'>
-        <Label htmlFor='edit-department'>Departamento</Label>
-        <Select
-          value={department}
-          disabled={
-            isCurrentUser ||
-            role === 'COMERCIAL' ||
-            departmentOptions.length <= 1
-          }
-          onValueChange={(v) => setDepartment(v as UserDepartment)}
-        >
-          <SelectTrigger id='edit-department' className='w-full'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {departmentOptions.map((value) => (
-              <SelectItem key={value} value={value}>
-                {DEPARTMENT_LABELS[value]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {role !== 'SUPER_ADMIN' ? (
+        <div className='space-y-2'>
+          <Label htmlFor='edit-department'>Departamento</Label>
+          <Select
+            value={department ?? undefined}
+            disabled={
+              isCurrentUser ||
+              role === 'COMERCIAL' ||
+              departmentOptions.length <= 1
+            }
+            onValueChange={(v) => setDepartment(v as UserDepartment)}
+          >
+            <SelectTrigger id='edit-department' className='w-full'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {departmentOptions.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {DEPARTMENT_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
       {canResetPassword ? (
         <div className='rounded-lg border bg-muted/40 p-4'>

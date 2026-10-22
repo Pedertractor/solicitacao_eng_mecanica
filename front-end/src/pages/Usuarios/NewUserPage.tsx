@@ -107,7 +107,7 @@ export function NewUserPage() {
         cardNumber: cardNumberForApi(cardNumber),
         unit,
         role,
-        department,
+        ...(role === 'SUPER_ADMIN' ? {} : { department }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -137,11 +137,7 @@ export function NewUserPage() {
   const roleOptions = ROLE_OPTIONS.filter((opt) =>
     allowedRoles.includes(opt.value),
   );
-  const showDepartment =
-    role === 'ADMIN' ||
-    role === 'USER' ||
-    role === 'COMERCIAL' ||
-    authUser?.role === 'SUPER_ADMIN';
+  const showDepartment = role !== 'SUPER_ADMIN';
   const departmentLocked = role === 'COMERCIAL' || departmentOptions.length <= 1;
 
   return (

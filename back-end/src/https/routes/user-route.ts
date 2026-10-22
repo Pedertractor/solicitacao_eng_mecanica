@@ -46,9 +46,11 @@ const userSchema = {
       description: 'Papel do usuário',
     },
     department: {
-      type: 'string',
-      enum: departmentEnum,
-      description: 'Departamento',
+      anyOf: [
+        { type: 'string', enum: departmentEnum },
+        { type: 'null' },
+      ],
+      description: 'Departamento (null para SUPER_ADMIN)',
     },
     approvalStatus: {
       type: 'string',
@@ -221,7 +223,7 @@ export async function userRoutes(app: FastifyInstance) {
               type: 'string',
               enum: departmentEnum,
               description:
-                'Obrigatório para super admin. Admins de área usam o próprio departamento.',
+                'Obrigatório para USER/ADMIN/COMERCIAL. Omitir para SUPER_ADMIN.',
             },
           },
         },

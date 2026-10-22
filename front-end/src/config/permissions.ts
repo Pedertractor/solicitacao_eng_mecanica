@@ -2,7 +2,7 @@ import type { UserDepartment, UserRole } from '@/types/auth';
 
 type Actor = {
   role: UserRole;
-  department: UserDepartment;
+  department: UserDepartment | null;
 };
 
 function isSuperAdmin(role: UserRole): boolean {
@@ -26,7 +26,7 @@ function isPlatformAdmin(actor: Actor): boolean {
 
 export function canAccessUsersArea(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
@@ -35,14 +35,14 @@ export function canAccessUsersArea(
 
 export function canCreateUser(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   return canAccessUsersArea(role, department);
 }
 
 export function assignableRoles(
   actorRole: UserRole,
-  actorDepartment?: UserDepartment,
+  actorDepartment?: UserDepartment | null,
 ): UserRole[] {
   if (actorRole === 'SUPER_ADMIN') {
     return ['USER', 'ADMIN', 'SUPER_ADMIN', 'COMERCIAL'];
@@ -61,9 +61,12 @@ export function assignableRoles(
 
 export function assignableDepartments(
   actorRole: UserRole,
-  actorDepartment: UserDepartment | undefined,
+  actorDepartment: UserDepartment | undefined | null,
   targetRole: UserRole,
 ): UserDepartment[] {
+  if (targetRole === 'SUPER_ADMIN') {
+    return [];
+  }
   if (actorRole === 'SUPER_ADMIN') {
     if (targetRole === 'COMERCIAL') return ['DESENVOLVIMENTO_PROCESSOS'];
     return [
@@ -88,28 +91,28 @@ export function assignableDepartments(
 
 export function canEditUserAsAdmin(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   return canAccessUsersArea(role, department);
 }
 
 export function canResetUserPassword(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   return canAccessUsersArea(role, department);
 }
 
 export function canApproveUsers(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   return canAccessUsersArea(role, department);
 }
 
 export function canAccessSolicitations(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   if (
     role === 'USER' ||
@@ -126,7 +129,7 @@ export function canAccessSolicitations(
 
 export function canManageSolicitations(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
@@ -135,14 +138,14 @@ export function canManageSolicitations(
 
 export function canAccessProcessCharts(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   return role === 'ADMIN' && department === 'DESENVOLVIMENTO_PROCESSOS';
 }
 
 export function canAccessWorkflow(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   if (isSuperAdmin(role) || role === 'COMERCIAL') return true;
   if (role !== 'ADMIN' || !department) return false;
@@ -155,7 +158,7 @@ export function canAccessWorkflow(
 
 export function canManageToolingStage(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
@@ -164,7 +167,7 @@ export function canManageToolingStage(
 
 export function canManageSampleStage(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
@@ -174,7 +177,7 @@ export function canManageSampleStage(
 /** Líder de Desenvolvimento de Processos: acompanha só a etapa de Engenharia. */
 export function isProcessEngineeringLead(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   return role === 'ADMIN' && department === 'DESENVOLVIMENTO_PROCESSOS';
 }
@@ -185,14 +188,14 @@ export function canAccessSettings(role: UserRole): boolean {
 
 export function canAccessOfTracking(
   role: UserRole,
-  _department?: UserDepartment,
+  _department?: UserDepartment | null,
 ): boolean {
   return role === 'SUPER_ADMIN' || role === 'ADMIN';
 }
 
 export function isWorkflowOnlyRole(
   role: UserRole,
-  department?: UserDepartment,
+  department?: UserDepartment | null,
 ): boolean {
   if (role === 'COMERCIAL') return true;
   if (role === 'ADMIN' && department) {

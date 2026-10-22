@@ -688,6 +688,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
           properties: {
             teamId: { type: 'string', minLength: 1 },
             period: { type: 'string', enum: ['year', 'month', 'week'] },
+            anchor: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
           },
         },
         response: {
@@ -986,6 +987,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
             title: { type: 'string', minLength: 1 },
             description: { type: 'string', minLength: 1 },
             tagId: { type: 'string' },
+            clientId: { type: 'string' },
             estimatedHours: { type: 'number', exclusiveMinimum: 0 },
           },
         },

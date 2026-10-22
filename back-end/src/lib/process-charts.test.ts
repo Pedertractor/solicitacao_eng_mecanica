@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildProcessCharts,
+  calendarDateInSaoPaulo,
   periodRange,
   shortPersonName,
   toChartCase,
@@ -33,6 +34,22 @@ describe('process charts', () => {
       start: new Date('2026-09-28T03:00:00.000Z'),
       end: new Date('2026-10-05T03:00:00.000Z'),
     });
+  });
+
+  it('anchors year, month and week to a chosen São Paulo calendar date', () => {
+    expect(periodRange('month', calendarDateInSaoPaulo('2025-03-10')!)).toEqual({
+      start: new Date('2025-03-01T03:00:00.000Z'),
+      end: new Date('2025-04-01T03:00:00.000Z'),
+    });
+    expect(periodRange('year', calendarDateInSaoPaulo('2024-11-02')!)).toEqual({
+      start: new Date('2024-01-01T03:00:00.000Z'),
+      end: new Date('2025-01-01T03:00:00.000Z'),
+    });
+    expect(periodRange('week', calendarDateInSaoPaulo('2026-01-01')!)).toEqual({
+      start: new Date('2025-12-29T03:00:00.000Z'),
+      end: new Date('2026-01-05T03:00:00.000Z'),
+    });
+    expect(calendarDateInSaoPaulo('2026-02-31')).toBeNull();
   });
 
   it('counts pedidos by client, activity type and responsible', () => {

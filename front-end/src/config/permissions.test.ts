@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assignableDepartments,
   canAccessOfTracking,
   canAccessProcessCharts,
   canManageSampleStage,
@@ -42,18 +43,22 @@ describe('canManageToolingStage', () => {
       true,
     );
     expect(canAccessProcessCharts('ADMIN', 'ENG_MECANICA')).toBe(false);
-    expect(
-      canAccessProcessCharts('SUPER_ADMIN', 'DESENVOLVIMENTO_PROCESSOS'),
-    ).toBe(false);
+    expect(canAccessProcessCharts('SUPER_ADMIN', null)).toBe(false);
     expect(canAccessProcessCharts('USER', 'DESENVOLVIMENTO_PROCESSOS')).toBe(
       false,
     );
   });
 
   it('preserves super-admin access', () => {
-    expect(
-      canManageToolingStage('SUPER_ADMIN', 'DESENVOLVIMENTO_PROCESSOS'),
-    ).toBe(true);
+    expect(canManageToolingStage('SUPER_ADMIN', null)).toBe(true);
+  });
+});
+
+describe('assignableDepartments', () => {
+  it('returns no departments when creating a super admin', () => {
+    expect(assignableDepartments('SUPER_ADMIN', null, 'SUPER_ADMIN')).toEqual(
+      [],
+    );
   });
 });
 

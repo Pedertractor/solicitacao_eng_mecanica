@@ -3,7 +3,7 @@ import { $Enums, type Prisma } from '../generated/prisma/client.js';
 export type AccessActor = {
   id: string;
   role: $Enums.UserRole;
-  department: $Enums.UserDepartment;
+  department: $Enums.UserDepartment | null;
   cardNumber: string;
   unit: $Enums.Unit;
 };
@@ -127,10 +127,14 @@ export function isWorkflowOperator(
 
 export function canManageUser(
   actor: Pick<AccessActor, 'role' | 'department'>,
-  target: { role: $Enums.UserRole; department: $Enums.UserDepartment },
+  target: {
+    role: $Enums.UserRole;
+    department: $Enums.UserDepartment | null;
+  },
 ): boolean {
   if (isSuperAdmin(actor.role)) return true;
   if (target.role === $Enums.UserRole.SUPER_ADMIN) return false;
+  if (!target.department) return false;
 
   if (isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS)) {
     if (isAdminOf(target, $Enums.UserDepartment.ENG_MECANICA)) return false;
@@ -170,8 +174,13 @@ export function canAssignRole(
 export function canAssignDepartment(
   actor: Pick<AccessActor, 'role' | 'department'>,
   role: $Enums.UserRole,
-  department: $Enums.UserDepartment,
+  department: $Enums.UserDepartment | null,
 ): boolean {
+  if (role === $Enums.UserRole.SUPER_ADMIN) {
+    return isSuperAdmin(actor.role) && department === null;
+  }
+  if (department === null) return false;
+
   if (isSuperAdmin(actor.role)) return true;
 
   if (isAdminOf(actor, $Enums.UserDepartment.ENG_MECANICA)) {
@@ -190,9 +199,12 @@ export function canAssignDepartment(
 
 export function departmentForAssignedRole(
   role: $Enums.UserRole,
-  current: $Enums.UserDepartment,
+  current: $Enums.UserDepartment | null,
   explicit?: $Enums.UserDepartment,
-): $Enums.UserDepartment {
+): $Enums.UserDepartment | null {
+  if (role === $Enums.UserRole.SUPER_ADMIN) {
+    return null;
+  }
   if (role === $Enums.UserRole.COMERCIAL) {
     return $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS;
   }
@@ -237,12 +249,16 @@ export function solicitationScope(
 ): Prisma.SolicitationWhereInput {
   if (isSuperAdmin(actor.role)) return {};
 
-  if (isSolicitationAreaAdmin(actor)) {
+  if (isSolicitationAreaAdmin(actor) && actor.department) {
     return { department: actor.department };
   }
 
   if (isWorkflowOperator(actor)) {
     return comercialWorkflowScope(actor);
+  }
+
+  if (!actor.department) {
+    return { id: '__none__' };
   }
 
   return {
@@ -287,7 +303,9 @@ export function canAccessSolicitation(
     return true;
   }
 
-  if (solicitation.department !== actor.department) return false;
+  if (!actor.department || solicitation.department !== actor.department) {
+    return false;
+  }
   if (isSolicitationAreaAdmin(actor)) return true;
   return (
     solicitation.cardNumber === actor.cardNumber &&
@@ -298,7 +316,7 @@ export function canAccessSolicitation(
 export function actorFromSession(user: {
   sub: string;
   role: $Enums.UserRole;
-  department: $Enums.UserDepartment;
+  department: $Enums.UserDepartment | null;
   cardNumber: string;
   unit: $Enums.Unit;
 }): AccessActor {
