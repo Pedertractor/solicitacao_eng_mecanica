@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { PartNumberChips } from '@/components/PartNumberAllocator';
+import { WorkflowTimeline } from '@/components/workflow/WorkflowTimeline';
 import { formatIsoDateLabel } from '@/config/process-instruction';
 import { cn, SoftBreakText } from '@/lib/utils';
 import {
@@ -123,7 +124,7 @@ export function PublicSolicitationTrackPage() {
           <NewSolicitationLink />
           <Card
             className={cn(
-              'flex w-full min-w-0 max-w-full flex-col gap-0 overflow-hidden rounded-xl py-0',
+              'flex w-full min-w-0 max-w-full flex-col gap-0 overflow-hidden py-0',
               publicSolicitationTicketCardClass,
             )}
           >
@@ -276,6 +277,15 @@ export function PublicSolicitationTrackPage() {
                   </div>
                 )}
               </CardContent>
+
+              {query.data.workflow ? (
+                <CardContent className='border-t py-4'>
+                  <p className='mb-3 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                    Workflow Comercial
+                  </p>
+                  <WorkflowTimeline workflow={query.data.workflow} />
+                </CardContent>
+              ) : null}
 
               <TicketStub>
                 {query.data.status !== 'COMPLETED' && (

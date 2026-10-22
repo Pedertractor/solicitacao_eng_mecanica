@@ -9,11 +9,15 @@ export const ROUTES = {
   SOLICITACAO_ACOMPANHAR: '/solicitacao/acompanhar/:trackingCode',
   CADASTRO: '/cadastro',
   SOLICITACOES: '/solicitacoes',
+  INDICADORES: '/indicadores',
   SOLICITACAO_DETALHE: '/solicitacoes/:id',
+  WORKFLOW: '/workflow',
+  RASTREIO: '/rastreio',
   USUARIOS: '/usuarios',
   USUARIOS_SOLICITACOES: '/usuarios/solicitacoes',
   USUARIOS_NOVO: '/usuarios/novo',
   CONFIGURACOES: '/configuracoes',
+  PERFIL: '/perfil',
   NOT_FOUND: '*',
 } as const;
 

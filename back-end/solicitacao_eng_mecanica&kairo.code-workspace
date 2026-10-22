@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../kairo"
+		},
+		{
+			"path": "../../api_base_pedertractor"
+		}
+	],
+	"settings": {}
+}

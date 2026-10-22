@@ -11,7 +11,7 @@ declare module '@fastify/jwt' {
     user: {
       sub: string;
       role: $Enums.UserRole;
-      department: $Enums.UserDepartment;
+      department: $Enums.UserDepartment | null;
       cardNumber: string;
       unit: $Enums.Unit;
     };

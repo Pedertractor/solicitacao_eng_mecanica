@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -9,10 +9,21 @@ import {
   Check,
   CircleCheck,
   Copy,
+  FileText,
   Pencil,
   Trash2,
   X,
 } from 'lucide-react';
+import {
+  AppPageContainer,
+  ListErrorState,
+  ListLoadingState,
+  PageHero,
+} from '@/components/layout';
+import {
+  SolicitationOfPanel,
+  SolicitationOfToggle,
+} from '@/components/of/SolicitationOfPanel';
 import {
   StampIcon,
   type StampIconHandle,
@@ -30,6 +41,7 @@ import {
 import { ROUTES, solicitationTrackPath } from '@/routes/constants';
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
 import { Button } from '@/components/ui/button';
+import { surfaceStyles } from '@/lib/surface-styles';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,10 +69,16 @@ import {
 import { copyToClipboard } from '@/lib/clipboard';
 import { cn, SoftBreakText } from '@/lib/utils';
 import { useAuth } from '@/contexts/useAuth';
-import { canManageSolicitations } from '@/config/permissions';
+import {
+  canManageSampleStage,
+  canManageSolicitations,
+  canManageToolingStage,
+} from '@/config/permissions';
 import { formatIsoDateLabel } from '@/config/process-instruction';
 import { PartNumberChips } from '@/components/PartNumberAllocator';
+import { WorkflowTimeline } from '@/components/workflow/WorkflowTimeline';
 import { SolicitationKairoDialog } from './SolicitationKairoDialog';
+import { ToolingKairoDialog } from './ToolingKairoDialog';
 
 const REVIEW_ICON_SIZE = 16;
 const REJECTED_BUTTON_CLASS =
@@ -86,12 +104,23 @@ async function copyText(value: string) {
 
 export function SolicitationDetailPage() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const canManage =
-    user?.role != null && canManageSolicitations(user.role);
+    user?.role != null &&
+    canManageSolicitations(user.role, user.department);
+  const canTooling =
+    user?.role != null &&
+    canManageToolingStage(user.role, user.department);
+  const canSample =
+    user?.role != null &&
+    canManageSampleStage(user.role, user.department);
   const queryClient = useQueryClient();
   const [kairoDialogOpen, setKairoDialogOpen] = useState(false);
+  const [toolingDialogOpen, setToolingDialogOpen] = useState(false);
+  const [sampleDialogOpen, setSampleDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [ofPanelOpen, setOfPanelOpen] = useState(false);
   const [trackLinkCopied, setTrackLinkCopied] = useState(false);
   const kairoOpenTimeoutRef = useRef<number | null>(null);
 
@@ -195,31 +224,33 @@ export function SolicitationDetailPage() {
 
   const item = query.data;
   const canDelete = item ? item.status !== 'DELETED' : false;
+  const fromComercial =
+    (location.state as { from?: string } | null)?.from === 'comercial';
 
   return (
-    <div className="min-w-0 max-w-full space-y-4 md:p-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link to={ROUTES.SOLICITACOES}>
+    <AppPageContainer className="min-w-0">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
+        <Link to={fromComercial ? ROUTES.WORKFLOW : ROUTES.SOLICITACOES}>
           <ArrowLeft className="mr-2 size-4" /> Voltar
         </Link>
       </Button>
 
-      {query.isLoading && <p>Carregando…</p>}
-      {query.isError && <p>Não foi possível carregar a solicitação.</p>}
+      {query.isLoading ? <ListLoadingState count={2} heightClass="h-40" /> : null}
+      {query.isError ? (
+        <ListErrorState>
+          Não foi possível carregar a solicitação.
+        </ListErrorState>
+      ) : null}
 
       {item && (
         <>
-          <Card className="min-w-0 overflow-hidden">
-            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <CardTitle className="break-words">{item.title}</CardTitle>
-                <CardDescription>
-                  Criada em{' '}
-                  {format(new Date(item.createdAt), "dd/MM/yyyy 'às' HH:mm", {
-                    locale: ptBR,
-                  })}
-                </CardDescription>
-              </div>
+          <PageHero
+            eyebrow="Detalhe do chamado"
+            eyebrowIcon={FileText}
+            title={item.title}
+            description={`Criada em ${format(new Date(item.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`}
+            compact
+            actions={
               <div className="flex flex-wrap items-center gap-2">
                 {canManage ? (
                   <EditableSolicitationStatus
@@ -239,7 +270,7 @@ export function SolicitationDetailPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10"
                     onClick={() => setDeleteConfirmOpen(true)}
                   >
                     <Trash2 className="mr-1.5 size-3.5" />
@@ -247,10 +278,75 @@ export function SolicitationDetailPage() {
                   </Button>
                 ) : null}
               </div>
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={surfaceStyles.monoCode}>{item.trackingCode}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground"
+                aria-label={
+                  trackLinkCopied ? 'Link copiado' : 'Copiar link público'
+                }
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await copyText(trackAbsoluteUrl(item.trackingCode));
+                      setTrackLinkCopied(true);
+                      window.setTimeout(() => setTrackLinkCopied(false), 2000);
+                    } catch {
+                      toast.error('Não foi possível copiar o link.');
+                    }
+                  })();
+                }}
+              >
+                {trackLinkCopied ? (
+                  <CircleCheck className="size-3 text-green-600" />
+                ) : (
+                  <Copy className="size-3" />
+                )}
+              </Button>
+            </div>
+          </PageHero>
+
+          <div className="space-y-3">
+            {item.workflow ? (
+              <WorkflowActionsCard
+                item={item}
+                canTooling={canTooling}
+                canSample={canSample}
+                onOpenTooling={() => setToolingDialogOpen(true)}
+                onOpenSample={() => setSampleDialogOpen(true)}
+              />
+            ) : null}
+            <div className="space-y-2">
+              <SolicitationOfToggle
+                open={ofPanelOpen}
+                onOpenChange={setOfPanelOpen}
+                hasOf={Boolean(item.ofNumber)}
+                ofNumber={item.ofNumber}
+              />
+              <SolicitationOfPanel
+                item={item}
+                canManage={canManage}
+                open={ofPanelOpen}
+                onOpenChange={setOfPanelOpen}
+              />
+            </div>
+          </div>
+
+          <Card className={cn('min-w-0 overflow-hidden', surfaceStyles.card)}>
+            <CardHeader>
+              <CardTitle>Dados da solicitação</CardTitle>
+              <CardDescription>
+                Informações do solicitante e da instrução de processo
+              </CardDescription>
             </CardHeader>
             <CardContent className="grid min-w-0 max-w-full gap-4 md:grid-cols-2">
               {item.status === 'DELETED' ? (
-                <div className="min-w-0 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 md:col-span-2 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+                <div className="min-w-0 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 md:col-span-2 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
                   <p className="font-medium">Solicitação excluída</p>
                   <p className="mt-1 text-muted-foreground dark:text-red-200/80">
                     Por {item.deletedByName ?? '—'}
@@ -263,47 +359,6 @@ export function SolicitationDetailPage() {
                   </p>
                 </div>
               ) : null}
-              <div className="min-w-0 md:col-span-2">
-                <div className="text-muted-foreground text-xs uppercase tracking-wide">
-                  Protocolo
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span className="break-all font-mono text-sm font-medium tracking-wide">
-                    {item.trackingCode}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="shrink-0 text-muted-foreground"
-                    aria-label={
-                      trackLinkCopied ? 'Link copiado' : 'Copiar link público'
-                    }
-                    onClick={() => {
-                      void (async () => {
-                        try {
-                          await copyText(
-                            trackAbsoluteUrl(item.trackingCode),
-                          );
-                          setTrackLinkCopied(true);
-                          window.setTimeout(
-                            () => setTrackLinkCopied(false),
-                            2000,
-                          );
-                        } catch {
-                          toast.error('Não foi possível copiar o link.');
-                        }
-                      })();
-                    }}
-                  >
-                    {trackLinkCopied ? (
-                      <CircleCheck className="size-3 text-green-600" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                  </Button>
-                </div>
-              </div>
               <Field label="Solicitante" value={item.requesterName} />
               <Field
                 label="E-mail"
@@ -410,6 +465,23 @@ export function SolicitationDetailPage() {
             </CardContent>
           </Card>
 
+          {item.workflow ? (
+            <>
+              <ToolingKairoDialog
+                open={toolingDialogOpen}
+                onOpenChange={setToolingDialogOpen}
+                solicitation={item}
+                stage='FERRAMENTARIA'
+              />
+              <ToolingKairoDialog
+                open={sampleDialogOpen}
+                onOpenChange={setSampleDialogOpen}
+                solicitation={item}
+                stage='AMOSTRA'
+              />
+            </>
+          ) : null}
+
           {canManage ? (
             <>
           {item.department !== 'DESENVOLVIMENTO_PROCESSOS' ? (
@@ -465,7 +537,133 @@ export function SolicitationDetailPage() {
           ) : null}
         </>
       )}
-    </div>
+    </AppPageContainer>
+  );
+}
+
+function WorkflowActionsCard({
+  item,
+  canTooling,
+  canSample,
+  onOpenTooling,
+  onOpenSample,
+}: {
+  item: Solicitation;
+  canTooling: boolean;
+  canSample: boolean;
+  onOpenTooling: () => void;
+  onOpenSample: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const workflow = item.workflow!;
+  const tooling = workflow.stages.find((stage) => stage.stage === 'FERRAMENTARIA');
+  const sample = workflow.stages.find((stage) => stage.stage === 'AMOSTRA');
+  const engineering = workflow.stages.find((stage) => stage.stage === 'ENGENHARIA');
+
+  const toolingReady =
+    engineering?.status === 'DONE' &&
+    tooling != null &&
+    (tooling.status === 'READY' || tooling.status === 'PENDING') &&
+    !tooling.kairoCardIds;
+
+  const previousDoneForSample = tooling
+    ? tooling.status === 'DONE'
+    : engineering?.status === 'DONE';
+
+  const sampleReady =
+    previousDoneForSample &&
+    sample != null &&
+    (sample.status === 'READY' || sample.status === 'PENDING') &&
+    !sample.kairoCardIds;
+
+  const syncToolingMutation = useMutation({
+    mutationFn: () => solicitationApi.syncToolingFromKairo(item.id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['solicitation', item.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ['solicitations'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow-summary'] });
+      toast.success('Ferramentaria sincronizada.');
+    },
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined;
+      toast.error(message || 'Falha ao sincronizar ferramentaria.');
+    },
+  });
+
+  const syncSampleMutation = useMutation({
+    mutationFn: () => solicitationApi.syncSampleFromKairo(item.id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['solicitation', item.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ['solicitations'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow-summary'] });
+      toast.success('Amostra sincronizada.');
+    },
+    onError: (error: unknown) => {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined;
+      toast.error(message || 'Falha ao sincronizar amostra.');
+    },
+  });
+
+  return (
+    <Card id="workflow" className={cn(surfaceStyles.card)}>
+      <CardHeader>
+        <CardTitle>Workflow</CardTitle>
+        <CardDescription>
+          Engenharia →{workflow.requiresTooling ? ' Ferramentaria →' : ''}{' '}
+          Amostra
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        <WorkflowTimeline workflow={workflow} />
+
+        {(canTooling || canSample) && (
+          <div className='flex flex-wrap gap-2'>
+            {canTooling && toolingReady ? (
+              <Button type='button' onClick={onOpenTooling}>
+                Enviar Ferramentaria ao Kairo
+              </Button>
+            ) : null}
+            {canTooling && tooling?.kairoCardIds ? (
+              <Button
+                type='button'
+                variant='outline'
+                disabled={syncToolingMutation.isPending}
+                onClick={() => syncToolingMutation.mutate()}
+              >
+                {syncToolingMutation.isPending
+                  ? 'Sincronizando…'
+                  : 'Sincronizar Ferramentaria'}
+              </Button>
+            ) : null}
+            {canSample && sampleReady ? (
+              <Button type='button' onClick={onOpenSample}>
+                Enviar Amostra ao Kairo
+              </Button>
+            ) : null}
+            {canSample && sample?.kairoCardIds ? (
+              <Button
+                type='button'
+                variant='outline'
+                disabled={syncSampleMutation.isPending}
+                onClick={() => syncSampleMutation.mutate()}
+              >
+                {syncSampleMutation.isPending
+                  ? 'Sincronizando…'
+                  : 'Sincronizar Amostra'}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -605,7 +803,7 @@ function SolicitationReviewPanel({
   }
 
   return (
-    <Card className="min-w-0 overflow-hidden">
+    <Card className={cn('min-w-0 overflow-hidden', surfaceStyles.card)}>
       <CardHeader>
         <CardTitle>Revisão</CardTitle>
         <CardDescription>{reviewDescription}</CardDescription>

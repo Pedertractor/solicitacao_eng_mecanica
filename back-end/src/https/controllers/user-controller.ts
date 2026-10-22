@@ -111,6 +111,22 @@ export async function getMe(request: FastifyRequest, reply: FastifyReply) {
   return reply.status(200).send({ user });
 }
 
+export async function updateMyNotificationEmail(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const bodySchema = z.object({
+    email: z.union([z.email('E-mail inválido'), z.literal(''), z.null()]),
+  });
+  const { email } = bodySchema.parse(request.body);
+  const userService = new UserService();
+  const user = await userService.updateNotificationEmail(
+    request.user.sub,
+    email,
+  );
+  return reply.status(200).send({ user });
+}
+
 export async function listUsers(request: FastifyRequest, reply: FastifyReply) {
   const userService = new UserService();
   const users = await userService.listAll(actorFromSession(request.user));
@@ -142,6 +158,7 @@ export async function updateUserByAdmin(
   });
   const bodySchema = z.object({
     role: z.enum($Enums.UserRole),
+    department: z.enum($Enums.UserDepartment).optional(),
   });
 
   const { userId } = paramsSchema.parse(request.params);
@@ -152,6 +169,7 @@ export async function updateUserByAdmin(
     actorFromSession(request.user),
     userId,
     body.role,
+    body.department,
   );
 
   return reply.status(200).send({ user });

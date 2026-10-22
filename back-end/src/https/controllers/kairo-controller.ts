@@ -72,3 +72,19 @@ export async function listMyKairoTags(
     })),
   });
 }
+
+export async function listMyKairoClients(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const service = new KairoCredentialService();
+  const client = await service.getClientForUser(request.user.sub);
+  const { clients } = await client.listClients();
+  await service.touchValidated(request.user.sub);
+  return reply.status(200).send({
+    clients: clients.map((item) => ({
+      id: item.id,
+      name: item.name,
+    })),
+  });
+}

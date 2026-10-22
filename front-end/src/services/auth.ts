@@ -20,4 +20,12 @@ export const authApi = {
     });
     return data;
   },
+
+  async updateNotificationEmail(email: string | null) {
+    const { data } = await api.put<{ user: AuthUser }>(
+      '/users/me/notification-email',
+      { email },
+    );
+    return data;
+  },
 };

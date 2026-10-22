@@ -1,13 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Users } from 'lucide-react';
+import {
+  FilterPanel,
+  ListErrorState,
+  ListLoadingState,
+  PageSectionHeader,
+} from '@/components/layout';
 import { userApi } from '@/services/user';
 import { ROUTES } from '@/routes/constants';
-import type { ListUser, UserRole } from '@/types/auth';
+import type { ListUser } from '@/types/auth';
 import { useAuth } from '@/contexts/useAuth';
 import { canCreateUser, canEditUserAsAdmin } from '@/config/permissions';
-import { DEPARTMENT_LABELS, formattedRoles } from '@/utils/roles';
+import { DEPARTMENT_LABELS, roleLabel } from '@/utils/roles';
 import { EditUserModal } from '@/pages/Usuarios/EditUserModal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,10 +28,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TablePagination } from '@/components/ui/table-pagination';
+import { surfaceStyles } from '@/lib/surface-styles';
+import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
-
-const ROLE_LABELS: Record<UserRole, string> = formattedRoles;
 
 function getInitials(name: string): string {
   return name
@@ -39,9 +45,12 @@ function getInitials(name: string): string {
 export function UserListPage() {
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
-  const showNewUser = authUser?.role != null && canCreateUser(authUser.role);
+  const showNewUser =
+    authUser?.role != null &&
+    canCreateUser(authUser.role, authUser.department);
   const allowAdminEdit =
-    authUser?.role != null && canEditUserAsAdmin(authUser.role);
+    authUser?.role != null &&
+    canEditUserAsAdmin(authUser.role, authUser.department);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [editUser, setEditUser] = useState<ListUser | null>(null);
@@ -67,123 +76,136 @@ export function UserListPage() {
   const pageUsers = filtered.slice(start, start + PAGE_SIZE);
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-4'>
       <EditUserModal
         user={editUser}
         open={editUser !== null}
         onClose={() => setEditUser(null)}
       />
 
-      {showNewUser ? (
-        <div className='flex justify-end'>
-          <Button
-            type='button'
-            onClick={() => navigate(ROUTES.USUARIOS_NOVO)}
-            className='shrink-0'
-          >
-            <Plus />
-            Novo usuário
-          </Button>
+      <PageSectionHeader
+        icon={Users}
+        title='Todos os usuários'
+        description='Contas ativas e inativas do painel'
+        badge={
+          !isLoading && !isError
+            ? `${filtered.length} ${filtered.length === 1 ? 'usuário' : 'usuários'}`
+            : undefined
+        }
+        actions={
+          showNewUser ? (
+            <Button
+              type='button'
+              onClick={() => navigate(ROUTES.USUARIOS_NOVO)}
+              className='shrink-0'
+            >
+              <Plus />
+              Novo usuário
+            </Button>
+          ) : null
+        }
+      />
+
+      <FilterPanel
+        description='Busque contas pelo nome'
+        activeCount={search.trim() ? 1 : 0}
+        onClear={() => {
+          setSearch('');
+          setPage(1);
+        }}
+      >
+        <div className='relative max-w-md'>
+          <Search className='pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
+          <Input
+            type='search'
+            placeholder='Procurar por nome...'
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className={cn(surfaceStyles.field, 'pl-9')}
+            aria-label='Procurar por nome'
+          />
         </div>
-      ) : null}
+      </FilterPanel>
 
-      <div className='relative max-w-md'>
-        <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
-        <Input
-          type='search'
-          placeholder='Procurar por nome...'
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          className='pl-9'
-          aria-label='Procurar por nome'
-        />
-      </div>
-
-      <Card className='gap-0 overflow-hidden py-0'>
-        {isLoading && (
-          <div className='p-8'>
-            <div className='animate-pulse space-y-4'>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className='h-12 rounded bg-muted' />
-              ))}
-            </div>
+      {isLoading ? (
+        <ListLoadingState count={5} heightClass='h-14' />
+      ) : isError ? (
+        <ListErrorState>
+          {error instanceof Error
+            ? error.message
+            : 'Erro ao carregar usuários.'}
+        </ListErrorState>
+      ) : (
+        <Card className={cn('gap-0 overflow-hidden py-0', surfaceStyles.card)}>
+          <div className='hidden sm:block'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Cartão</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead>Área</TableHead>
+                  <TableHead>Função</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pageUsers.map((user) => (
+                  <UserRow
+                    key={user.id}
+                    user={user}
+                    isAdmin={allowAdminEdit}
+                    onEdit={allowAdminEdit ? setEditUser : undefined}
+                  />
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        )}
 
-        {isError && (
-          <div className='m-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive'>
-            {error instanceof Error
-              ? error.message
-              : 'Erro ao carregar usuários.'}
+          <div className='divide-y sm:hidden'>
+            {pageUsers.map((user) => (
+              <UserCard
+                key={user.id}
+                user={user}
+                isAdmin={allowAdminEdit}
+                onEdit={allowAdminEdit ? setEditUser : undefined}
+              />
+            ))}
           </div>
-        )}
 
-        {!isLoading && !isError && (
-          <>
-            <div className='hidden sm:block'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Cartão</TableHead>
-                    <TableHead>Unidade</TableHead>
-                    <TableHead>Área</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pageUsers.map((user) => (
-                    <UserRow
-                      key={user.id}
-                      user={user}
-                      isAdmin={allowAdminEdit}
-                      onEdit={allowAdminEdit ? setEditUser : undefined}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className='divide-y sm:hidden'>
-              {pageUsers.map((user) => (
-                <UserCard
-                  key={user.id}
-                  user={user}
-                  isAdmin={allowAdminEdit}
-                  onEdit={allowAdminEdit ? setEditUser : undefined}
-                />
-              ))}
-            </div>
-
-            <TablePagination
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              summary={
-                <>
-                  Mostrando{' '}
-                  {filtered.length === 0
-                    ? '0–0'
-                    : `${start + 1}–${Math.min(start + PAGE_SIZE, filtered.length)}`}{' '}
-                  de {filtered.length} usuários
-                </>
-              }
-            />
-          </>
-        )}
-      </Card>
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            summary={
+              <>
+                Mostrando{' '}
+                {filtered.length === 0
+                  ? '0–0'
+                  : `${start + 1}–${Math.min(start + PAGE_SIZE, filtered.length)}`}{' '}
+                de {filtered.length} usuários
+              </>
+            }
+          />
+        </Card>
+      )}
     </div>
   );
 }
 
-function RoleBadge({ role }: { role: UserRole }) {
+function RoleBadge({
+  role,
+  department,
+}: {
+  role: ListUser['role'];
+  department: ListUser['department'];
+}) {
   return (
     <Badge variant={role === 'USER' ? 'outline' : 'secondary'}>
-      {ROLE_LABELS[role]}
+      {roleLabel(role, department)}
     </Badge>
   );
 }
@@ -232,9 +254,11 @@ function UserRow({
       </TableCell>
       <TableCell>{user.cardNumber}</TableCell>
       <TableCell>{user.unit}</TableCell>
-      <TableCell>{DEPARTMENT_LABELS[user.department]}</TableCell>
       <TableCell>
-        <RoleBadge role={user.role} />
+        {user.department ? DEPARTMENT_LABELS[user.department] : '—'}
+      </TableCell>
+      <TableCell>
+        <RoleBadge role={user.role} department={user.department} />
       </TableCell>
       <TableCell>
         <ActiveBadge active={user.active} />
@@ -283,11 +307,11 @@ function UserCard({
         </div>
       </div>
       <div className='mt-3 flex flex-wrap items-center gap-2'>
-        <RoleBadge role={user.role} />
+        <RoleBadge role={user.role} department={user.department} />
         <ActiveBadge active={user.active} />
         <span className='text-xs text-muted-foreground'>{user.unit}</span>
         <span className='text-xs text-muted-foreground'>
-          {DEPARTMENT_LABELS[user.department]}
+          {user.department ? DEPARTMENT_LABELS[user.department] : '—'}
         </span>
       </div>
     </div>

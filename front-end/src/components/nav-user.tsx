@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronsUpDown, LogOut, Settings, Unplug } from 'lucide-react';
+import { ChevronsUpDown, LogOut, Settings, Unplug, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { IntegrationsDialog } from '@/components/IntegrationsDialog';
@@ -87,6 +87,10 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate(ROUTES.PERFIL)}>
+              <UserRound />
+              Perfil
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setIntegrationsOpen(true)}>
               <Unplug />
               Integrações

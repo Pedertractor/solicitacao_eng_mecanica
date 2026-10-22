@@ -3,10 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { userApi, type UserDetail } from '@/services/user';
-import type { ListUser, UserRole } from '@/types/auth';
+import type { ListUser, UserDepartment, UserRole } from '@/types/auth';
 import { ROLE_OPTIONS } from '@/pages/Usuarios/userFormConstants';
 import { useAuth } from '@/contexts/useAuth';
-import { assignableRoles, canResetUserPassword } from '@/config/permissions';
+import {
+  assignableDepartments,
+  assignableRoles,
+  canResetUserPassword,
+} from '@/config/permissions';
 import { DEPARTMENT_LABELS } from '@/utils/roles';
 import {
   AlertDialog,
@@ -53,23 +57,54 @@ function EditUserFormBody({
   const queryClient = useQueryClient();
   const { user: authUser } = useAuth();
   const [role, setRole] = useState<UserRole>(detail.role);
+  const [department, setDepartment] = useState<UserDepartment | null>(
+    detail.department,
+  );
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   const isCurrentUser = authUser?.id === detail.id;
   const canResetPassword =
     authUser?.role != null &&
-    canResetUserPassword(authUser.role) &&
+    canResetUserPassword(authUser.role, authUser.department) &&
     !isCurrentUser;
+
   const roleOptions = useMemo(() => {
-    const allowedRoles = authUser ? assignableRoles(authUser.role) : [];
+    const allowedRoles = authUser
+      ? assignableRoles(authUser.role, authUser.department ?? undefined)
+      : [];
     const base = ROLE_OPTIONS.filter((opt) => allowedRoles.includes(opt.value));
     if (base.some((o) => o.value === detail.role)) return base;
     const current = ROLE_OPTIONS.find((o) => o.value === detail.role);
     return current ? [current, ...base] : base;
   }, [authUser, detail.role]);
 
+  const departmentOptions = useMemo(() => {
+    if (!authUser) {
+      return detail.department ? [detail.department] : [];
+    }
+    const options = assignableDepartments(
+      authUser.role,
+      authUser.department,
+      role,
+    );
+    if (
+      detail.department &&
+      !options.includes(detail.department) &&
+      role === detail.role
+    ) {
+      return [detail.department, ...options];
+    }
+    return options;
+  }, [authUser, detail.department, detail.role, role]);
+
   const updateMutation = useMutation({
-    mutationFn: () => userApi.updateByAdmin(detail.id, { role }),
+    mutationFn: () =>
+      userApi.updateByAdmin(detail.id, {
+        role,
+        ...(role === 'SUPER_ADMIN'
+          ? {}
+          : { department: department ?? undefined }),
+      }),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('Usuário atualizado.');
@@ -132,22 +167,31 @@ function EditUserFormBody({
       </div>
 
       <div className='space-y-2'>
-        <Label htmlFor='edit-department'>Departamento</Label>
-        <Input
-          id='edit-department'
-          type='text'
-          readOnly
-          value={DEPARTMENT_LABELS[detail.department]}
-          className='bg-muted'
-        />
-      </div>
-
-      <div className='space-y-2'>
         <Label htmlFor='edit-role'>Função do usuário</Label>
         <Select
           value={role}
           disabled={isCurrentUser}
-          onValueChange={(v) => setRole(v as UserRole)}
+          onValueChange={(v) => {
+            const nextRole = v as UserRole;
+            setRole(nextRole);
+            if (nextRole === 'SUPER_ADMIN') {
+              setDepartment(null);
+              return;
+            }
+            const nextDepts = authUser
+              ? assignableDepartments(
+                  authUser.role,
+                  authUser.department,
+                  nextRole,
+                )
+              : [];
+            if (
+              nextDepts.length > 0 &&
+              (department === null || !nextDepts.includes(department))
+            ) {
+              setDepartment(nextDepts[0]!);
+            }
+          }}
         >
           <SelectTrigger id='edit-role' className='w-full'>
             <SelectValue />
@@ -166,6 +210,32 @@ function EditUserFormBody({
           </p>
         ) : null}
       </div>
+
+      {role !== 'SUPER_ADMIN' ? (
+        <div className='space-y-2'>
+          <Label htmlFor='edit-department'>Departamento</Label>
+          <Select
+            value={department ?? undefined}
+            disabled={
+              isCurrentUser ||
+              role === 'COMERCIAL' ||
+              departmentOptions.length <= 1
+            }
+            onValueChange={(v) => setDepartment(v as UserDepartment)}
+          >
+            <SelectTrigger id='edit-department' className='w-full'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {departmentOptions.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {DEPARTMENT_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
       {canResetPassword ? (
         <div className='rounded-lg border bg-muted/40 p-4'>
@@ -189,10 +259,14 @@ function EditUserFormBody({
         <Button type='button' variant='outline' onClick={onClose}>
           Cancelar
         </Button>
-        <Button type='submit' disabled={updateMutation.isPending || isCurrentUser}>
+        <Button
+          type='submit'
+          disabled={isCurrentUser || updateMutation.isPending}
+        >
           {updateMutation.isPending ? (
             <>
-              <Loader2 className='animate-spin' /> Salvando…
+              <Loader2 className='mr-2 size-4 animate-spin' />
+              Salvando…
             </>
           ) : (
             'Salvar'
@@ -205,7 +279,7 @@ function EditUserFormBody({
           <AlertDialogHeader>
             <AlertDialogTitle>Redefinir senha?</AlertDialogTitle>
             <AlertDialogDescription>
-              A senha de {detail.name} voltará a ser o número do cartão.
+              A senha de {detail.name} será redefinida para o número do cartão.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -231,22 +305,35 @@ export function EditUserModal({ user, open, onClose }: Props) {
   });
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
       <DialogContent className='max-w-lg'>
         <DialogHeader>
           <DialogTitle>Editar usuário</DialogTitle>
           <DialogDescription>
-            Altere a função ou redefina a senha do usuário.
+            Altere a função e o departamento deste usuário.
           </DialogDescription>
         </DialogHeader>
-        {detailQuery.isLoading && (
-          <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-            <Loader2 className='size-4 animate-spin' /> Carregando…
+
+        {detailQuery.isLoading ? (
+          <div className='flex items-center justify-center py-8 text-muted-foreground'>
+            <Loader2 className='size-5 animate-spin' />
           </div>
+        ) : detailQuery.data ? (
+          <EditUserFormBody
+            key={`${detailQuery.data.id}-${detailQuery.data.role}-${detailQuery.data.department}`}
+            detail={detailQuery.data}
+            onClose={onClose}
+          />
+        ) : (
+          <p className='text-sm text-destructive'>
+            Não foi possível carregar o usuário.
+          </p>
         )}
-        {detailQuery.data ? (
-          <EditUserFormBody detail={detailQuery.data} onClose={onClose} />
-        ) : null}
       </DialogContent>
     </Dialog>
   );

@@ -2,7 +2,10 @@ import z from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { actorFromSession } from '../../auth/access-policy.js';
 import { $Enums } from '../../generated/prisma/client.js';
+import { calendarDateInSaoPaulo } from '../../lib/process-charts.js';
+import { HttpError } from '../errors/index.js';
 import { SolicitationService } from '../../services/solicitation-service.js';
+import { WorkflowService } from '../../services/workflow-service.js';
 
 export async function validateRequester(
   request: FastifyRequest,
@@ -75,6 +78,7 @@ export async function createSolicitation(
       partNumbers: z.string().optional(),
       fileLink: z.string().optional(),
       comments: z.string().optional(),
+      requiresTooling: z.boolean().optional(),
     }),
   ]);
   const body = bodySchema.parse(request.body);
@@ -83,19 +87,65 @@ export async function createSolicitation(
   return reply.status(201).send({ solicitation });
 }
 
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida');
+
+/** Limites do dia civil em America/Sao_Paulo (UTC-3, sem horário de verão). */
+function saoPauloDayBound(date: string, bound: 'start' | 'end'): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) {
+    throw new HttpError('Data inválida', 400);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  const isRealDay =
+    probe.getUTCFullYear() === year &&
+    probe.getUTCMonth() === month - 1 &&
+    probe.getUTCDate() === day;
+  if (!isRealDay) {
+    throw new HttpError('Data inválida', 400);
+  }
+  const time =
+    bound === 'start' ? 'T00:00:00.000-03:00' : 'T23:59:59.999-03:00';
+  return new Date(`${date}${time}`);
+}
+
 export async function listSolicitations(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const querySchema = z.object({
-    status: z.enum($Enums.SolicitationStatus).optional(),
-    page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(100).default(10),
-    sortBy: z
-      .enum(['createdAt', 'requesterName', 'sectorName', 'title', 'status'])
-      .default('createdAt'),
-    sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  });
+  const querySchema = z
+    .object({
+      status: z.enum($Enums.SolicitationStatus).optional(),
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(100).default(10),
+      sortBy: z
+        .enum(['createdAt', 'requesterName', 'sectorName', 'title', 'status'])
+        .default('createdAt'),
+      sortOrder: z.enum(['asc', 'desc']).default('desc'),
+      onlyWorkflow: z
+        .enum(['true', 'false', '1', '0'])
+        .optional()
+        .transform((value) => value === 'true' || value === '1'),
+      createdFrom: calendarDateSchema.optional(),
+      createdTo: calendarDateSchema.optional(),
+      q: z
+        .string()
+        .trim()
+        .max(120, 'A busca pode ter no máximo 120 caracteres')
+        .optional()
+        .transform((value) => (value ? value : undefined)),
+    })
+    .refine(
+      (value) =>
+        !value.createdFrom ||
+        !value.createdTo ||
+        value.createdFrom <= value.createdTo,
+      { message: 'A data inicial não pode ser maior que a data final.' },
+    );
   const query = querySchema.parse(request.query);
   const service = new SolicitationService();
   const result = await service.list({
@@ -104,8 +154,163 @@ export async function listSolicitations(
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     ...(query.status !== undefined ? { status: query.status } : {}),
+    ...(query.onlyWorkflow ? { onlyWorkflow: true } : {}),
+    ...(query.createdFrom
+      ? { createdFrom: saoPauloDayBound(query.createdFrom, 'start') }
+      : {}),
+    ...(query.createdTo
+      ? { createdTo: saoPauloDayBound(query.createdTo, 'end') }
+      : {}),
+    ...(query.q ? { search: query.q } : {}),
   }, actorFromSession(request.user));
   return reply.status(200).send(result);
+}
+
+export async function getProcessCharts(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const querySchema = z.object({
+    teamId: z.string().min(1, 'Time é obrigatório'),
+    period: z.enum(['year', 'month', 'week']).default('month'),
+    anchor: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida')
+      .refine((value) => calendarDateInSaoPaulo(value) !== null, 'Data inválida')
+      .optional(),
+  });
+  const query = querySchema.parse(request.query);
+  const service = new SolicitationService();
+  const charts = await service.getProcessCharts(actorFromSession(request.user), {
+    teamId: query.teamId,
+    period: query.period,
+    ...(query.anchor ? { anchor: query.anchor } : {}),
+  });
+  return reply.status(200).send(charts);
+}
+
+export async function getWorkflowSummary(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const service = new WorkflowService();
+  const summary = await service.summary(actorFromSession(request.user));
+  return reply.status(200).send(summary);
+}
+
+export async function getEngineeringQueue(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const service = new SolicitationService();
+  const result = await service.listEngineeringQueue(
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send(result);
+}
+
+export async function sendToolingToKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const bodySchema = z.object({
+    teamId: z.string().min(1, 'Time é obrigatório'),
+    title: z.string().trim().min(1).optional(),
+    description: z.string().trim().min(1).optional(),
+    tagId: z.string().min(1).optional(),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const body = bodySchema.parse(request.body);
+  const service = new WorkflowService();
+  const row = await service.sendToolingToKairo(
+    id,
+    {
+      teamId: body.teamId,
+      ...(body.title ? { title: body.title } : {}),
+      ...(body.description ? { description: body.description } : {}),
+      ...(body.tagId ? { tagId: body.tagId } : {}),
+    },
+    request.user.sub,
+  );
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
+}
+
+export async function syncToolingFromKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const service = new WorkflowService();
+  const row = await service.syncToolingFromKairo(id, request.user.sub);
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
+}
+
+export async function sendSampleToKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const bodySchema = z.object({
+    teamId: z.string().min(1, 'Time é obrigatório'),
+    title: z.string().trim().min(1).optional(),
+    description: z.string().trim().min(1).optional(),
+    tagId: z.string().min(1).optional(),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const body = bodySchema.parse(request.body);
+  const service = new WorkflowService();
+  const row = await service.sendSampleToKairo(
+    id,
+    {
+      teamId: body.teamId,
+      ...(body.title ? { title: body.title } : {}),
+      ...(body.description ? { description: body.description } : {}),
+      ...(body.tagId ? { tagId: body.tagId } : {}),
+    },
+    request.user.sub,
+  );
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
+}
+
+export async function syncSampleFromKairo(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const service = new WorkflowService();
+  const row = await service.syncSampleFromKairo(id, request.user.sub);
+  const solicitationService = new SolicitationService();
+  const solicitation = await solicitationService.getById(
+    row.id,
+    actorFromSession(request.user),
+  );
+  return reply.status(200).send({ solicitation });
 }
 
 export async function getSolicitationById(
@@ -203,6 +408,27 @@ export async function updateSolicitationStatus(
   return reply.status(200).send({ solicitation });
 }
 
+export async function updateSolicitationOf(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const paramsSchema = z.object({
+    id: z.string().uuid('ID inválido'),
+  });
+  const bodySchema = z.object({
+    ofNumber: z.string().nullable(),
+  });
+  const { id } = paramsSchema.parse(request.params);
+  const { ofNumber } = bodySchema.parse(request.body);
+  const service = new SolicitationService();
+  const solicitation = await service.updateOfNumber(
+    id,
+    ofNumber,
+    request.user.sub,
+  );
+  return reply.status(200).send({ solicitation });
+}
+
 export async function sendSolicitationToKairo(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -216,6 +442,7 @@ export async function sendSolicitationToKairo(
     title: z.string().trim().min(1, 'Título é obrigatório'),
     description: z.string().trim().min(1, 'Descrição é obrigatória'),
     tagId: z.string().min(1).optional(),
+    clientId: z.string().min(1).optional(),
     estimatedHours: z.coerce
       .number()
       .positive('Horas estimadas deve ser um valor positivo')
@@ -232,6 +459,7 @@ export async function sendSolicitationToKairo(
       title: body.title,
       description: body.description,
       ...(body.tagId ? { tagId: body.tagId } : {}),
+      ...(body.clientId ? { clientId: body.clientId } : {}),
       ...(body.estimatedHours !== undefined
         ? { estimatedHours: body.estimatedHours }
         : {}),

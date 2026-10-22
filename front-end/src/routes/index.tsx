@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RoleProtectedRoute } from '@/components/RoleProtectedRoute';
@@ -14,6 +14,11 @@ import { PublicSolicitationTrackPage } from '@/pages/Solicitacao/PublicSolicitat
 import { SolicitationListPage } from '@/pages/Solicitacao/SolicitationListPage';
 import { SolicitationDetailPage } from '@/pages/Solicitacao/SolicitationDetailPage';
 import { SettingsPage } from '@/pages/Configuracoes/SettingsPage';
+import { ProfilePage } from '@/pages/Perfil/ProfilePage';
+import { WorkflowPage } from '@/pages/Workflow/WorkflowPage';
+import { ProcessChartsPage } from '@/pages/Indicadores/ProcessChartsPage';
+import { OfTrackingPage } from '@/pages/Rastreio/OfTrackingPage';
+import { HomeRedirect } from '@/components/HomeRedirect';
 import { ROUTES } from './constants';
 
 export { ROUTES } from './constants';
@@ -47,7 +52,7 @@ const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <Navigate to={ROUTES.SOLICITACOES} replace />,
+                element: <HomeRedirect />,
               },
               {
                 path: ROUTES.SOLICITACOES,
@@ -56,6 +61,18 @@ const router = createBrowserRouter([
               {
                 path: ROUTES.SOLICITACAO_DETALHE,
                 element: <SolicitationDetailPage />,
+              },
+              {
+                path: ROUTES.INDICADORES,
+                element: <ProcessChartsPage />,
+              },
+              {
+                path: ROUTES.WORKFLOW,
+                element: <WorkflowPage />,
+              },
+              {
+                path: ROUTES.RASTREIO,
+                element: <OfTrackingPage />,
               },
               {
                 path: ROUTES.USUARIOS,
@@ -70,6 +87,7 @@ const router = createBrowserRouter([
               },
               { path: ROUTES.USUARIOS_NOVO, element: <NewUserPage /> },
               { path: ROUTES.CONFIGURACOES, element: <SettingsPage /> },
+              { path: ROUTES.PERFIL, element: <ProfilePage /> },
               {
                 path: ROUTES.NOT_FOUND,
                 element: <NotFoundPage />,

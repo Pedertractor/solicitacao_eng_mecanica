@@ -4,7 +4,13 @@ import type {
   HTMLAttributes,
   RefAttributes,
 } from 'react';
-import { LayoutGridIcon, UsersIcon } from 'lucide-animated';
+import {
+  ChartBarIncreasingIcon,
+  GitBranchIcon,
+  LayoutGridIcon,
+  RouteIcon,
+  UsersIcon,
+} from 'lucide-animated';
 import { ROUTES } from '@/routes/constants';
 
 /** Handle comum dos ícones lucide-animated. */
@@ -40,5 +46,8 @@ export interface SidebarNavItem {
 
 export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { path: ROUTES.SOLICITACOES, label: 'Solicitações', icon: LayoutGridIcon },
+  { path: ROUTES.INDICADORES, label: 'Indicadores', icon: ChartBarIncreasingIcon },
+  { path: ROUTES.WORKFLOW, label: 'Comercial', icon: GitBranchIcon },
+  { path: ROUTES.RASTREIO, label: 'Rastreio', icon: RouteIcon },
   { path: ROUTES.USUARIOS, label: 'Usuários', icon: UsersIcon },
 ];

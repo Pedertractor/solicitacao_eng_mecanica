@@ -17,6 +17,7 @@ const userSafeSelect = {
   approvalStatus: true,
   active: true,
   mustChangePassword: true,
+  notificationEmail: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -86,7 +87,7 @@ export class UserPrismaRepository {
     unit: $Enums.Unit;
     cardNumber: string;
     role: $Enums.UserRole;
-    department: $Enums.UserDepartment;
+    department: $Enums.UserDepartment | null;
     approvalStatus?: $Enums.UserApprovalStatus;
     active: boolean;
     mustChangePassword?: boolean;
@@ -123,7 +124,7 @@ export class UserPrismaRepository {
   async updateRole(
     userId: string,
     role: $Enums.UserRole,
-    department: $Enums.UserDepartment,
+    department: $Enums.UserDepartment | null,
   ): Promise<UserWithoutPassword> {
     return await this.prisma.user.update({
       where: { id: userId },
@@ -146,6 +147,33 @@ export class UserPrismaRepository {
     });
   }
 
+  async updateNotificationEmail(
+    userId: string,
+    notificationEmail: string | null,
+  ): Promise<UserWithoutPassword> {
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: { notificationEmail },
+      select: userSafeSelect,
+    });
+  }
+
+  async findAreaAdminsWithNotificationEmail(
+    department: $Enums.UserDepartment,
+  ): Promise<UserWithoutPassword[]> {
+    return await this.prisma.user.findMany({
+      where: {
+        role: $Enums.UserRole.ADMIN,
+        department,
+        active: true,
+        approvalStatus: $Enums.UserApprovalStatus.APPROVED,
+        notificationEmail: { not: null },
+      },
+      orderBy: { name: 'asc' },
+      select: userSafeSelect,
+    });
+  }
+
   async applyBootstrapSuperAdminState(
     userId: string,
   ): Promise<UserWithoutPassword> {
@@ -153,7 +181,7 @@ export class UserPrismaRepository {
       where: { id: userId },
       data: {
         role: $Enums.UserRole.SUPER_ADMIN,
-        department: $Enums.UserDepartment.ENG_MECANICA,
+        department: null,
         approvalStatus: $Enums.UserApprovalStatus.APPROVED,
         active: true,
       },

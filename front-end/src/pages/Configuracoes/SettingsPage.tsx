@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Settings2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  AppPageContainer,
+  ListEmptyState,
+  ListErrorState,
+  PageHero,
+} from '@/components/layout';
 import { settingsApi } from '@/services/settings';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +19,9 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { surfaceStyles } from '@/lib/surface-styles';
+import { cn } from '@/lib/utils';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -67,19 +76,19 @@ export function SettingsPage() {
     saveMutation.mutate(emails);
   };
 
-  const isDirty =
-    JSON.stringify(emails) !== JSON.stringify(query.data ?? []);
+  const isDirty = JSON.stringify(emails) !== JSON.stringify(query.data ?? []);
 
   return (
-    <div className='space-y-6'>
-      <div>
-        <h1 className='text-xl font-semibold tracking-tight'>Configurações</h1>
-        <p className='text-muted-foreground text-sm'>
-          Ajustes da plataforma, começando pelas notificações por e-mail.
-        </p>
-      </div>
+    <AppPageContainer width='narrow'>
+      <PageHero
+        eyebrow='Plataforma'
+        eyebrowIcon={Settings2}
+        title='Configurações'
+        description='Ajustes da plataforma, começando pelas notificações por e-mail.'
+        compact
+      />
 
-      <Card>
+      <Card className={cn(surfaceStyles.card)}>
         <CardHeader>
           <CardTitle>E-mail</CardTitle>
           <CardDescription>
@@ -96,6 +105,7 @@ export function SettingsPage() {
                 type='email'
                 autoComplete='email'
                 placeholder='nome@empresa.com'
+                className={surfaceStyles.field}
                 value={draftEmail}
                 onChange={(e) => {
                   setDraftError(null);
@@ -114,27 +124,27 @@ export function SettingsPage() {
                 Adicionar
               </Button>
             </div>
-            {draftError && (
+            {draftError ? (
               <p className='text-sm text-destructive'>{draftError}</p>
-            )}
+            ) : null}
           </div>
 
           {query.isLoading ? (
-            <p className='text-muted-foreground text-sm'>Carregando…</p>
+            <Skeleton className='h-24 rounded-2xl' />
           ) : query.isError ? (
-            <p className='text-sm text-destructive'>
+            <ListErrorState>
               Não foi possível carregar os e-mails em cópia.
-            </p>
+            </ListErrorState>
           ) : emails.length === 0 ? (
-            <p className='text-muted-foreground text-sm'>
+            <ListEmptyState className='p-6'>
               Nenhum e-mail em cópia configurado.
-            </p>
+            </ListEmptyState>
           ) : (
-            <ul className='divide-y rounded-md border'>
+            <ul className='divide-y overflow-hidden rounded-2xl border border-border/70'>
               {emails.map((email) => (
                 <li
                   key={email}
-                  className='flex items-center justify-between gap-3 px-3 py-2 text-sm'
+                  className='flex items-center justify-between gap-3 px-3 py-2.5 text-sm'
                 >
                   <span className='min-w-0 truncate'>{email}</span>
                   <Button
@@ -156,7 +166,10 @@ export function SettingsPage() {
               type='button'
               onClick={handleSave}
               disabled={
-                saveMutation.isPending || query.isLoading || query.isError || !isDirty
+                saveMutation.isPending ||
+                query.isLoading ||
+                query.isError ||
+                !isDirty
               }
             >
               {saveMutation.isPending ? 'Salvando…' : 'Salvar'}
@@ -164,6 +177,6 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </AppPageContainer>
   );
 }

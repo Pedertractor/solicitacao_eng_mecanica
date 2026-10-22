@@ -3,15 +3,17 @@ export type Unit = (typeof UNIT)[number];
 
 export const USER_ROLES = [
   'SUPER_ADMIN',
-  'ADMIN_ENG',
-  'ADMIN_PROCESSOS',
+  'ADMIN',
   'USER',
+  'COMERCIAL',
 ] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const USER_DEPARTMENTS = [
   'ENG_MECANICA',
   'DESENVOLVIMENTO_PROCESSOS',
+  'FERRAMENTARIA',
+  'AMOSTRA',
 ] as const;
 export type UserDepartment = (typeof USER_DEPARTMENTS)[number];
 
@@ -28,10 +30,12 @@ export interface AuthUser {
   unit: Unit;
   name: string | null;
   role: UserRole;
-  department: UserDepartment;
+  department: UserDepartment | null;
   approvalStatus: UserApprovalStatus;
   /** Indica que o usuário deve trocar a senha (ex.: primeiro login) */
   mustChangePassword?: boolean;
+  /** E-mail para avisos de novas solicitações da área (opcional) */
+  notificationEmail?: string | null;
   active?: boolean;
   createdAt?: string;
 }
@@ -42,7 +46,7 @@ export interface ListUser {
   cardNumber: string;
   unit: Unit;
   role: UserRole;
-  department: UserDepartment;
+  department: UserDepartment | null;
   approvalStatus: UserApprovalStatus;
   active: boolean;
   createdAt: string;

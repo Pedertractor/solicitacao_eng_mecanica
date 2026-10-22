@@ -3,11 +3,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { UserPlus } from 'lucide-react';
+import {
+  ListEmptyState,
+  ListErrorState,
+  ListLoadingState,
+  PageSectionHeader,
+} from '@/components/layout';
 import { userApi } from '@/services/user';
 import type { ListUser } from '@/types/auth';
 import { useAuth } from '@/contexts/useAuth';
 import { canApproveUsers } from '@/config/permissions';
-import { DEPARTMENT_LABELS, formattedRoles } from '@/utils/roles';
+import { DEPARTMENT_LABELS, roleLabel } from '@/utils/roles';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -20,6 +27,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TablePagination } from '@/components/ui/table-pagination';
+import { surfaceStyles } from '@/lib/surface-styles';
+import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
 
@@ -35,7 +44,8 @@ function getInitials(name: string): string {
 export function UserSignupRequestsPage() {
   const { user: authUser } = useAuth();
   const allowApproval =
-    authUser?.role != null && canApproveUsers(authUser.role);
+    authUser?.role != null &&
+    canApproveUsers(authUser.role, authUser.department);
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
 
@@ -85,34 +95,35 @@ export function UserSignupRequestsPage() {
 
   if (!allowApproval) {
     return (
-      <p className='text-sm text-muted-foreground'>
+      <ListEmptyState>
         Você não tem permissão para analisar solicitações de acesso.
-      </p>
+      </ListEmptyState>
     );
   }
 
   return (
-    <Card className='gap-0 overflow-hidden py-0'>
-      {isLoading && (
-        <div className='p-8'>
-          <div className='animate-pulse space-y-4'>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className='h-12 rounded bg-muted' />
-            ))}
-          </div>
-        </div>
-      )}
+    <div className='space-y-4'>
+      <PageSectionHeader
+        icon={UserPlus}
+        title='Solicitações de acesso'
+        description='Pedidos pendentes do cadastro público'
+        badge={
+          !isLoading && !isError
+            ? `${pending.length} ${pending.length === 1 ? 'pendente' : 'pendentes'}`
+            : undefined
+        }
+      />
 
-      {isError && (
-        <div className='m-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive'>
+      {isLoading ? (
+        <ListLoadingState count={4} heightClass='h-14' />
+      ) : isError ? (
+        <ListErrorState>
           {error instanceof Error
             ? error.message
             : 'Erro ao carregar solicitações.'}
-        </div>
-      )}
-
-      {!isLoading && !isError && (
-        <>
+        </ListErrorState>
+      ) : (
+        <Card className={cn('gap-0 overflow-hidden py-0', surfaceStyles.card)}>
           <div className='hidden sm:block'>
             <Table>
               <TableHeader>
@@ -181,9 +192,9 @@ export function UserSignupRequestsPage() {
               }
             />
           ) : null}
-        </>
+        </Card>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -223,9 +234,11 @@ function PendingSignupRow({
       </TableCell>
       <TableCell>{user.unit}</TableCell>
       <TableCell>
-        <div>{DEPARTMENT_LABELS[user.department]}</div>
+        <div>
+          {user.department ? DEPARTMENT_LABELS[user.department] : '—'}
+        </div>
         <Badge variant='outline' className='mt-1'>
-          {formattedRoles[user.role]}
+          {roleLabel(user.role, user.department)}
         </Badge>
       </TableCell>
       <TableCell className='text-right'>
@@ -286,8 +299,12 @@ function PendingSignupCard({
         </div>
       </div>
       <div className='flex flex-wrap gap-2'>
-        <Badge variant='outline'>{DEPARTMENT_LABELS[user.department]}</Badge>
-        <Badge variant='secondary'>{formattedRoles[user.role]}</Badge>
+        {user.department ? (
+          <Badge variant='outline'>{DEPARTMENT_LABELS[user.department]}</Badge>
+        ) : null}
+        <Badge variant='secondary'>
+          {roleLabel(user.role, user.department)}
+        </Badge>
       </div>
       <div className='flex gap-2'>
         <Button

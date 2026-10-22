@@ -26,7 +26,7 @@ export function PartNumberAllocator({
   const [message, setMessage] = useState<string | null>(null);
   const valueRef = useRef(value);
   const onChangeRef = useRef(onChange);
-  const debounceTimerRef = useRef<number>();
+  const debounceTimerRef = useRef<number | undefined>(undefined);
   const requestIdRef = useRef(0);
 
   useEffect(() => {

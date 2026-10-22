@@ -10,6 +10,7 @@ import {
   rejectUser,
   resetUserPasswordByAdmin,
   signup,
+  updateMyNotificationEmail,
   updateUserByAdmin,
   validateEmployee,
 } from '../controllers/user-controller.js';
@@ -20,11 +21,16 @@ import { roleMiddleware } from '../../middlewares/auth-role-middleware.js';
 const unitEnum = ['PEDERTRACTOR', 'TRACTOR'] as const;
 const userRoleEnum = [
   'SUPER_ADMIN',
-  'ADMIN_ENG',
-  'ADMIN_PROCESSOS',
+  'ADMIN',
   'USER',
+  'COMERCIAL',
 ] as const;
-const departmentEnum = ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'] as const;
+const departmentEnum = [
+  'ENG_MECANICA',
+  'DESENVOLVIMENTO_PROCESSOS',
+  'FERRAMENTARIA',
+  'AMOSTRA',
+] as const;
 const approvalStatusEnum = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 
 const userSchema = {
@@ -40,9 +46,11 @@ const userSchema = {
       description: 'Papel do usuário',
     },
     department: {
-      type: 'string',
-      enum: departmentEnum,
-      description: 'Departamento',
+      anyOf: [
+        { type: 'string', enum: departmentEnum },
+        { type: 'null' },
+      ],
+      description: 'Departamento (null para SUPER_ADMIN)',
     },
     approvalStatus: {
       type: 'string',
@@ -52,6 +60,10 @@ const userSchema = {
     mustChangePassword: {
       type: 'boolean',
       description: 'Se o usuário precisa trocar a senha no próximo login',
+    },
+    notificationEmail: {
+      type: ['string', 'null'],
+      description: 'E-mail para notificações de novas solicitações',
     },
     active: {
       type: 'boolean',
@@ -211,7 +223,7 @@ export async function userRoutes(app: FastifyInstance) {
               type: 'string',
               enum: departmentEnum,
               description:
-                'Obrigatório para super admin. Admins de área usam o próprio departamento.',
+                'Obrigatório para USER/ADMIN/COMERCIAL. Omitir para SUPER_ADMIN.',
             },
           },
         },
@@ -301,6 +313,49 @@ export async function userRoutes(app: FastifyInstance) {
       },
     },
     changePasswordFirstLogin,
+  );
+
+  app.put(
+    '/me/notification-email',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['users'],
+        summary: 'Atualizar e-mail de notificação',
+        description:
+          'Define ou remove o e-mail usado para avisar sobre novas solicitações da área. Requer token JWT.',
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: 'object',
+          required: ['email'],
+          properties: {
+            email: {
+              type: ['string', 'null'],
+              description:
+                'E-mail de notificação. Null ou string vazia remove o endereço.',
+            },
+          },
+        },
+        response: {
+          200: {
+            description: 'E-mail de notificação atualizado',
+            type: 'object',
+            properties: {
+              user: userSchema,
+            },
+          },
+          400: {
+            description: 'Dados inválidos',
+            ...errorResponseSchema,
+          },
+          401: {
+            description: 'Não autorizado',
+            ...errorResponseSchema,
+          },
+        },
+      },
+    },
+    updateMyNotificationEmail,
   );
 
   app.get(
@@ -423,6 +478,7 @@ export async function userRoutes(app: FastifyInstance) {
           required: ['role'],
           properties: {
             role: { type: 'string', enum: userRoleEnum },
+            department: { type: 'string', enum: departmentEnum },
           },
         },
         response: {

@@ -29,8 +29,7 @@ import {
   type Solicitation,
   type SolicitationClient,
 } from '@/services/solicitation';
-import { type Unit, type UserDepartment } from '@/types/auth';
-import { DEPARTMENT_LABELS } from '@/utils/roles';
+import { type Unit } from '@/types/auth';
 import {
   cardNumberForApi,
 } from '@/utils/card-number-input';
@@ -89,12 +88,19 @@ const UNIT_OPTIONS: { value: Unit; label: string }[] = [
   { value: 'TRACTOR', label: 'T' },
 ];
 
-const DEPARTMENT_OPTIONS: { value: UserDepartment; label: string }[] = [
-  { value: 'ENG_MECANICA', label: 'Engenharia' },
-  { value: 'DESENVOLVIMENTO_PROCESSOS', label: 'Processos' },
+type PublicSolicitationDepartment =
+  | 'ENG_MECANICA'
+  | 'DESENVOLVIMENTO_PROCESSOS';
+
+const DEPARTMENT_OPTIONS: {
+  value: PublicSolicitationDepartment;
+  label: string;
+}[] = [
+  { value: 'ENG_MECANICA', label: 'Engenharia (Mecânica)' },
+  { value: 'DESENVOLVIMENTO_PROCESSOS', label: 'Engenharia (Processos)' },
 ];
 
-const DEPARTMENT_DESCRIPTION: Record<UserDepartment, string> = {
+const DEPARTMENT_DESCRIPTION: Record<PublicSolicitationDepartment, string> = {
   ENG_MECANICA:
     'Engenharia Mecânica. Página para fazer solicitações para a equipe.',
   DESENVOLVIMENTO_PROCESSOS:
@@ -127,7 +133,7 @@ async function copyText(value: string) {
 
 export function PublicSolicitationPage() {
   const [department, setDepartment] =
-    useState<UserDepartment>('ENG_MECANICA');
+    useState<PublicSolicitationDepartment>('ENG_MECANICA');
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [requesterName, setRequesterName] = useState<string | null>(null);
@@ -265,6 +271,9 @@ export function PublicSolicitationPage() {
             : {}),
           ...(processDraft.comments.trim()
             ? { comments: processDraft.comments.trim() }
+            : {}),
+          ...(processDraft.requester === 'Comercial'
+            ? { requiresTooling: processDraft.requiresTooling }
             : {}),
         });
       }
@@ -711,9 +720,9 @@ export function PublicSolicitationPage() {
                     key={value}
                     type='button'
                     variant={department === value ? 'default' : 'outline'}
-                    className='h-9 text-sm font-medium'
+                    className='h-auto min-h-9 whitespace-normal px-2 py-2 text-center text-sm font-medium leading-snug'
                     aria-pressed={department === value}
-                    aria-label={DEPARTMENT_LABELS[value]}
+                    aria-label={label}
                     onClick={() => {
                       if (value === department) return;
                       if (value === 'ENG_MECANICA') {

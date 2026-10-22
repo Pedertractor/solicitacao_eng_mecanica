@@ -3,7 +3,9 @@ import { prisma } from '../lib/prisma.js';
 import { $Enums } from '../generated/prisma/client.js';
 import {
   type AccessActor,
+  canAccessProcessCharts,
   canAccessSolicitation,
+  canAccessWorkflow,
   canManageSolicitations,
   isSuperAdmin,
   solicitationScope,
@@ -16,22 +18,39 @@ import {
   KairoClient,
 } from '../integrations/kairo-client.js';
 import {
+  notifyNewSolicitationToAreaAdmins,
   notifySolicitationApproved,
   notifySolicitationCompleted,
 } from '../lib/solicitation-mail.js';
 import { SolicitationPrismaRepository } from '../repositories/prisma/solicitation-repository.js';
 import { KairoCredentialService } from './kairo-credential-service.js';
+import { UserService } from './user-service.js';
+import {
+  buildProcessCharts,
+  calendarDateInSaoPaulo,
+  periodRange,
+  type ChartPeriod,
+} from '../lib/process-charts.js';
 import {
   buildStoredDeadline,
   deliveryDateError,
+  isComercialWorkflow,
   isValidProcessCombination,
   optionalHttpsUrl,
   parseIsoDate,
   processInstructionTitle,
   shouldShowDeliveryDate,
 } from '../lib/process-instruction.js';
+import {
+  mapWorkflow,
+  WorkflowService,
+} from './workflow-service.js';
+import { WorkflowStagePrismaRepository } from '../repositories/prisma/workflow-stage-repository.js';
+import type { SolicitationWithWorkflow } from '../repositories/prisma/solicitation-repository.js';
 
-function mapSolicitation(row: {
+const ENGINEERING_QUEUE_LIMIT = 200;
+
+function mapSolicitation(row: SolicitationWithWorkflow | {
   id: string;
   trackingCode: string;
   employeeId: string;
@@ -53,6 +72,7 @@ function mapSolicitation(row: {
   deliveryDate: Date | null;
   partNumbers: string | null;
   fileLink: string | null;
+  ofNumber: string | null;
   kind: $Enums.SolicitationKind | null;
   client: $Enums.SolicitationClient | null;
   activityType: $Enums.SolicitationActivityType | null;
@@ -71,6 +91,8 @@ function mapSolicitation(row: {
   deletedByName: string | null;
   deletedFrom: $Enums.SolicitationDeletionSource | null;
   department: $Enums.UserDepartment;
+  requiresTooling?: boolean;
+  workflowStages?: SolicitationWithWorkflow['workflowStages'];
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -96,6 +118,7 @@ function mapSolicitation(row: {
     deliveryDate: toDateOnly(row.deliveryDate),
     partNumbers: row.partNumbers,
     fileLink: row.fileLink,
+    ofNumber: row.ofNumber ?? null,
     kind: row.kind,
     client: row.client,
     activityType: row.activityType,
@@ -114,6 +137,11 @@ function mapSolicitation(row: {
     deletedByName: row.deletedByName,
     deletedFrom: row.deletedFrom,
     department: row.department,
+    requiresTooling: row.requiresTooling ?? false,
+    workflow: mapWorkflow({
+      requiresTooling: row.requiresTooling ?? false,
+      ...(row.workflowStages ? { workflowStages: row.workflowStages } : {}),
+    }),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -238,6 +266,8 @@ function mapPublicTicket(row: {
   status: $Enums.SolicitationStatus;
   statusUpdatedAt: Date | null;
   createdAt: Date;
+  requiresTooling?: boolean;
+  workflowStages?: SolicitationWithWorkflow['workflowStages'];
 }) {
   return {
     trackingCode: row.trackingCode,
@@ -260,10 +290,42 @@ function mapPublicTicket(row: {
     fileLink: row.fileLink,
     createdAt: row.createdAt.toISOString(),
     statusUpdatedAt: row.statusUpdatedAt?.toISOString() ?? null,
+    workflow: mapWorkflow({
+      requiresTooling: row.requiresTooling ?? false,
+      ...(row.workflowStages ? { workflowStages: row.workflowStages } : {}),
+    }),
   };
 }
 
 export class SolicitationService {
+  async getProcessCharts(
+    actor: AccessActor,
+    input: { teamId: string; period: ChartPeriod; anchor?: string },
+  ) {
+    if (!canAccessProcessCharts(actor)) {
+      throw new HttpError('Sem permissão para ver os indicadores', 403);
+    }
+
+    const anchor = input.anchor ? calendarDateInSaoPaulo(input.anchor) : null;
+    if (input.anchor && !anchor) {
+      throw new HttpError('Data inválida', 400);
+    }
+
+    const range = periodRange(input.period, anchor ?? new Date());
+    const repo = new SolicitationPrismaRepository(prisma);
+    const rows = await repo.findProcessChartRows({
+      teamId: input.teamId,
+      start: range.start,
+      end: range.end,
+    });
+
+    return {
+      period: input.period,
+      teamId: input.teamId,
+      ...buildProcessCharts(rows),
+    };
+  }
+
   async validateRequester(cardNumber: string, unit: $Enums.Unit) {
     const api = new ApiPedertractorEmployee();
     const employee = await api.getEmployee({ cardNumber, unit });
@@ -360,6 +422,7 @@ export class SolicitationService {
           partNumbers?: string | undefined;
           fileLink?: string | undefined;
           comments?: string | undefined;
+          requiresTooling?: boolean | undefined;
         }
     ),
   ) {
@@ -380,22 +443,98 @@ export class SolicitationService {
             description: input.description.trim(),
           };
 
-    const repo = new SolicitationPrismaRepository(prisma);
-    const created = await repo.create({
-      employeeId: requester.employeeId,
-      requesterName: requester.name,
-      requesterEmail,
-      cardNumber: requester.cardNumber,
-      unit: requester.unit,
-      costCenter: sector.costCenter,
-      sectorId: sector.id,
-      sectorName: sector.name,
-      pillarOrLocation: input.pillarOrLocation.trim(),
-      department: input.department,
-      ...content,
+    const shouldCreateWorkflow =
+      input.department === 'DESENVOLVIMENTO_PROCESSOS' &&
+      isComercialWorkflow(
+        input.department,
+        input.processInstructionRequester,
+      );
+    const requiresTooling =
+      shouldCreateWorkflow && Boolean(input.requiresTooling);
+
+    const created = await prisma.$transaction(async (tx) => {
+      const repo = new SolicitationPrismaRepository(tx);
+      const solicitation = await repo.create({
+        employeeId: requester.employeeId,
+        requesterName: requester.name,
+        requesterEmail,
+        cardNumber: requester.cardNumber,
+        unit: requester.unit,
+        costCenter: sector.costCenter,
+        sectorId: sector.id,
+        sectorName: sector.name,
+        pillarOrLocation: input.pillarOrLocation.trim(),
+        department: input.department,
+        requiresTooling,
+        ...content,
+      });
+
+      if (shouldCreateWorkflow && input.department === 'DESENVOLVIMENTO_PROCESSOS') {
+        const workflowService = new WorkflowService();
+        const deliveryIso =
+          'deliveryDate' in content && content.deliveryDate
+            ? toDateOnly(content.deliveryDate)
+            : input.deliveryDate?.trim() || null;
+        const stages = workflowService.buildStagesForCreate({
+          requester: input.processInstructionRequester,
+          process: input.processInstructionProcess,
+          type: input.processInstructionType,
+          deliveryDateIso: deliveryIso,
+          requiresTooling,
+        });
+        const workflowRepo = new WorkflowStagePrismaRepository(tx);
+        const workflowStages = await workflowRepo.createStages(
+          solicitation.id,
+          stages,
+        );
+        return { ...solicitation, workflowStages };
+      }
+
+      return solicitation;
     });
 
-    return mapSolicitation(created);
+    const mapped = mapSolicitation(created);
+    await this.notifyAreaAdminsOfNewSolicitation(mapped);
+    return mapped;
+  }
+
+  private async notifyAreaAdminsOfNewSolicitation(solicitation: {
+    id: string;
+    trackingCode: string;
+    title: string;
+    requesterName: string;
+    department: $Enums.UserDepartment;
+  }) {
+    try {
+      const userService = new UserService();
+      const admins =
+        await userService.listAreaAdminsWithNotificationEmail(
+          solicitation.department,
+        );
+      const recipients = admins
+        .map((admin) => ({
+          name: admin.name,
+          email: admin.notificationEmail?.trim() ?? '',
+        }))
+        .filter((item) => item.email.length > 0);
+
+      if (recipients.length === 0) {
+        return;
+      }
+
+      await notifyNewSolicitationToAreaAdmins({
+        solicitationId: solicitation.id,
+        requesterName: solicitation.requesterName,
+        trackingCode: solicitation.trackingCode,
+        title: solicitation.title,
+        recipients,
+      });
+    } catch (error) {
+      console.error(
+        `[mail] Falha ao notificar admins da área [${solicitation.trackingCode}]:`,
+        error,
+      );
+    }
   }
 
   async list(input: {
@@ -409,6 +548,10 @@ export class SolicitationService {
       | 'title'
       | 'status';
     sortOrder?: 'asc' | 'desc';
+    onlyWorkflow?: boolean;
+    createdFrom?: Date;
+    createdTo?: Date;
+    search?: string;
   },
     actor: AccessActor,
   ) {
@@ -428,6 +571,18 @@ export class SolicitationService {
         totalPages,
       },
     };
+  }
+
+  async listEngineeringQueue(actor: AccessActor) {
+    if (!canAccessWorkflow(actor)) {
+      throw new HttpError('Sem permissão para ver o workflow', 403);
+    }
+    const repo = new SolicitationPrismaRepository(prisma);
+    const items = await repo.findOpenEngineeringQueue(
+      solicitationScope(actor),
+      ENGINEERING_QUEUE_LIMIT,
+    );
+    return { solicitations: items.map(mapSolicitation) };
   }
 
   async getById(id: string, actor: AccessActor) {
@@ -531,6 +686,32 @@ export class SolicitationService {
     return mapSolicitation(updated);
   }
 
+  async updateOfNumber(
+    id: string,
+    ofNumber: string | null,
+    actingUserId: string,
+  ) {
+    await this.assertAccessible(id, await this.loadActor(actingUserId), true);
+    const repo = new SolicitationPrismaRepository(prisma);
+    const existing = await repo.findById(id);
+    if (!existing) {
+      throw new HttpError('Solicitação não encontrada', 404);
+    }
+
+    const normalized =
+      ofNumber == null ? null : ofNumber.trim().replace(/\s+/g, '');
+    if (normalized === '') {
+      const updated = await repo.updateOfNumber(id, null);
+      return mapSolicitation(updated);
+    }
+    if (normalized != null && !/^\d+$/.test(normalized)) {
+      throw new HttpError('Número da OF deve conter apenas dígitos', 400);
+    }
+
+    const updated = await repo.updateOfNumber(id, normalized);
+    return mapSolicitation(updated);
+  }
+
   async updateStatus(
     id: string,
     status: $Enums.SolicitationStatus,
@@ -556,6 +737,13 @@ export class SolicitationService {
 
     const previousStatus = existing.status;
     const updated = await repo.updateStatus(id, status, actingUserId);
+
+    if (
+      status === $Enums.SolicitationStatus.CANCELLED &&
+      previousStatus !== $Enums.SolicitationStatus.CANCELLED
+    ) {
+      await new WorkflowService().cancelOpenStages(id);
+    }
 
     if (
       status === $Enums.SolicitationStatus.APPROVED &&
@@ -632,6 +820,8 @@ export class SolicitationService {
       }
     }
 
+    await new WorkflowService().cancelOpenStages(id);
+
     const updated = await repo.markDeleted(id, {
       deletedByUserId: actor.id,
       deletedByName: actor.name,
@@ -649,6 +839,7 @@ export class SolicitationService {
       title: string;
       description: string;
       tagId?: string;
+      clientId?: string;
       estimatedHours?: number;
     },
     actingUserId: string,
@@ -678,6 +869,7 @@ export class SolicitationService {
     const sendOneActivityPerPart = partNumbers.length > 0;
 
     const trimmedTagId = input.tagId?.trim() || undefined;
+    const trimmedClientId = input.clientId?.trim() || undefined;
 
     if (sendOneActivityPerPart && input.kind !== $Enums.SolicitationKind.ATIVIDADE) {
       throw new HttpError(
@@ -710,6 +902,7 @@ export class SolicitationService {
             description: appendPartNumber(input.description, partNumber),
             integrationSource: KAIRO_INTEGRATION_SOURCE,
             ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
+            ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
           });
           cardIds.push(activity.id);
         }
@@ -723,6 +916,7 @@ export class SolicitationService {
         description: input.description,
         integrationSource: KAIRO_INTEGRATION_SOURCE,
         ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
+        ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
       });
       cardIds = [activity.id];
     } else {
@@ -811,6 +1005,9 @@ export class SolicitationService {
       status: string | undefined;
       deletedAt: string | null;
       deletedByName: string | null;
+      startedAt?: string | null;
+      finishedAt?: string | null;
+      updatedAt?: string | null;
     }> = [];
     for (const cardId of linkedCardIds) {
       const kairoCard = await this.fetchKairoCardStatus(
@@ -841,12 +1038,22 @@ export class SolicitationService {
         kairoCards
           .map((card) => card.deletedByName?.trim())
           .find((name): name is string => Boolean(name)) || 'Usuário do Kairo';
+      await new WorkflowService().cancelOpenStages(id);
       const updated = await repo.markDeleted(id, {
         deletedByUserId: null,
         deletedByName,
         deletedFrom: $Enums.SolicitationDeletionSource.KAIRO,
       });
       return mapSolicitation(updated);
+    }
+
+    const hasWorkflow = (existing.workflowStages?.length ?? 0) > 0;
+    if (hasWorkflow) {
+      const workflowUpdated = await new WorkflowService().applyEngineeringKairoState(
+        existing,
+        kairoCards,
+      );
+      return mapSolicitation(workflowUpdated);
     }
 
     if (!kairoCards.every((card) => card.status === 'DONE' && !card.deletedAt)) {
@@ -865,12 +1072,14 @@ export class SolicitationService {
   }
 
   async syncPendingFromKairo(actor?: AccessActor) {
-    if (actor && !canManageSolicitations(actor.role)) {
+    if (actor && !canManageSolicitations(actor)) {
       throw new HttpError('Sem permissão para alterar esta solicitação', 403);
     }
     const repo = new SolicitationPrismaRepository(prisma);
     const pending = await repo.findPendingKairoSync(
-      actor && !isSuperAdmin(actor.role) ? actor.department : undefined,
+      actor && !isSuperAdmin(actor.role)
+        ? (actor.department ?? undefined)
+        : undefined,
     );
     let completed = 0;
     let deleted = 0;
@@ -921,7 +1130,7 @@ export class SolicitationService {
     if (!row || !canAccessSolicitation(actor, row)) {
       throw new HttpError('Solicitação não encontrada', 404);
     }
-    if (manage && !canManageSolicitations(actor.role)) {
+    if (manage && !canManageSolicitations(actor)) {
       throw new HttpError('Sem permissão para alterar esta solicitação', 403);
     }
   }
@@ -954,6 +1163,9 @@ export class SolicitationService {
     status: string | undefined;
     deletedAt: string | null;
     deletedByName: string | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    updatedAt?: string | null;
   } | null> {
     const fetchByKind = async (kind: $Enums.SolicitationKind) => {
       if (kind === $Enums.SolicitationKind.ATIVIDADE) {
@@ -963,6 +1175,9 @@ export class SolicitationService {
           status: activity.status,
           deletedAt: activity.deletedAt ?? null,
           deletedByName: activity.deletedByName ?? null,
+          startedAt: activity.startedAt ?? null,
+          finishedAt: activity.finishedAt ?? null,
+          updatedAt: activity.updatedAt ?? null,
         };
       }
 

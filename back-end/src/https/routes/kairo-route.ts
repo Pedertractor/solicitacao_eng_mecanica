@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middlewares/auth-middleware.js';
 import {
   deleteMyKairoCredential,
   getMyKairoCredential,
+  listMyKairoClients,
   listMyKairoTags,
   listMyKairoTeams,
   putMyKairoCredential,
@@ -165,5 +166,36 @@ export async function kairoRoutes(app: FastifyInstance) {
       },
     },
     listMyKairoTags,
+  );
+
+  app.get(
+    '/clients',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['kairo'],
+        summary: 'Listar clientes do Kairo',
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              clients: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          400: errorResponseSchema,
+        },
+      },
+    },
+    listMyKairoClients,
   );
 }

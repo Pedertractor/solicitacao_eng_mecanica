@@ -5,6 +5,8 @@ import {
   approvedMailSubject,
   completedMailHtml,
   completedMailSubject,
+  newSolicitationMailHtml,
+  newSolicitationMailSubject,
 } from './mail-templates.js';
 
 type NotifyPayload = {
@@ -12,6 +14,14 @@ type NotifyPayload = {
   requesterName: string;
   trackingCode: string;
   title: string;
+};
+
+type NewSolicitationNotifyPayload = {
+  solicitationId: string;
+  requesterName: string;
+  trackingCode: string;
+  title: string;
+  recipients: Array<{ name: string; email: string }>;
 };
 
 async function safeSend(
@@ -64,4 +74,37 @@ export async function notifySolicitationApproved(payload: NotifyPayload) {
 
 export async function notifySolicitationCompleted(payload: NotifyPayload) {
   await safeSend('completed', payload);
+}
+
+export async function notifyNewSolicitationToAreaAdmins(
+  payload: NewSolicitationNotifyPayload,
+) {
+  const seen = new Set<string>();
+
+  for (const recipient of payload.recipients) {
+    const email = recipient.email.trim().toLowerCase();
+    if (!email || seen.has(email)) {
+      continue;
+    }
+    seen.add(email);
+
+    try {
+      await sendMail({
+        to: email,
+        subject: newSolicitationMailSubject(payload.trackingCode),
+        html: newSolicitationMailHtml({
+          solicitationId: payload.solicitationId,
+          recipientName: recipient.name,
+          requesterName: payload.requesterName,
+          trackingCode: payload.trackingCode,
+          title: payload.title,
+        }),
+      });
+    } catch (error) {
+      console.error(
+        `[mail] Falha ao enviar e-mail (new) para ${email} [${payload.trackingCode}]:`,
+        error,
+      );
+    }
+  }
 }

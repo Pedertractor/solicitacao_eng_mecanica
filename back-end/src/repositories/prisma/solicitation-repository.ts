@@ -3,10 +3,21 @@ import {
   Prisma,
   PrismaClient,
   type Solicitation,
+  type SolicitationWorkflowStage,
 } from '../../generated/prisma/client.js';
 import { generateTrackingCode } from '../../lib/tracking-code.js';
 
 const CREATE_MAX_ATTEMPTS = 5;
+
+export const workflowStagesInclude = {
+  workflowStages: {
+    orderBy: { order: 'asc' as const },
+  },
+} satisfies Prisma.SolicitationInclude;
+
+export type SolicitationWithWorkflow = Solicitation & {
+  workflowStages: SolicitationWorkflowStage[];
+};
 
 export class SolicitationPrismaRepository {
   constructor(private prisma: PrismaClient | Prisma.TransactionClient) {}
@@ -33,7 +44,8 @@ export class SolicitationPrismaRepository {
     deliveryDate?: Date | null;
     partNumbers?: string | null;
     fileLink?: string | null;
-  }): Promise<Solicitation> {
+    requiresTooling?: boolean;
+  }): Promise<SolicitationWithWorkflow> {
     let lastError: unknown;
 
     for (let attempt = 0; attempt < CREATE_MAX_ATTEMPTS; attempt++) {
@@ -43,6 +55,7 @@ export class SolicitationPrismaRepository {
             ...data,
             trackingCode: generateTrackingCode(),
           },
+          include: workflowStagesInclude,
         });
       } catch (error) {
         lastError = error;
@@ -71,12 +84,46 @@ export class SolicitationPrismaRepository {
       | 'status';
     sortOrder?: 'asc' | 'desc';
     scope?: Prisma.SolicitationWhereInput;
-  }): Promise<{ items: Solicitation[]; total: number }> {
+    onlyWorkflow?: boolean;
+    createdFrom?: Date;
+    createdTo?: Date;
+    search?: string;
+  }): Promise<{ items: SolicitationWithWorkflow[]; total: number }> {
     const statusWhere = input.status
       ? { status: input.status }
       : { status: { not: $Enums.SolicitationStatus.DELETED } };
+    const workflowWhere: Prisma.SolicitationWhereInput = input.onlyWorkflow
+      ? { workflowStages: { some: {} } }
+      : {};
+    const dateWhere: Prisma.SolicitationWhereInput =
+      input.createdFrom || input.createdTo
+        ? {
+            createdAt: {
+              ...(input.createdFrom ? { gte: input.createdFrom } : {}),
+              ...(input.createdTo ? { lte: input.createdTo } : {}),
+            },
+          }
+        : {};
+    const term = input.search?.trim();
+    const searchWhere: Prisma.SolicitationWhereInput = term
+      ? {
+          OR: [
+            { title: { contains: term, mode: 'insensitive' } },
+            { requesterName: { contains: term, mode: 'insensitive' } },
+            { trackingCode: { contains: term, mode: 'insensitive' } },
+            { sectorName: { contains: term, mode: 'insensitive' } },
+            { cardNumber: { contains: term, mode: 'insensitive' } },
+          ],
+        }
+      : {};
     const where: Prisma.SolicitationWhereInput = {
-      AND: [statusWhere, input.scope ?? {}],
+      AND: [
+        statusWhere,
+        workflowWhere,
+        dateWhere,
+        searchWhere,
+        input.scope ?? {},
+      ],
     };
     const skip = (input.page - 1) * input.pageSize;
     const sortBy = input.sortBy ?? 'createdAt';
@@ -85,6 +132,7 @@ export class SolicitationPrismaRepository {
     const [items, total] = await Promise.all([
       this.prisma.solicitation.findMany({
         where,
+        include: workflowStagesInclude,
         orderBy: { [sortBy]: sortOrder },
         skip,
         take: input.pageSize,
@@ -95,13 +143,58 @@ export class SolicitationPrismaRepository {
     return { items, total };
   }
 
-  async findById(id: string): Promise<Solicitation | null> {
-    return await this.prisma.solicitation.findUnique({ where: { id } });
+  async findOpenEngineeringQueue(
+    scope: Prisma.SolicitationWhereInput,
+    limit: number,
+  ): Promise<SolicitationWithWorkflow[]> {
+    const stages = await this.prisma.solicitationWorkflowStage.findMany({
+      where: {
+        stage: $Enums.WorkflowStage.ENGENHARIA,
+        status: {
+          in: [
+            $Enums.WorkflowStageStatus.PENDING,
+            $Enums.WorkflowStageStatus.READY,
+            $Enums.WorkflowStageStatus.IN_PROGRESS,
+          ],
+        },
+        solicitation: {
+          AND: [
+            {
+              status: {
+                notIn: [
+                  $Enums.SolicitationStatus.DELETED,
+                  $Enums.SolicitationStatus.CANCELLED,
+                ],
+              },
+            },
+            scope,
+          ],
+        },
+      },
+      orderBy: [
+        { plannedEndAt: { sort: 'asc', nulls: 'last' } },
+        { createdAt: 'asc' },
+      ],
+      take: limit,
+      include: { solicitation: { include: workflowStagesInclude } },
+    });
+
+    return stages.map((stage) => stage.solicitation);
   }
 
-  async findByTrackingCode(trackingCode: string): Promise<Solicitation | null> {
+  async findById(id: string): Promise<SolicitationWithWorkflow | null> {
+    return await this.prisma.solicitation.findUnique({
+      where: { id },
+      include: workflowStagesInclude,
+    });
+  }
+
+  async findByTrackingCode(
+    trackingCode: string,
+  ): Promise<SolicitationWithWorkflow | null> {
     return await this.prisma.solicitation.findUnique({
       where: { trackingCode },
+      include: workflowStagesInclude,
     });
   }
 
@@ -125,7 +218,7 @@ export class SolicitationPrismaRepository {
     id: string,
     status: $Enums.SolicitationStatus,
     statusUpdatedByUserId: string,
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: {
@@ -133,6 +226,7 @@ export class SolicitationPrismaRepository {
         statusUpdatedAt: new Date(),
         statusUpdatedByUserId,
       },
+      include: workflowStagesInclude,
     });
   }
 
@@ -147,7 +241,7 @@ export class SolicitationPrismaRepository {
       status?: $Enums.SolicitationStatus;
       statusUpdatedByUserId?: string;
     },
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     const { status, statusUpdatedByUserId, kind, ...reviewFields } = data;
     return await this.prisma.solicitation.update({
       where: { id },
@@ -162,16 +256,29 @@ export class SolicitationPrismaRepository {
             }
           : {}),
       },
+      include: workflowStagesInclude,
     });
   }
 
   async updateKind(
     id: string,
     kind: $Enums.SolicitationKind,
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: { kind },
+      include: workflowStagesInclude,
+    });
+  }
+
+  async updateOfNumber(
+    id: string,
+    ofNumber: string | null,
+  ): Promise<SolicitationWithWorkflow> {
+    return await this.prisma.solicitation.update({
+      where: { id },
+      data: { ofNumber },
+      include: workflowStagesInclude,
     });
   }
 
@@ -184,7 +291,7 @@ export class SolicitationPrismaRepository {
       kairoSyncedByUserId: string;
       kind: $Enums.SolicitationKind;
     },
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: {
@@ -195,6 +302,7 @@ export class SolicitationPrismaRepository {
         kairoSyncedAt: new Date(),
         kairoSyncedByUserId: data.kairoSyncedByUserId,
       },
+      include: workflowStagesInclude,
     });
   }
 
@@ -205,7 +313,7 @@ export class SolicitationPrismaRepository {
       deletedByName: string;
       deletedFrom: $Enums.SolicitationDeletionSource;
     },
-  ): Promise<Solicitation> {
+  ): Promise<SolicitationWithWorkflow> {
     return await this.prisma.solicitation.update({
       where: { id },
       data: {
@@ -219,12 +327,13 @@ export class SolicitationPrismaRepository {
           ? { statusUpdatedByUserId: data.deletedByUserId }
           : {}),
       },
+      include: workflowStagesInclude,
     });
   }
 
   async findPendingKairoSync(
     department?: $Enums.UserDepartment,
-  ): Promise<Solicitation[]> {
+  ): Promise<SolicitationWithWorkflow[]> {
     return await this.prisma.solicitation.findMany({
       where: {
         ...(department ? { department } : {}),
@@ -240,8 +349,38 @@ export class SolicitationPrismaRepository {
             $Enums.SolicitationStatus.DELETED,
           ],
         },
+        NOT: {
+          workflowStages: {
+            some: {
+              stage: $Enums.WorkflowStage.ENGENHARIA,
+              status: $Enums.WorkflowStageStatus.DONE,
+            },
+          },
+        },
       },
+      include: workflowStagesInclude,
       orderBy: { updatedAt: 'asc' },
+    });
+  }
+
+  async findProcessChartRows(input: {
+    teamId: string;
+    start: Date;
+    end: Date;
+  }) {
+    return await this.prisma.solicitation.findMany({
+      where: {
+        department: $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+        kairoTeamId: input.teamId,
+        deletedAt: null,
+        status: { not: $Enums.SolicitationStatus.DELETED },
+        createdAt: { gte: input.start, lt: input.end },
+      },
+      select: {
+        client: true,
+        processInstructionType: true,
+        requesterName: true,
+      },
     });
   }
 }
