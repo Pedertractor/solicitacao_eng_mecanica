@@ -20,10 +20,6 @@ function isSolicitationAreaAdmin(actor: Actor): boolean {
   );
 }
 
-function isPlatformAdmin(actor: Actor): boolean {
-  return isSuperAdmin(actor.role) || isSolicitationAreaAdmin(actor);
-}
-
 export function canAccessUsersArea(
   role: UserRole,
   department?: UserDepartment | null,

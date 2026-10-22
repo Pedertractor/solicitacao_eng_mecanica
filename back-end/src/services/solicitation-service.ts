@@ -72,6 +72,7 @@ function mapSolicitation(row: SolicitationWithWorkflow | {
   deliveryDate: Date | null;
   partNumbers: string | null;
   fileLink: string | null;
+  ofNumber: string | null;
   kind: $Enums.SolicitationKind | null;
   client: $Enums.SolicitationClient | null;
   activityType: $Enums.SolicitationActivityType | null;
