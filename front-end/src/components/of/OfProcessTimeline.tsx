@@ -10,7 +10,7 @@ const UNIT_LABELS: Record<string, string> = {
   TRACTOR: 'Tractor',
 };
 
-type ProcessStepState = 'completed' | 'current' | 'pending';
+type ProcessStepState = 'completed' | 'current' | 'not_started';
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return null;
@@ -33,18 +33,6 @@ function formatProcessStart(process: OfProcess | null | undefined): string | nul
     formatDateTime(process.startedAt) ??
     formatDateTime(process.pointedAt) ??
     formatDateTime(process.processDate)
-  );
-}
-
-function processMoment(process: OfProcess | null | undefined): string | null {
-  if (!process) return null;
-  return (
-    process.DTH_INI ??
-    process.finishedAt ??
-    process.startedAt ??
-    process.pointedAt ??
-    process.processDate ??
-    null
   );
 }
 
@@ -73,38 +61,53 @@ function progressRatio(process: OfProcess) {
   return Math.min(1, Math.max(0, process.QTD_APT / process.QTD));
 }
 
-function stepState(
-  process: OfProcess,
-  index: number,
-  processes: OfProcess[],
-): ProcessStepState {
-  const ratio = progressRatio(process);
-  const status = (process.processStatus ?? '').toLowerCase();
-
-  if (ratio >= 1 || status.includes('conclu') || status.includes('final')) {
-    return 'completed';
-  }
-  if (
-    ratio > 0 ||
-    status.includes('produz') ||
-    status.includes('andamento') ||
-    Boolean(process.DTH_INI || process.pointedAt)
-  ) {
-    return 'current';
-  }
-
-  const previousDone = processes
-    .slice(0, index)
-    .every((item) => progressRatio(item) >= 1);
-  if (previousDone) return 'current';
-  return 'pending';
+/** Alguém registrou o apontamento deste processo. */
+function isPointed(process: OfProcess) {
+  return (
+    Boolean(process.employeeName?.trim() || process.employeeCard?.trim()) ||
+    process.employeeId != null ||
+    process.QTD_APT > 0
+  );
 }
 
-function stateLabel(state: ProcessStepState, process: OfProcess) {
-  if (process.processStatus?.trim()) return process.processStatus.trim();
+/** Processo fechado: quantidade completa e apontada por alguém. */
+function isFinished(process: OfProcess) {
+  return isPointed(process) && progressRatio(process) >= 1;
+}
+
+/**
+ * Concluído: apontado e com quantidade fechada.
+ * Em andamento: só o processo seguinte ao último finalizado.
+ * Sem apontamento e fora dessa posição: não iniciado.
+ * Se ninguém finalizou nada, um apontamento parcial (se existir) é o em andamento;
+ * os demais ficam não iniciados.
+ */
+function classifySteps(processes: OfProcess[]): ProcessStepState[] {
+  let lastFinished = -1;
+  for (let index = 0; index < processes.length; index += 1) {
+    if (isFinished(processes[index])) lastFinished = index;
+  }
+
+  let currentIndex = -1;
+  if (lastFinished >= 0) {
+    if (lastFinished + 1 < processes.length) currentIndex = lastFinished + 1;
+  } else {
+    currentIndex = processes.findIndex(
+      (item) => isPointed(item) && progressRatio(item) < 1,
+    );
+  }
+
+  return processes.map((process, index) => {
+    if (isFinished(process)) return 'completed';
+    if (index === currentIndex) return 'current';
+    return 'not_started';
+  });
+}
+
+function stateLabel(state: ProcessStepState) {
   if (state === 'completed') return 'Concluído';
   if (state === 'current') return 'Em andamento';
-  return 'Pendente';
+  return 'Não iniciado';
 }
 
 function panelTone(state: ProcessStepState) {
@@ -146,31 +149,15 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
     [processes],
   );
 
+  const states = useMemo(() => classifySteps(ordered), [ordered]);
+
   const summary = useMemo(() => {
-    const completed = ordered.filter(
-      (item, index) => stepState(item, index, ordered) === 'completed',
-    ).length;
+    const completed = states.filter((state) => state === 'completed').length;
+    const currentIndex = states.findIndex((state) => state === 'current');
+    const currentProcess = currentIndex >= 0 ? ordered[currentIndex] : null;
 
-    const lastActiveProcess = [...ordered]
-      .filter(
-        (item) =>
-          Boolean(processMoment(item)) || progressRatio(item) > 0,
-      )
-      .sort((a, b) => {
-        const aTime = processMoment(a)
-          ? new Date(processMoment(a)!).getTime()
-          : 0;
-        const bTime = processMoment(b)
-          ? new Date(processMoment(b)!).getTime()
-          : 0;
-        if (aTime !== bTime) return bTime - aTime;
-        return b.OP - a.OP;
-      })[0];
-
-    const pendingProcess =
-      ordered.find(
-        (item, index) => stepState(item, index, ordered) !== 'completed',
-      ) ?? null;
+    const lastActiveProcess =
+      [...ordered].reverse().find((item) => isPointed(item)) ?? null;
 
     const lastEmployee = lastActiveProcess
       ? formatEmployee(lastActiveProcess)
@@ -182,19 +169,21 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
       lastActiveProcess,
       lastSector: sectorLabel(lastActiveProcess),
       lastCostCenter: lastActiveProcess?.costCenter ?? null,
-      lastMoment: processMoment(lastActiveProcess),
       lastStartedLabel: formatProcessStart(lastActiveProcess),
       lastEmployee,
       lastQty:
         lastActiveProcess != null
           ? `${lastActiveProcess.QTD_APT}/${lastActiveProcess.QTD}`
           : null,
-      pendingProcess,
-      pendingSector: sectorLabel(pendingProcess),
-      pendingCostCenter: pendingProcess?.costCenter ?? null,
-      allDone: pendingProcess == null && ordered.length > 0,
+      currentProcess,
+      currentSector: sectorLabel(currentProcess),
+      currentCostCenter: currentProcess?.costCenter ?? null,
+      allDone: ordered.length > 0 && completed === ordered.length,
+      allNotStarted:
+        ordered.length > 0 &&
+        states.every((state) => state === 'not_started'),
     };
-  }, [ordered]);
+  }, [ordered, states]);
 
   return (
     <div className='space-y-5'>
@@ -247,11 +236,15 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
             'rounded-xl border px-4 py-3',
             summary.allDone
               ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900 dark:bg-emerald-950/40'
-              : 'border-amber-200 bg-amber-50/80 dark:border-amber-900 dark:bg-amber-950/40',
+              : summary.currentProcess
+                ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900 dark:bg-amber-950/40'
+                : 'bg-card',
           )}
         >
           <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
-            {summary.allDone ? 'Situação atual' : 'Pendente agora'}
+            {summary.allDone || summary.allNotStarted
+              ? 'Situação atual'
+              : 'Em andamento'}
           </p>
           {summary.allDone ? (
             <>
@@ -262,30 +255,34 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
                 todos os processos foram apontados
               </p>
             </>
-          ) : summary.pendingProcess ? (
+          ) : summary.currentProcess ? (
             <>
               <p className='mt-1 text-sm font-semibold leading-snug'>
-                {summary.pendingSector}
+                {summary.currentSector}
               </p>
               <p className='mt-0.5 text-xs text-muted-foreground'>
-                aguardando apontamento
-                {summary.pendingCostCenter
-                  ? ` · CC ${summary.pendingCostCenter}`
+                {isPointed(summary.currentProcess)
+                  ? 'apontamento em aberto'
+                  : 'aguardando apontamento'}
+                {summary.currentCostCenter
+                  ? ` · CC ${summary.currentCostCenter}`
                   : ''}
               </p>
               <p className='mt-1 text-xs text-muted-foreground'>
-                {summary.pendingProcess.QTD_APT}/{summary.pendingProcess.QTD}{' '}
+                {summary.currentProcess.QTD_APT}/{summary.currentProcess.QTD}{' '}
                 pcs
-                {summary.lastSector
+                {summary.lastSector && !isPointed(summary.currentProcess)
                   ? ` · veio de ${summary.lastSector}`
                   : ''}
               </p>
             </>
           ) : (
             <>
-              <p className='mt-1 text-sm font-semibold leading-snug'>—</p>
+              <p className='mt-1 text-sm font-semibold leading-snug'>
+                Não iniciado
+              </p>
               <p className='mt-0.5 text-xs text-muted-foreground'>
-                sem processo pendente
+                nenhum processo foi apontado ainda
               </p>
             </>
           )}
@@ -294,7 +291,7 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
 
       <div className='relative space-y-0' role='list'>
         {ordered.map((process, index) => {
-          const state = stepState(process, index, ordered);
+          const state = states[index];
           const ratio = progressRatio(process);
           const percent = Math.round(ratio * 100);
           const employee = formatEmployee(process);
@@ -356,7 +353,7 @@ export function OfProcessTimeline({ processes }: { processes: OfProcess[] }) {
                           statusTextTone(state),
                         )}
                       >
-                        {stateLabel(state, process)}
+                        {stateLabel(state)}
                         {process.statusDetail
                           ? ` · ${process.statusDetail}`
                           : ''}
