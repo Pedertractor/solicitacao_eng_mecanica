@@ -20,10 +20,7 @@ import {
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  WorkflowTimeline,
-  workflowHasActiveStage,
-} from '@/components/workflow/WorkflowTimeline';
+import { WorkflowTimeline } from '@/components/workflow/WorkflowTimeline';
 import {
   solicitationApi,
   SOLICITATION_CLIENT_LABELS,
@@ -70,7 +67,7 @@ function SummaryCards() {
   const summaryQuery = useQuery({
     queryKey: ['workflow-summary'],
     queryFn: () => solicitationApi.workflowSummary(),
-    refetchInterval: 60_000,
+    refetchInterval: 5_000,
   });
 
   if (summaryQuery.isLoading) {
@@ -244,12 +241,7 @@ function FullWorkflowView() {
         sortBy: 'createdAt',
         sortOrder: 'desc',
       }),
-    refetchInterval: (query) => {
-      const items = query.state.data?.solicitations ?? [];
-      return items.some((item) => workflowHasActiveStage(item.workflow))
-        ? 30_000
-        : 60_000;
-    },
+    refetchInterval: 5_000,
   });
 
   const items = listQuery.data?.solicitations ?? [];

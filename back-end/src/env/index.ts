@@ -12,6 +12,7 @@ const envSchema = z.object({
   API_PEDERTRACTOR_URL: z.string(),
   KAIRO_API_URL: z.string().optional(),
   KAIRO_CREDENTIALS_SECRET: z.string().optional(),
+  KAIRO_WEBHOOK_SECRET: z.string().min(32).optional(),
   CORREIO: z.string(),
   EMAIL_AUTOMACAO: z.string().email(),
   PASSWORD_AUTOMACAO: z.string().min(1),

@@ -206,7 +206,9 @@ export function SolicitationListPage() {
   const syncStartedRef = useRef(false);
 
   const appliedSearchRef = useRef(search);
-  appliedSearchRef.current = search;
+  useEffect(() => {
+    appliedSearchRef.current = search;
+  }, [search]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -228,6 +230,7 @@ export function SolicitationListPage() {
   );
 
   const query = useQuery({
+    refetchInterval: 5_000,
     queryKey: [
       'solicitations',
       statusFilter,
