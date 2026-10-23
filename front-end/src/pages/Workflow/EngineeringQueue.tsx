@@ -12,7 +12,6 @@ import {
 import { SolicitationStatusBadge } from '@/components/SolicitationStatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { workflowHasActiveStage } from '@/components/workflow/WorkflowTimeline';
 import { cn } from '@/lib/utils';
 import { surfaceStyles } from '@/lib/surface-styles';
 import { solicitationDetailPath } from '@/routes/constants';
@@ -120,12 +119,7 @@ export function EngineeringQueue() {
   const queueQuery = useQuery({
     queryKey: ['solicitations', 'workflow', 'engineering'],
     queryFn: () => solicitationApi.engineeringQueue(),
-    refetchInterval: (query) => {
-      const items = query.state.data?.solicitations ?? [];
-      return items.some((item) => workflowHasActiveStage(item.workflow))
-        ? 30_000
-        : 60_000;
-    },
+    refetchInterval: 5_000,
   });
 
   const items = queueQuery.data?.solicitations ?? [];

@@ -146,6 +146,7 @@ export function SolicitationDetailPage() {
     queryKey: ['solicitation', id],
     queryFn: () => solicitationApi.getById(id),
     enabled: Boolean(id),
+    refetchInterval: 5_000,
   });
 
   useEffect(() => {
