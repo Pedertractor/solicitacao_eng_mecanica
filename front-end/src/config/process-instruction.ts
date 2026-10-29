@@ -482,6 +482,7 @@ export function processInstructionTitle(process: string, type: string): string {
 }
 
 export type ProcessInstructionFieldErrors = {
+  executionUnit?: string;
   requester?: string;
   process?: string;
   type?: string;
@@ -491,6 +492,8 @@ export type ProcessInstructionFieldErrors = {
 };
 
 export function validateProcessInstructionFields(input: {
+  directCommercialTooling?: boolean;
+  executionUnit?: string;
   requester: string;
   process: string;
   type: string;
@@ -500,13 +503,17 @@ export function validateProcessInstructionFields(input: {
 }): ProcessInstructionFieldErrors {
   const errors: ProcessInstructionFieldErrors = {};
 
+  if (input.requester === 'Comercial' && !['PEDERTRACTOR', 'TRACTOR'].includes(input.executionUnit ?? '')) {
+    errors.executionUnit = 'Selecione a unidade de execução.';
+  }
+
   if (!input.requester.trim()) {
     errors.requester = 'Selecione o solicitante.';
   } else if (!isProcessRequester(input.requester)) {
     errors.requester = 'Solicitante inválido.';
   }
 
-  if (!errors.requester) {
+  if (!errors.requester && !input.directCommercialTooling) {
     if (!input.process.trim()) {
       errors.process = 'Selecione o processo.';
     } else if (!listProcesses(input.requester).includes(input.process)) {
@@ -514,7 +521,7 @@ export function validateProcessInstructionFields(input: {
     }
   }
 
-  if (!errors.requester && !errors.process) {
+  if (!errors.requester && !errors.process && !input.directCommercialTooling) {
     if (!input.type.trim()) {
       errors.type = 'Selecione o tipo.';
     } else if (

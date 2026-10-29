@@ -1,4 +1,5 @@
 import { Shield } from 'lucide-react';
+import { PublicPlatformHeader } from '@/components/public-platform-header';
 import {
   PlatformBackdrop,
   platformBackdropClass,
@@ -17,7 +18,7 @@ type TicketPerforationProps = {
   className?: string;
 };
 
-const TICKET_NOTCH_CLASS = 'relative z-10 h-8 w-4 shrink-0';
+const TICKET_NOTCH_CLASS = 'pederflow-ticket-notch relative z-10 h-8 w-4 shrink-0';
 
 function TicketNotch({ side }: { side: 'left' | 'right' }) {
   const isLeft = side === 'left';
@@ -84,25 +85,33 @@ type PublicSolicitationShellProps = {
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  wide?: boolean;
 };
 
 export function PublicSolicitationShell({
   children,
   className,
   contentClassName,
+  wide = false,
 }: PublicSolicitationShellProps) {
   return (
     <div
       className={cn(
-        'relative flex h-svh flex-col overflow-hidden p-4',
+        'pederflow-public-shell relative flex h-svh flex-col overflow-hidden p-4',
+        wide && 'h-auto min-h-svh overflow-visible sm:p-6',
         className,
       )}
     >
       <PlatformBackdrop />
 
+      <div className={cn('pederflow-public-masthead relative z-10 mx-auto w-full max-w-lg shrink-0', wide && 'max-w-[1180px]')}>
+        <PublicPlatformHeader />
+      </div>
+
       <div
         className={cn(
           'relative z-10 mx-auto flex min-h-0 min-w-0 w-full max-w-lg flex-1 flex-col overflow-x-hidden overflow-y-auto',
+          wide && 'max-w-[1180px] overflow-visible',
           contentClassName,
         )}
       >

@@ -150,7 +150,8 @@ export function filterComercialItems(
     }
 
     if (filters.stage === ALL) return true;
-    return activeStage(solicitation)?.stage === filters.stage;
+    return solicitation.workflow?.stages.some((stage) => stage.stage === filters.stage
+      && ['PENDING', 'READY', 'IN_PROGRESS'].includes(stage.status)) ?? false;
   });
 }
 

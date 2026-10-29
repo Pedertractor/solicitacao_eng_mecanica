@@ -22,11 +22,20 @@ async function runSync() {
     }
 
     const workflowService = new WorkflowService();
+    const pcpResult = await workflowService.syncPendingPcpFromKairo();
+    if (pcpResult.updated > 0) {
+      console.log(`[kairo-sync] PCP: verificadas ${pcpResult.checked}; atualizadas ${pcpResult.updated}`);
+    }
     const toolingResult = await workflowService.syncPendingToolingFromKairo();
     if (toolingResult.updated > 0) {
       console.log(
         `[kairo-sync] Ferramentaria: verificadas ${toolingResult.checked}; atualizadas ${toolingResult.updated}`,
       );
+    }
+
+    const qualityResult = await workflowService.syncPendingQualityFromKairo();
+    if (qualityResult.updated > 0) {
+      console.log(`[kairo-sync] Qualidade: verificadas ${qualityResult.checked}; atualizadas ${qualityResult.updated}`);
     }
 
     const sampleResult = await workflowService.syncPendingSampleFromKairo();

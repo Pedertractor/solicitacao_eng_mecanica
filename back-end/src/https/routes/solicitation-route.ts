@@ -3,7 +3,9 @@ import { AREA_ADMIN_ROLES } from '../../auth/access-policy.js';
 import { authMiddleware } from '../../middlewares/auth-middleware.js';
 import { roleMiddleware } from '../../middlewares/auth-role-middleware.js';
 import {
+  addTooling,
   createSolicitation,
+  declineWorkflowStage,
   deleteSolicitation,
   getPartByNumber,
   getProcessCharts,
@@ -11,7 +13,10 @@ import {
   getSolicitationById,
   getSolicitationByTrackingCode,
   getWorkflowSummary,
+  managePcpStage,
+  manageQualityStage,
   getEngineeringQueue,
+  getProductionTracking,
   listSolicitations,
   sendSampleToKairo,
   sendToolingToKairo,
@@ -28,7 +33,7 @@ import {
 } from '../controllers/solicitation-controller.js';
 
 const unitEnum = ['PEDERTRACTOR', 'TRACTOR'] as const;
-const departmentEnum = ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'] as const;
+const departmentEnum = ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS', 'FERRAMENTARIA'] as const;
 const statusEnum = [
   'PENDING',
   'IN_REVIEW',
@@ -94,12 +99,13 @@ const priorityEnum = [
 ] as const;
 
 const kindEnum = ['PROJETO', 'ATIVIDADE'] as const;
-const workflowStageEnum = ['ENGENHARIA', 'FERRAMENTARIA', 'AMOSTRA'] as const;
+const workflowStageEnum = ['ENGENHARIA', 'PCP_FERRAMENTARIA', 'FERRAMENTARIA', 'PCP_AMOSTRA', 'QUALIDADE', 'AMOSTRA'] as const;
 const workflowStageStatusEnum = [
   'PENDING',
   'READY',
   'IN_PROGRESS',
   'DONE',
+  'REJECTED',
   'CANCELLED',
 ] as const;
 
@@ -119,6 +125,10 @@ const workflowStageSchema = {
     kairoCardIds: { type: ['string', 'null'] },
     kairoSyncedAt: { type: ['string', 'null'], format: 'date-time' },
     kairoSyncedByUserId: { type: ['string', 'null'] },
+    rejectionReason: { type: ['string', 'null'] },
+    rejectedAt: { type: ['string', 'null'], format: 'date-time' },
+    rejectedByUserId: { type: ['string', 'null'] },
+    rejectedByName: { type: ['string', 'null'] },
     completedByUserId: { type: ['string', 'null'] },
   },
 } as const;
@@ -126,6 +136,7 @@ const workflowStageSchema = {
 const workflowSchema = {
   type: 'object',
   properties: {
+    kind: { type: 'string', enum: ['COMMERCIAL_SIMULATION', 'COMMERCIAL_DIRECT_TOOLING', 'STANDARD'] },
     requiresTooling: { type: 'boolean' },
     stages: { type: 'array', items: workflowStageSchema },
   },
@@ -134,6 +145,8 @@ const workflowSchema = {
 const solicitationSchema = {
   type: 'object',
   properties: {
+    executionUnit: { type: ['string', 'null'], enum: [...unitEnum, null] },
+    directTooling: { type: 'boolean' },
     id: { type: 'string', format: 'uuid' },
     trackingCode: { type: 'string' },
     employeeId: { type: 'string' },
@@ -184,7 +197,7 @@ const solicitationSchema = {
     },
     department: {
       type: 'string',
-      enum: ['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'],
+      enum: departmentEnum,
     },
     requiresTooling: { type: 'boolean' },
     workflow: { anyOf: [workflowSchema, { type: 'null' }] },
@@ -196,6 +209,8 @@ const solicitationSchema = {
 const publicTicketSchema = {
   type: 'object',
   properties: {
+    executionUnit: { type: ['string', 'null'], enum: [...unitEnum, null] },
+    directTooling: { type: 'boolean' },
     trackingCode: { type: 'string' },
     status: { type: 'string', enum: statusEnum },
     title: { type: 'string' },
@@ -228,6 +243,20 @@ const errorResponseSchema = {
 } as const;
 
 export async function solicitationRoutes(app: FastifyInstance) {
+  app.post('/:id/workflow/:stage/decline', {
+    preHandler: [authMiddleware],
+    schema: {
+      tags: ['solicitations'], summary: 'Recusar somente uma etapa do workflow', security: [{ bearerAuth: [] }],
+      params: { type: 'object', required: ['id', 'stage'], properties: {
+        id: { type: 'string', format: 'uuid' }, stage: { type: 'string', enum: workflowStageEnum },
+      } },
+      body: { type: 'object', required: ['reason'], properties: { reason: { type: 'string', minLength: 1 } } },
+      response: { 200: { type: 'object', properties: {
+        solicitation: solicitationSchema, warnings: { type: 'array', items: { type: 'string' } },
+      } }, 400: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema },
+    },
+  }, declineWorkflowStage);
+
   app.post(
     '/validate-requester',
     {
@@ -353,7 +382,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
             requesterEmail: { type: 'string', format: 'email' },
             department: { type: 'string', enum: departmentEnum },
             processInstructionRequester: { type: 'string' },
-            processInstructionProcess: { type: 'string' },
+            processInstructionProcess: { type: ['string', 'null'] },
             processInstructionType: { type: 'string' },
             client: { type: 'string', enum: clientEnum },
             deliveryDate: { type: 'string' },
@@ -361,6 +390,8 @@ export async function solicitationRoutes(app: FastifyInstance) {
             fileLink: { type: 'string' },
             comments: { type: 'string' },
             requiresTooling: { type: 'boolean' },
+            executionUnit: { type: 'string', enum: unitEnum },
+            directTooling: { type: 'boolean' },
           },
         },
         response: {
@@ -485,6 +516,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
                     inProgress: { type: 'integer' },
                     waiting: { type: 'integer' },
                     done: { type: 'integer' },
+                    rejected: { type: 'integer' },
                   },
                 },
               },
@@ -495,6 +527,23 @@ export async function solicitationRoutes(app: FastifyInstance) {
     },
     getWorkflowSummary,
   );
+
+  app.get('/workflow/production-tracking', {
+    preHandler: [authMiddleware],
+    schema: {
+      tags: ['solicitations'],
+      summary: 'Amostras e protótipos com workflow aberto',
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: { solicitations: { type: 'array', items: solicitationSchema } },
+          required: ['solicitations'],
+        },
+        403: errorResponseSchema,
+      },
+    },
+  }, getProductionTracking);
 
   app.get(
     '/workflow/engineering',
@@ -521,6 +570,64 @@ export async function solicitationRoutes(app: FastifyInstance) {
     },
     getEngineeringQueue,
   );
+
+  app.post(
+    '/:id/workflow/pcp/:stage/:action',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'], summary: 'Iniciar, concluir ou integrar etapa PCP ao Kairo',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object', required: ['id', 'stage', 'action'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            stage: { type: 'string', enum: ['PCP_FERRAMENTARIA', 'PCP_AMOSTRA'] },
+            action: { type: 'string', enum: ['start', 'finish', 'send-to-kairo', 'sync-kairo'] },
+          },
+        },
+        response: {
+          200: { type: 'object', properties: { solicitation: solicitationSchema } },
+          400: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema,
+        },
+      },
+    },
+    managePcpStage,
+  );
+
+  app.post(
+    '/:id/workflow/quality/:action',
+    {
+      preHandler: [authMiddleware],
+      schema: {
+        tags: ['solicitations'], summary: 'Iniciar, concluir ou integrar Qualidade · PPAP ao Kairo',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object', required: ['id', 'action'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            action: { type: 'string', enum: ['start', 'finish', 'send-to-kairo', 'sync-kairo'] },
+          },
+        },
+        response: {
+          200: { type: 'object', properties: { solicitation: solicitationSchema } },
+          400: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema,
+        },
+      },
+    },
+    manageQualityStage,
+  );
+
+  app.post('/:id/workflow/tooling', {
+    preHandler: [authMiddleware],
+    schema: {
+      tags: ['solicitations'], summary: 'Adicionar Ferramentaria à Simulação Comercial',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } },
+      response: { 200: { type: 'object', properties: { solicitation: solicitationSchema } },
+        400: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema },
+    },
+  }, addTooling);
 
   app.post(
     '/:id/workflow/tooling/send-to-kairo',

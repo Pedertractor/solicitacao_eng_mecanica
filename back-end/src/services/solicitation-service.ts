@@ -1,3 +1,4 @@
+import { isCommercialSimulation } from '../lib/commercial-simulation.js';
 import { HttpError } from '../https/errors/index.js';
 import { prisma } from '../lib/prisma.js';
 import { $Enums } from '../generated/prisma/client.js';
@@ -6,6 +7,7 @@ import {
   canAccessProcessCharts,
   canAccessSolicitation,
   canAccessWorkflow,
+  canAccessProductionTracking,
   canManageSolicitations,
   isSuperAdmin,
   solicitationScope,
@@ -33,8 +35,10 @@ import {
 } from '../lib/process-charts.js';
 import {
   buildStoredDeadline,
+  calcularDataLimite,
   deliveryDateError,
   isComercialWorkflow,
+  isProcessRequester,
   isValidProcessCombination,
   optionalHttpsUrl,
   parseIsoDate,
@@ -50,7 +54,7 @@ import type { SolicitationWithWorkflow } from '../repositories/prisma/solicitati
 
 const ENGINEERING_QUEUE_LIMIT = 200;
 
-function mapSolicitation(row: SolicitationWithWorkflow | {
+export function mapSolicitation(row: SolicitationWithWorkflow | {
   id: string;
   trackingCode: string;
   employeeId: string;
@@ -92,6 +96,8 @@ function mapSolicitation(row: SolicitationWithWorkflow | {
   deletedFrom: $Enums.SolicitationDeletionSource | null;
   department: $Enums.UserDepartment;
   requiresTooling?: boolean;
+  executionUnit?: $Enums.Unit | null;
+  directTooling?: boolean;
   workflowStages?: SolicitationWithWorkflow['workflowStages'];
   createdAt: Date;
   updatedAt: Date;
@@ -104,6 +110,8 @@ function mapSolicitation(row: SolicitationWithWorkflow | {
     requesterEmail: row.requesterEmail,
     cardNumber: row.cardNumber,
     unit: row.unit,
+    executionUnit: row.executionUnit ?? null,
+    directTooling: row.directTooling ?? false,
     costCenter: row.costCenter,
     sectorId: row.sectorId,
     sectorName: row.sectorName,
@@ -139,6 +147,7 @@ function mapSolicitation(row: SolicitationWithWorkflow | {
     department: row.department,
     requiresTooling: row.requiresTooling ?? false,
     workflow: mapWorkflow({
+      ...row,
       requiresTooling: row.requiresTooling ?? false,
       ...(row.workflowStages ? { workflowStages: row.workflowStages } : {}),
     }),
@@ -249,6 +258,8 @@ function mapPublicTicket(row: {
   trackingCode: string;
   requesterName: string;
   unit: $Enums.Unit;
+  executionUnit?: $Enums.Unit | null;
+  directTooling?: boolean;
   sectorName: string;
   pillarOrLocation: string;
   title: string;
@@ -278,6 +289,8 @@ function mapPublicTicket(row: {
     sectorName: row.sectorName,
     pillarOrLocation: row.pillarOrLocation,
     unit: row.unit,
+    executionUnit: row.executionUnit ?? null,
+    directTooling: row.directTooling ?? false,
     department: row.department,
     client: row.client,
     processInstructionRequester: row.processInstructionRequester,
@@ -291,6 +304,7 @@ function mapPublicTicket(row: {
     createdAt: row.createdAt.toISOString(),
     statusUpdatedAt: row.statusUpdatedAt?.toISOString() ?? null,
     workflow: mapWorkflow({
+      ...row,
       requiresTooling: row.requiresTooling ?? false,
       ...(row.workflowStages ? { workflowStages: row.workflowStages } : {}),
     }),
@@ -365,16 +379,15 @@ export class SolicitationService {
       .filter(Boolean);
     if (tokens.length === 0) return null;
 
-    const confirmed: string[] = [];
+    const parts: string[] = [];
     const seen = new Set<string>();
     for (const token of tokens) {
-      const part = await this.lookupPartByNumber(token);
-      const key = part.partNumber.toLowerCase();
+      const key = token.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      confirmed.push(part.partNumber);
+      parts.push(token);
     }
-    return confirmed.join(', ');
+    return parts.join(', ');
   }
 
   async getSectorByCostCenter(costCenter: string) {
@@ -406,11 +419,24 @@ export class SolicitationService {
       costCenter: string;
       pillarOrLocation: string;
       requesterEmail: string;
+      executionUnit?: $Enums.Unit | undefined;
+      directTooling?: boolean | undefined;
     } & (
       | {
           department: 'ENG_MECANICA';
+          processInstructionRequester?: string | undefined;
           title: string;
           description: string;
+        }
+      | {
+          department: 'FERRAMENTARIA';
+          processInstructionRequester: string;
+          processInstructionType: string;
+          processInstructionProcess?: null | undefined;
+          client: $Enums.SolicitationClient;
+          partNumbers?: string | undefined;
+          fileLink?: string | undefined;
+          comments?: string | undefined;
         }
       | {
           department: 'DESENVOLVIMENTO_PROCESSOS';
@@ -426,6 +452,26 @@ export class SolicitationService {
         }
     ),
   ) {
+    if (input.processInstructionRequester !== undefined && !isProcessRequester(input.processInstructionRequester.trim())) {
+      throw new HttpError('Departamento solicitante inválido', 400);
+    }
+    const directCommercialTooling = input.department === 'FERRAMENTARIA';
+    if (directCommercialTooling && (input.processInstructionRequester !== 'Comercial'
+      || input.processInstructionType !== 'Simulação Comercial' || input.processInstructionProcess != null)) {
+      throw new HttpError('Ferramentaria exige Comercial e Simulação Comercial, sem processo', 400);
+    }
+    const isComercial = (input.department === 'DESENVOLVIMENTO_PROCESSOS' || directCommercialTooling)
+      && input.processInstructionRequester.trim() === 'Comercial';
+    const simulation = isCommercialSimulation(input);
+    if (input.directTooling && !isComercial) {
+      throw new HttpError('Fluxo direto para Ferramentaria disponível apenas para Comercial', 400);
+    }
+    if (isComercial && (!input.executionUnit || !Object.values($Enums.Unit).includes(input.executionUnit))) {
+      throw new HttpError('Selecione a unidade de execução', 400);
+    }
+    if (input.executionUnit && !isComercial) {
+      throw new HttpError('Unidade de execução disponível apenas para Comercial', 400);
+    }
     const requester = await this.validateRequester(
       input.cardNumber,
       input.unit,
@@ -433,7 +479,23 @@ export class SolicitationService {
     const sector = await this.getSectorByCostCenter(input.costCenter);
     const requesterEmail = input.requesterEmail.trim().toLowerCase();
     const content =
-      input.department === 'DESENVOLVIMENTO_PROCESSOS'
+      input.department === 'FERRAMENTARIA'
+        ? {
+            title: 'Simulação Comercial — Ferramentaria',
+            description: input.comments?.trim() ?? '',
+            client: input.client,
+            processInstructionRequester: 'Comercial',
+            processInstructionProcess: null,
+            processInstructionType: 'Simulação Comercial',
+            processInstructionDeadlineLabel: '10 dias úteis',
+            processInstructionDeadlineDate: calcularDataLimite(10),
+            partNumbers: await this.resolvePartNumbers(input.partNumbers),
+            fileLink: (() => {
+              try { return optionalHttpsUrl(input.fileLink ?? ''); }
+              catch { throw new HttpError('Link de arquivos inválido.', 400); }
+            })(),
+          }
+        : input.department === 'DESENVOLVIMENTO_PROCESSOS'
         ? {
             ...buildProcessInstructionContent(input),
             partNumbers: await this.resolvePartNumbers(input.partNumbers),
@@ -441,16 +503,18 @@ export class SolicitationService {
         : {
             title: input.title.trim(),
             description: input.description.trim(),
+            processInstructionRequester: input.processInstructionRequester?.trim() || null,
           };
 
     const shouldCreateWorkflow =
-      input.department === 'DESENVOLVIMENTO_PROCESSOS' &&
+      directCommercialTooling || input.department === 'DESENVOLVIMENTO_PROCESSOS' &&
       isComercialWorkflow(
         input.department,
         input.processInstructionRequester,
       );
     const requiresTooling =
-      shouldCreateWorkflow && Boolean(input.requiresTooling);
+      directCommercialTooling || shouldCreateWorkflow && !simulation && input.department === 'DESENVOLVIMENTO_PROCESSOS' && Boolean(input.requiresTooling || input.directTooling);
+    const directTooling = directCommercialTooling || isComercial && !simulation && Boolean(input.directTooling);
 
     const created = await prisma.$transaction(async (tx) => {
       const repo = new SolicitationPrismaRepository(tx);
@@ -460,6 +524,8 @@ export class SolicitationService {
         requesterEmail,
         cardNumber: requester.cardNumber,
         unit: requester.unit,
+        executionUnit: isComercial ? input.executionUnit! : null,
+        directTooling,
         costCenter: sector.costCenter,
         sectorId: sector.id,
         sectorName: sector.name,
@@ -469,18 +535,20 @@ export class SolicitationService {
         ...content,
       });
 
-      if (shouldCreateWorkflow && input.department === 'DESENVOLVIMENTO_PROCESSOS') {
+      if (shouldCreateWorkflow) {
         const workflowService = new WorkflowService();
         const deliveryIso =
           'deliveryDate' in content && content.deliveryDate
             ? toDateOnly(content.deliveryDate)
-            : input.deliveryDate?.trim() || null;
+            : input.department === 'DESENVOLVIMENTO_PROCESSOS' ? input.deliveryDate?.trim() || null : null;
         const stages = workflowService.buildStagesForCreate({
+          department: input.department,
           requester: input.processInstructionRequester,
-          process: input.processInstructionProcess,
+          process: input.processInstructionProcess ?? '',
           type: input.processInstructionType,
           deliveryDateIso: deliveryIso,
           requiresTooling,
+          directTooling,
         });
         const workflowRepo = new WorkflowStagePrismaRepository(tx);
         const workflowStages = await workflowRepo.createStages(
@@ -582,6 +650,14 @@ export class SolicitationService {
       solicitationScope(actor),
       ENGINEERING_QUEUE_LIMIT,
     );
+    return { solicitations: items.map(mapSolicitation) };
+  }
+
+  async listProductionTracking(actor: AccessActor) {
+    if (!canAccessProductionTracking(actor)) {
+      throw new HttpError('Sem permissão para acompanhar amostras e protótipos', 403);
+    }
+    const items = await new SolicitationPrismaRepository(prisma).findProductionTracking(solicitationScope(actor));
     return { solicitations: items.map(mapSolicitation) };
   }
 
@@ -736,6 +812,10 @@ export class SolicitationService {
     }
 
     const previousStatus = existing.status;
+    if (status === $Enums.SolicitationStatus.COMPLETED && existing.workflowStages.length > 0
+      && existing.workflowStages.some((stage) => !['DONE', 'REJECTED'].includes(stage.status))) {
+      throw new HttpError('Conclua todas as etapas do workflow antes de encerrar a solicitação', 400);
+    }
     const updated = await repo.updateStatus(id, status, actingUserId);
 
     if (
@@ -844,104 +924,113 @@ export class SolicitationService {
     },
     actingUserId: string,
   ) {
-    await this.assertAccessible(id, await this.loadActor(actingUserId), true);
-    const repo = new SolicitationPrismaRepository(prisma);
-    const existing = await repo.findById(id);
-    if (!existing) {
-      throw new HttpError('Solicitação não encontrada', 404);
-    }
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Solicitation" WHERE "id" = ${id} FOR UPDATE`;
+      await this.assertAccessible(id, await this.loadActor(actingUserId), true);
+      const repo = new SolicitationPrismaRepository(tx);
+      const existing = await repo.findById(id);
+      if (!existing) {
+        throw new HttpError('Solicitação não encontrada', 404);
+      }
 
-    if (existing.status !== $Enums.SolicitationStatus.APPROVED) {
-      throw new HttpError(
-        'A solicitação precisa estar aprovada para enviar ao Kairo',
-        400,
-      );
-    }
-
-    if (listLinkedKairoCardIds(existing).length > 0) {
-      throw new HttpError('Esta solicitação já foi enviada ao Kairo', 400);
-    }
-
-    const partNumbers =
-      existing.department === $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS
-        ? splitCommaList(existing.partNumbers)
-        : [];
-    const sendOneActivityPerPart = partNumbers.length > 0;
-
-    const trimmedTagId = input.tagId?.trim() || undefined;
-    const trimmedClientId = input.clientId?.trim() || undefined;
-
-    if (sendOneActivityPerPart && input.kind !== $Enums.SolicitationKind.ATIVIDADE) {
-      throw new HttpError(
-        'Solicitações de processo com part number são enviadas como atividade',
-        400,
-      );
-    }
-
-    const credentials = new KairoCredentialService();
-    const client = await credentials.getClientForUser(actingUserId);
-
-    let cardIds: string[];
-    let kind = input.kind;
-
-    if (sendOneActivityPerPart) {
-      const instructionType = existing.processInstructionType?.trim();
-      if (!instructionType) {
+      if (existing.status !== $Enums.SolicitationStatus.APPROVED) {
         throw new HttpError(
-          'A solicitação de processo não tem tipo para nomear as atividades',
+          'A solicitação precisa estar aprovada para enviar ao Kairo',
           400,
         );
       }
 
-      kind = $Enums.SolicitationKind.ATIVIDADE;
-      cardIds = [];
-      try {
-        for (const partNumber of partNumbers) {
-          const { activity } = await client.createActivity(input.teamId, {
-            title: `${partNumber} — ${instructionType}`,
-            description: appendPartNumber(input.description, partNumber),
-            integrationSource: KAIRO_INTEGRATION_SOURCE,
-            ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
-            ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
-          });
-          cardIds.push(activity.id);
-        }
-      } catch (error) {
-        await this.rollbackCreatedActivities(client, input.teamId, cardIds);
-        throw error;
+      if (existing.directTooling) {
+        throw new HttpError('Fluxo direto para Ferramentaria não possui etapa de Engenharia', 400);
       }
-    } else if (input.kind === $Enums.SolicitationKind.ATIVIDADE) {
-      const { activity } = await client.createActivity(input.teamId, {
-        title: input.title,
-        description: input.description,
-        integrationSource: KAIRO_INTEGRATION_SOURCE,
-        ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
-        ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
+
+      if (listLinkedKairoCardIds(existing).length > 0) {
+        throw new HttpError('Esta solicitação já foi enviada ao Kairo', 400);
+      }
+
+      if (existing.workflowStages.some((stage) => stage.stage === 'ENGENHARIA' && ['DONE', 'CANCELLED', 'REJECTED'].includes(stage.status))) throw new HttpError('Etapa de Engenharia encerrada', 400);
+
+      const partNumbers =
+        existing.department === $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS
+          ? splitCommaList(existing.partNumbers)
+          : [];
+      const sendOneActivityPerPart = partNumbers.length > 0;
+
+      const trimmedTagId = input.tagId?.trim() || undefined;
+      const trimmedClientId = input.clientId?.trim() || undefined;
+
+      if (sendOneActivityPerPart && input.kind !== $Enums.SolicitationKind.ATIVIDADE) {
+        throw new HttpError(
+          'Solicitações de processo com part number são enviadas como atividade',
+          400,
+        );
+      }
+
+      const credentials = new KairoCredentialService();
+      const client = await credentials.getClientForUser(actingUserId);
+
+      let cardIds: string[];
+      let kind = input.kind;
+
+      if (sendOneActivityPerPart) {
+        const instructionType = existing.processInstructionType?.trim();
+        if (!instructionType) {
+          throw new HttpError(
+            'A solicitação de processo não tem tipo para nomear as atividades',
+            400,
+          );
+        }
+
+        kind = $Enums.SolicitationKind.ATIVIDADE;
+        cardIds = [];
+        try {
+          for (const partNumber of partNumbers) {
+            const { activity } = await client.createActivity(input.teamId, {
+              title: `${partNumber} — ${instructionType}`,
+              description: appendPartNumber(input.description, partNumber),
+              integrationSource: KAIRO_INTEGRATION_SOURCE,
+              ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
+              ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
+            });
+            cardIds.push(activity.id);
+          }
+        } catch (error) {
+          await this.rollbackCreatedActivities(client, input.teamId, cardIds);
+          throw error;
+        }
+      } else if (input.kind === $Enums.SolicitationKind.ATIVIDADE) {
+        const { activity } = await client.createActivity(input.teamId, {
+          title: input.title,
+          description: input.description,
+          integrationSource: KAIRO_INTEGRATION_SOURCE,
+          ...(trimmedTagId ? { tagId: trimmedTagId } : {}),
+          ...(trimmedClientId ? { clientId: trimmedClientId } : {}),
+        });
+        cardIds = [activity.id];
+      } else {
+        const { project } = await client.createProject(input.teamId, {
+          title: input.title,
+          description: input.description,
+          integrationSource: KAIRO_INTEGRATION_SOURCE,
+          ...(input.estimatedHours !== undefined
+            ? { estimatedHours: input.estimatedHours }
+            : {}),
+        });
+        cardIds = [project.id];
+      }
+
+      await credentials.touchValidated(actingUserId);
+
+      const updated = await repo.markKairoSynced(id, {
+        kairoCardId: cardIds[0]!,
+        kairoCardIds: cardIds.join(', '),
+        kairoTeamId: input.teamId,
+        kairoSyncedByUserId: actingUserId,
+        kind,
       });
-      cardIds = [activity.id];
-    } else {
-      const { project } = await client.createProject(input.teamId, {
-        title: input.title,
-        description: input.description,
-        integrationSource: KAIRO_INTEGRATION_SOURCE,
-        ...(input.estimatedHours !== undefined
-          ? { estimatedHours: input.estimatedHours }
-          : {}),
-      });
-      cardIds = [project.id];
-    }
 
-    await credentials.touchValidated(actingUserId);
-
-    const updated = await repo.markKairoSynced(id, {
-      kairoCardId: cardIds[0]!,
-      kairoCardIds: cardIds.join(', '),
-      kairoTeamId: input.teamId,
-      kairoSyncedByUserId: actingUserId,
-      kind,
-    });
-
-    return mapSolicitation(updated);
+      return mapSolicitation(updated);
+    }, { timeout: 30_000 });
   }
 
   async syncFromKairo(id: string, actingUserId?: string) {
@@ -965,6 +1054,8 @@ export class SolicitationService {
     if (existing.status === $Enums.SolicitationStatus.DELETED) {
       return mapSolicitation(existing);
     }
+
+    if (existing.workflowStages.some((stage) => stage.stage === 'ENGENHARIA' && stage.status === 'REJECTED')) return mapSolicitation(existing);
 
     const linkedCardIds = listLinkedKairoCardIds(existing);
     if (linkedCardIds.length === 0 || !existing.kairoTeamId) {

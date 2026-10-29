@@ -22,7 +22,7 @@ type Team = {
   plan: string;
 };
 
-export function TeamSwitcher({ teams }: { teams: Team[] }) {
+export function TeamSwitcher({ teams, brand }: { teams: Team[]; brand?: React.ReactNode }) {
   const { isMobile } = useSidebar();
   const [activeTeam, setActiveTeam] = React.useState<Team | undefined>(
     () => teams[0],
@@ -56,13 +56,19 @@ export function TeamSwitcher({ teams }: { teams: Team[] }) {
               onMouseEnter={startHover}
               onMouseLeave={stopHover}
             >
-              <div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground'>
-                <current.logo ref={logoRef} size={16} className='shrink-0' />
-              </div>
-              <div className='grid flex-1 text-left text-sm leading-tight'>
-                <span className='truncate font-medium'>{current.name}</span>
-                <span className='truncate text-xs'>{current.plan}</span>
-              </div>
+              {brand ? (
+                <div className='pederflow-sidebar-brand'>{brand}</div>
+              ) : (
+                <>
+                  <div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground'>
+                    <current.logo ref={logoRef} size={16} className='shrink-0' />
+                  </div>
+                  <div className='grid flex-1 text-left text-sm leading-tight'>
+                    <span className='truncate font-medium'>{current.name}</span>
+                    <span className='truncate text-xs'>{current.plan}</span>
+                  </div>
+                </>
+              )}
               <ChevronsUpDownIcon
                 ref={chevronRef}
                 size={16}

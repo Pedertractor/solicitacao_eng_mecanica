@@ -1,28 +1,62 @@
-import { Cog } from 'lucide-react';
+import { ArrowUpRight, LockKeyhole } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
+import { FlowIllustration } from '@/components/flow-illustration';
 import { LoginForm } from '@/components/login-form';
-import { PlatformPageShell } from '@/components/platform-backdrop';
+import { PederflowBrand } from '@/components/pederflow-brand';
+import { ROUTES } from '@/routes/constants';
+import './login.css';
 
 export function LoginPage() {
   return (
-    <PlatformPageShell
-      className="h-svh items-center justify-center overflow-y-auto p-6 md:p-10"
-      contentClassName="w-full max-w-sm flex-col items-center justify-center gap-6"
-    >
-      <div className="flex w-full flex-col gap-6">
-        <a
-          href="/"
-          className="group flex items-center gap-3 self-center text-foreground transition-opacity hover:opacity-90"
-        >
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-shadow group-hover:shadow-md">
-            <Cog size={18} className="shrink-0" />
+    <main className='pederflow-login'>
+      <div className='login-shell'>
+        <header className='login-header'>
+          <Link to={ROUTES.LOGIN} className='login-brand-link' aria-label='Pederflow — início'>
+            <PederflowBrand />
+          </Link>
+          <div className='login-companies'>
+            <img
+              src='/pedertractor-tractorcomponents.svg'
+              alt='Pedertractor e Tractorcomponents'
+              width={562}
+              height={120}
+              className='login-companies-logo'
+            />
           </div>
-          <span className="text-lg font-bold tracking-tight">
-            Solicitação Pedertractor
-          </span>
-        </a>
-        <LoginForm />
+        </header>
+
+        <div className='login-body'>
+          <section className='login-story' aria-labelledby='login-story-title'>
+            <div className='login-story-copy'>
+              <p className='login-eyebrow login-eyebrow-light'><span />ÁREA DO COLABORADOR</p>
+              <h2 id='login-story-title'>Seu trabalho,<br />em um só fluxo.</h2>
+              <p className='login-story-description'>Pessoas, solicitações e processos.<br />Tudo conectado para ir mais longe.</p>
+            </div>
+
+            <div className='login-flow'>
+              <FlowIllustration />
+            </div>
+
+            <div className='login-story-footer'>
+              <div><span className='login-yellow-line' />CONECTANDO CADA ETAPA</div>
+              <span className='login-drawing-number'>PF / 01</span>
+            </div>
+          </section>
+
+          <section className='login-access' aria-label='Acesso à plataforma'>
+            <LoginForm />
+          </section>
+        </div>
+
+        <footer className='login-footer'>
+          <span><strong>Pederflow</strong><span className='login-footer-slash'>/</span>O próximo passo começa aqui.</span>
+          <span className='login-footer-security'><LockKeyhole size={12} aria-hidden='true' />Acesso exclusivo para colaboradores</span>
+        </footer>
       </div>
-    </PlatformPageShell>
+      <Link to={ROUTES.SOLICITACAO} className='login-public-link'>
+        Quer abrir uma solicitação? <span>Acesse por aqui <ArrowUpRight size={13} aria-hidden='true' /></span>
+      </Link>
+    </main>
   );
 }

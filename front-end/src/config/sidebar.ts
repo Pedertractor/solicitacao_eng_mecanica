@@ -8,6 +8,7 @@ import {
   ChartBarIncreasingIcon,
   GitBranchIcon,
   LayoutGridIcon,
+  FlaskIcon,
   RouteIcon,
   UsersIcon,
 } from 'lucide-animated';
@@ -48,6 +49,7 @@ export const SIDEBAR_NAV_ITEMS: SidebarNavItem[] = [
   { path: ROUTES.SOLICITACOES, label: 'Solicitações', icon: LayoutGridIcon },
   { path: ROUTES.INDICADORES, label: 'Indicadores', icon: ChartBarIncreasingIcon },
   { path: ROUTES.WORKFLOW, label: 'Comercial', icon: GitBranchIcon },
+  { path: ROUTES.AMOSTRAS_PROTOTIPOS, label: 'Amostras e protótipos', icon: FlaskIcon },
   { path: ROUTES.RASTREIO, label: 'Rastreio', icon: RouteIcon },
   { path: ROUTES.USUARIOS, label: 'Usuários', icon: UsersIcon },
 ];

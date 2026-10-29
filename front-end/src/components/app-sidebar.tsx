@@ -4,6 +4,7 @@ import { CogIcon } from 'lucide-animated';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { TeamSwitcher } from '@/components/team-switcher';
+import { PederflowBrand } from '@/components/pederflow-brand';
 import {
   Sidebar,
   SidebarContent,
@@ -15,7 +16,7 @@ import { useAuth } from '@/contexts/useAuth';
 import { getSidebarNavItemsForRole } from '@/config/roleAccess';
 import { roleLabel } from '@/utils/roles';
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ branded = false, ...props }: React.ComponentProps<typeof Sidebar> & { branded?: boolean }) {
   const { user } = useAuth();
 
   const navItems = user
@@ -48,9 +49,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar collapsible='icon' {...props}>
       <SidebarHeader>
         <TeamSwitcher
+          brand={branded ? <PederflowBrand caption={displayRole} /> : undefined}
           teams={[
             {
-              name: 'Solicitação Pedertractor',
+              name: 'Pederflow',
               logo: CogIcon,
               plan: displayRole,
             },

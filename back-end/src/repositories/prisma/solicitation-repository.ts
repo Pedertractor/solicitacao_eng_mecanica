@@ -45,6 +45,8 @@ export class SolicitationPrismaRepository {
     partNumbers?: string | null;
     fileLink?: string | null;
     requiresTooling?: boolean;
+    executionUnit?: $Enums.Unit | null;
+    directTooling?: boolean;
   }): Promise<SolicitationWithWorkflow> {
     let lastError: unknown;
 
@@ -180,6 +182,25 @@ export class SolicitationPrismaRepository {
     });
 
     return stages.map((stage) => stage.solicitation);
+  }
+
+  async findProductionTracking(scope: Prisma.SolicitationWhereInput): Promise<SolicitationWithWorkflow[]> {
+    return this.prisma.solicitation.findMany({
+      where: {
+        AND: [scope, {
+          department: 'DESENVOLVIMENTO_PROCESSOS',
+          processInstructionRequester: 'Comercial',
+          status: { notIn: ['COMPLETED', 'CANCELLED', 'DELETED'] },
+          workflowStages: { some: { status: { in: ['PENDING', 'READY', 'IN_PROGRESS'] } } },
+          OR: [
+            { processInstructionType: { in: ['Desenvolvimento Amostra', 'Desenvolvimento Protótipo'] } },
+            { processInstructionType: null, productType: { in: ['AMOSTRA', 'PROTOTIPO'] } },
+          ],
+        }],
+      },
+      include: workflowStagesInclude,
+      orderBy: [{ deliveryDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+    });
   }
 
   async findById(id: string): Promise<SolicitationWithWorkflow | null> {
@@ -353,7 +374,7 @@ export class SolicitationPrismaRepository {
           workflowStages: {
             some: {
               stage: $Enums.WorkflowStage.ENGENHARIA,
-              status: $Enums.WorkflowStageStatus.DONE,
+              status: { in: ['DONE', 'REJECTED'] },
             },
           },
         },

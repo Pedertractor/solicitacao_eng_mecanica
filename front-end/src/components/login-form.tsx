@@ -1,23 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Eye, EyeOff, Fingerprint, Loader2, LockKeyhole } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/useAuth';
 import { ROUTES } from '@/routes/constants';
@@ -29,7 +16,54 @@ import {
   displayCardNumber,
   parseCardNumberInput,
 } from '@/utils/card-number-input';
-import { publicSolicitationCardClass } from '@/pages/Solicitacao/PublicSolicitationShell';
+
+type PasswordFieldProps = {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  visible: boolean;
+  autoComplete: string;
+  onChange: (value: string) => void;
+  onToggle: () => void;
+  onKey: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  onBlur: (event: React.FocusEvent<HTMLInputElement>) => void;
+};
+
+function PasswordField({ id, label, placeholder, value, visible, autoComplete, onChange, onToggle, onKey, onBlur }: PasswordFieldProps) {
+  return (
+    <div className='login-field'>
+      <label htmlFor={id}>{label}</label>
+      <div className='login-input-wrap'>
+        <LockKeyhole className='login-input-icon' size={16} aria-hidden='true' />
+        <Input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={onKey}
+          onKeyUp={onKey}
+          onBlur={onBlur}
+          className='login-input login-password-input hide-native-password-reveal'
+          required
+        />
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon-sm'
+          className='login-password-toggle'
+          onClick={onToggle}
+          aria-controls={id}
+          aria-label={visible ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`}
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function LoginForm({
   className,
@@ -117,199 +151,108 @@ export function LoginForm({
   }
 
   return (
-    <div className={cn('flex flex-col gap-6', className)} {...props}>
-      <Card className={publicSolicitationCardClass}>
-        {mustChangePassword ? (
-          <>
-            <CardHeader className='text-center'>
-              <CardTitle className='text-xl'>Alterar senha</CardTitle>
-              <CardDescription>
-                Defina uma nova senha para continuar
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleChangePasswordSubmit}>
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor='newPassword'>Nova senha</FieldLabel>
-                    <div className='relative'>
-                      <Input
-                        id='newPassword'
-                        type={showNewPassword ? 'text' : 'password'}
-                        autoComplete='new-password'
-                        placeholder='Mínimo 6 caracteres'
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        onKeyDown={syncCapsLockFromEvent}
-                        onKeyUp={syncCapsLockFromEvent}
-                        onBlur={(e) =>
-                          handlePasswordBlur(e, ['confirmPassword'])
-                        }
-                        className='hide-native-password-reveal pr-9'
-                        required
-                      />
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='icon-sm'
-                        className='absolute inset-y-0 right-0 h-full'
-                        onClick={() => setShowNewPassword((p) => !p)}
-                        aria-label={
-                          showNewPassword ? 'Ocultar senha' : 'Mostrar senha'
-                        }
-                      >
-                        {showNewPassword ? <EyeOff /> : <Eye />}
-                      </Button>
-                    </div>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor='confirmPassword'>
-                      Confirmar nova senha
-                    </FieldLabel>
-                    <div className='relative'>
-                      <Input
-                        id='confirmPassword'
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        autoComplete='new-password'
-                        placeholder='Repita a nova senha'
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        onKeyDown={syncCapsLockFromEvent}
-                        onKeyUp={syncCapsLockFromEvent}
-                        onBlur={(e) => handlePasswordBlur(e, ['newPassword'])}
-                        className='hide-native-password-reveal pr-9'
-                        required
-                      />
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='icon-sm'
-                        className='absolute inset-y-0 right-0 h-full'
-                        onClick={() => setShowConfirmPassword((p) => !p)}
-                        aria-label={
-                          showConfirmPassword
-                            ? 'Ocultar senha'
-                            : 'Mostrar senha'
-                        }
-                      >
-                        {showConfirmPassword ? <EyeOff /> : <Eye />}
-                      </Button>
-                    </div>
-                  </Field>
-                  {capsLockOn ? (
-                    <FieldDescription>Caps Lock está ativo</FieldDescription>
-                  ) : null}
-                  <Field>
-                    <Button type='submit' disabled={isLoading}>
-                      {isLoading ? 'Salvando...' : 'Alterar senha'}
-                    </Button>
-                  </Field>
-                </FieldGroup>
-              </form>
-            </CardContent>
-          </>
-        ) : (
-          <>
-            <CardHeader className='text-center'>
-              <CardTitle className='text-xl'>Bem-vindo</CardTitle>
-              <CardDescription>
-                Acesse com seu cartão e unidade
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit}>
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor='card'>Nº do cartão</FieldLabel>
-                    <Input
-                      id='card'
-                      type='text'
-                      inputMode='numeric'
-                      autoComplete='username'
-                      placeholder='Cartão corporativo'
-                      value={displayCardNumber(cardNumber)}
-                      onChange={(e) =>
-                        setCardNumber(parseCardNumberInput(e.target.value))
-                      }
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel id='unit-label'>Unidade</FieldLabel>
-                    <div
-                      className='flex gap-1.5'
-                      role='group'
-                      aria-labelledby='unit-label'
-                    >
-                      {UNIT.map((u) => (
-                        <Button
-                          key={u}
-                          type='button'
-                          size='sm'
-                          variant={unit === u ? 'default' : 'outline'}
-                          className='h-8 flex-1 px-2 text-xs font-medium'
-                          aria-pressed={unit === u}
-                          onClick={() => setUnit(u)}
-                        >
-                          {u}
-                        </Button>
-                      ))}
-                    </div>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor='password'>Senha</FieldLabel>
-                    <div className='relative'>
-                      <Input
-                        id='password'
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete='current-password'
-                        placeholder='••••••••'
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onKeyDown={syncCapsLockFromEvent}
-                        onKeyUp={syncCapsLockFromEvent}
-                        onBlur={() => setCapsLockOn(false)}
-                        className='hide-native-password-reveal pr-9'
-                        required
-                      />
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='icon-sm'
-                        className='absolute inset-y-0 right-0 h-full'
-                        onClick={() => setShowPassword((p) => !p)}
-                        aria-label={
-                          showPassword ? 'Ocultar senha' : 'Mostrar senha'
-                        }
-                      >
-                        {showPassword ? <EyeOff /> : <Eye />}
-                      </Button>
-                    </div>
-                    {capsLockOn ? (
-                      <FieldDescription>Caps Lock está ativo</FieldDescription>
-                    ) : null}
-                  </Field>
-                  <Field>
-                    <Button type='submit' disabled={isLoading}>
-                      {isLoading ? 'Entrando...' : 'Entrar'}
-                    </Button>
-                  </Field>
-                  <Field>
-                    <FieldDescription className='text-center'>
-                      <Link
-                        to={ROUTES.CADASTRO}
-                        className='underline-offset-4 hover:underline'
-                      >
-                        Cadastrar
-                      </Link>
-                    </FieldDescription>
-                  </Field>
-                </FieldGroup>
-              </form>
-            </CardContent>
-          </>
-        )}
-      </Card>
+    <div className={cn('login-form-content', className)} {...props}>
+      <div className='login-form-heading'>
+        <p className='login-eyebrow'>{mustChangePassword ? 'PRIMEIRO ACESSO' : 'SEU ACESSO'}</p>
+        <h1>{mustChangePassword ? 'Sua nova senha.' : 'Bem-vindo.'}</h1>
+        <p>{mustChangePassword ? 'Defina uma nova senha para continuar com segurança.' : 'Entre com seus dados para continuar.'}</p>
+      </div>
+
+      <form onSubmit={mustChangePassword ? handleChangePasswordSubmit : handleSubmit} aria-busy={isLoading}>
+        <fieldset className='login-fields' disabled={isLoading}>
+          <legend className='sr-only'>{mustChangePassword ? 'Alterar senha de acesso' : 'Dados de acesso'}</legend>
+          {mustChangePassword ? (
+            <>
+              <PasswordField
+                id='newPassword'
+                label='Nova senha'
+                placeholder='Mínimo 6 caracteres'
+                value={newPassword}
+                visible={showNewPassword}
+                autoComplete='new-password'
+                onChange={setNewPassword}
+                onToggle={() => setShowNewPassword((previous) => !previous)}
+                onKey={syncCapsLockFromEvent}
+                onBlur={(event) => handlePasswordBlur(event, ['confirmPassword'])}
+              />
+              <PasswordField
+                id='confirmPassword'
+                label='Confirmar nova senha'
+                placeholder='Repita sua nova senha'
+                value={confirmPassword}
+                visible={showConfirmPassword}
+                autoComplete='new-password'
+                onChange={setConfirmPassword}
+                onToggle={() => setShowConfirmPassword((previous) => !previous)}
+                onKey={syncCapsLockFromEvent}
+                onBlur={(event) => handlePasswordBlur(event, ['newPassword'])}
+              />
+            </>
+          ) : (
+            <>
+              <div className='login-field'>
+                <label htmlFor='card'>Número do crachá</label>
+                <div className='login-input-wrap'>
+                  <Fingerprint className='login-input-icon' size={17} aria-hidden='true' />
+                  <Input
+                    id='card'
+                    type='text'
+                    inputMode='numeric'
+                    autoComplete='username'
+                    placeholder='Ex.: 2282'
+                    value={displayCardNumber(cardNumber)}
+                    onChange={(event) => setCardNumber(parseCardNumberInput(event.target.value))}
+                    className='login-input'
+                    required
+                  />
+                </div>
+              </div>
+
+              <fieldset className='login-unit-field'>
+                <legend>Sua unidade</legend>
+                <div className='login-unit-options'>
+                  {UNIT.map((item) => (
+                    <label key={item} className='login-unit-option'>
+                      <input type='radio' name='unit' value={item} checked={unit === item} onChange={() => setUnit(item)} required />
+                      <span>{item === 'PEDERTRACTOR' ? 'Pedertractor' : 'Tractor'}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <PasswordField
+                id='password'
+                label='Senha'
+                placeholder='Sua senha pessoal'
+                value={password}
+                visible={showPassword}
+                autoComplete='current-password'
+                onChange={setPassword}
+                onToggle={() => setShowPassword((previous) => !previous)}
+                onKey={syncCapsLockFromEvent}
+                onBlur={() => setCapsLockOn(false)}
+              />
+            </>
+          )}
+          {capsLockOn ? <p className='login-caps-warning' role='status'>Caps Lock está ativo.</p> : null}
+          <Button type='submit' className='login-submit' disabled={isLoading}>
+            {isLoading ? (mustChangePassword ? 'Salvando...' : 'Entrando...') : (mustChangePassword ? 'Salvar nova senha' : 'Entrar')}
+            {isLoading ? <Loader2 size={17} className='animate-spin motion-reduce:animate-none' aria-hidden='true' /> : <ArrowRight size={17} aria-hidden='true' />}
+          </Button>
+        </fieldset>
+      </form>
+
+      {mustChangePassword ? (
+        <p className='login-first-access'>Escolha uma senha pessoal e mantenha seus dados protegidos.</p>
+      ) : (
+        <>
+          <p className='login-first-access'><strong>Acesso criado pelo administrador?</strong><br />Use seu crachá como senha inicial.<br />Você poderá definir uma nova senha ao entrar.</p>
+          <div className='login-register'>
+            <span>Ainda não tem acesso?</span>
+            <Link to={ROUTES.CADASTRO}>Solicitar cadastro <ArrowUpRight size={14} aria-hidden='true' /></Link>
+          </div>
+        </>
+      )}
     </div>
   );
 }

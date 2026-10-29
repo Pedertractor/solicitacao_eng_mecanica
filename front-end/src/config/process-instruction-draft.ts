@@ -1,4 +1,5 @@
 import type { SolicitationClient } from '@/services/solicitation';
+import type { Unit } from '@/types/auth';
 
 export type ProcessInstructionDraft = {
   requester: string;
@@ -10,6 +11,8 @@ export type ProcessInstructionDraft = {
   fileLink: string;
   comments: string;
   requiresTooling: boolean;
+  executionUnit: Unit | '';
+  directTooling: boolean;
 };
 
 export function emptyProcessInstructionDraft(): ProcessInstructionDraft {
@@ -23,5 +26,7 @@ export function emptyProcessInstructionDraft(): ProcessInstructionDraft {
     fileLink: '',
     comments: '',
     requiresTooling: false,
+    executionUnit: '',
+    directTooling: false,
   };
 }

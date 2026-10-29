@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
-  findSolicitations: vi.fn(), findStages: vi.fn(), sync: vi.fn(), tooling: vi.fn(), sample: vi.fn(),
+  findSolicitations: vi.fn(), findStages: vi.fn(), sync: vi.fn(), tooling: vi.fn(), sample: vi.fn(), pcp: vi.fn(), quality: vi.fn(),
 }));
 vi.mock('../lib/prisma.js', () => ({ prisma: {
   solicitation: { findMany: mocks.findSolicitations }, solicitationWorkflowStage: { findMany: mocks.findStages },
@@ -8,6 +8,7 @@ vi.mock('../lib/prisma.js', () => ({ prisma: {
 vi.mock('./solicitation-service.js', () => ({ SolicitationService: class { syncFromKairo = mocks.sync; } }));
 vi.mock('./workflow-service.js', () => ({ WorkflowService: class {
   syncToolingFromKairo = mocks.tooling; syncSampleFromKairo = mocks.sample;
+  syncPcpFromKairo = mocks.pcp; syncQualityFromKairo = mocks.quality;
 } }));
 import { syncKairoWebhookCard } from './kairo-webhook-service.js';
 
@@ -17,6 +18,19 @@ beforeEach(() => {
   mocks.findStages.mockResolvedValue([]);
 });
 describe('targeted Kairo synchronization', () => {
+  it('routes PPAP activities to Quality synchronization', async () => {
+    mocks.findStages.mockResolvedValue([{ solicitationId: 'quality', stage: 'QUALIDADE', kairoCardIds: 'card-1' }]);
+    expect(await syncKairoWebhookCard('team', 'card-1')).toEqual({ synced: 1 });
+    expect(mocks.quality).toHaveBeenCalledWith('quality');
+  });
+  it('routes each PCP card to its own handoff', async () => {
+    mocks.findStages.mockResolvedValue([
+      { solicitationId: 'pcp', stage: 'PCP_FERRAMENTARIA', kairoCardIds: 'card-1' },
+      { solicitationId: 'pcp', stage: 'PCP_AMOSTRA', kairoCardIds: 'card-1' },
+    ]);
+    expect(await syncKairoWebhookCard('team', 'card-1')).toEqual({ synced: 2 });
+    expect(mocks.pcp.mock.calls).toEqual([['pcp', 'PCP_FERRAMENTARIA'], ['pcp', 'PCP_AMOSTRA']]);
+  });
   it('matches legacy and comma-separated engineering IDs exactly', async () => {
     mocks.findSolicitations.mockResolvedValue([
       { id: 'engineering', kairoCardId: null, kairoCardIds: 'other, card-1' },

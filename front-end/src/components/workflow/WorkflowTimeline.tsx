@@ -1,8 +1,9 @@
 import { Fragment } from 'react';
-import { Check, ChevronRight, Compass, FlaskConical, Wrench, X } from 'lucide-react';
+import { Check, ChevronRight, ChevronDown, ClipboardList, Compass, FlaskConical, ShieldCheck, Wrench, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { workflowPrerequisites } from '@/lib/workflow';
 import type {
   SolicitationWorkflow,
   WorkflowStageItem,
@@ -23,7 +24,10 @@ type TimelineStepState =
 
 const STAGE_ICONS: Record<WorkflowStageKind, typeof Compass> = {
   ENGENHARIA: Compass,
+  PCP_FERRAMENTARIA: ClipboardList,
   FERRAMENTARIA: Wrench,
+  PCP_AMOSTRA: ClipboardList,
+  QUALIDADE: ShieldCheck,
   AMOSTRA: FlaskConical,
 };
 
@@ -38,7 +42,7 @@ function formatDate(value: string | null) {
 
 function isLate(stage: WorkflowStageItem) {
   if (!stage.plannedEndAt) return false;
-  if (stage.status === 'DONE' || stage.status === 'CANCELLED') return false;
+  if (stage.status === 'DONE' || ['CANCELLED', 'REJECTED'].includes(stage.status)) return false;
   return new Date(stage.plannedEndAt).getTime() < Date.now();
 }
 
@@ -56,15 +60,15 @@ function formatShare(value: string | null): {
   return { label: `${label}%`, amount: bounded };
 }
 
-function displayStatus(stage: WorkflowStageItem, stages: WorkflowStageItem[]): {
+function displayStatus(stage: WorkflowStageItem, workflow: SolicitationWorkflow): {
   label: string;
   state: TimelineStepState;
 } {
   if (stage.status === 'DONE') {
     return { label: WORKFLOW_STAGE_STATUS_LABELS.DONE, state: 'completed' };
   }
-  if (stage.status === 'CANCELLED') {
-    return { label: WORKFLOW_STAGE_STATUS_LABELS.CANCELLED, state: 'cancelled' };
+  if (['CANCELLED', 'REJECTED'].includes(stage.status)) {
+    return { label: WORKFLOW_STAGE_STATUS_LABELS[stage.status], state: 'cancelled' };
   }
   if (stage.status === 'IN_PROGRESS') {
     return {
@@ -76,31 +80,13 @@ function displayStatus(stage: WorkflowStageItem, stages: WorkflowStageItem[]): {
     return { label: WORKFLOW_STAGE_STATUS_LABELS.READY, state: 'current' };
   }
 
-  const eng = stages.find((item) => item.stage === 'ENGENHARIA');
-  const tooling = stages.find((item) => item.stage === 'FERRAMENTARIA');
-
-  if (stage.stage === 'FERRAMENTARIA' && stage.status === 'PENDING') {
-    if (eng?.status === 'DONE') {
-      return { label: 'Aguardando Ferramentaria', state: 'waiting' };
-    }
-    return { label: 'Aguardando Engenharia', state: 'upcoming' };
-  }
-
-  if (stage.stage === 'AMOSTRA' && stage.status === 'PENDING') {
-    if (tooling && tooling.status !== 'DONE' && tooling.status !== 'CANCELLED') {
-      return { label: 'Aguardando Ferramentaria', state: 'upcoming' };
-    }
-    if (eng && eng.status !== 'DONE' && eng.status !== 'CANCELLED') {
-      return { label: 'Aguardando Engenharia', state: 'upcoming' };
-    }
-    return { label: 'Aguardando Amostra', state: 'waiting' };
-  }
-
-  if (stage.status === 'PENDING') {
-    return { label: WORKFLOW_STAGE_STATUS_LABELS.PENDING, state: 'current' };
-  }
-
-  return { label: WORKFLOW_STAGE_STATUS_LABELS.PENDING, state: 'upcoming' };
+  const pending = workflowPrerequisites(workflow, stage.stage).filter((dependency) =>
+    !workflow.stages.some((item) => item.stage === dependency && ['DONE', 'REJECTED'].includes(item.status)));
+  if (pending.length) return {
+    label: `Aguardando ${pending.map((dependency) => WORKFLOW_STAGE_LABELS[dependency]).join(', ')}`,
+    state: 'upcoming',
+  };
+  return { label: WORKFLOW_STAGE_STATUS_LABELS.PENDING, state: 'current' };
 }
 
 function panelTone(state: TimelineStepState, late: boolean) {
@@ -184,19 +170,18 @@ export function WorkflowTimeline({
 }) {
   const stages = [...workflow.stages].sort((a, b) => a.order - b.order);
 
-  return (
-    <div className={cn('@container w-full', className)}>
+  const renderStages = (items: WorkflowStageItem[]) => (
       <div
         className='flex flex-col gap-2 @xl:flex-row @xl:items-stretch @xl:gap-0'
         role='list'
       >
-        {stages.map((stage, index) => {
+        {items.map((stage, index) => {
           const Icon = STAGE_ICONS[stage.stage];
-          const { label, state } = displayStatus(stage, stages);
+          const { label, state } = displayStatus(stage, workflow);
           const late = isLate(stage);
           const due = formatDate(stage.plannedEndAt);
           const share = formatShare(stage.plannedDurationPercentage);
-          const isLast = index === stages.length - 1;
+          const isLast = index === items.length - 1;
           const isFocus = state === 'current' || state === 'waiting';
 
           return (
@@ -236,6 +221,12 @@ export function WorkflowTimeline({
                 >
                   {late ? `Atrasada · ${label}` : label}
                 </p>
+                {stage.status === 'REJECTED' ? (
+                  <div className='mt-2 space-y-1 text-xs'>
+                    <p className='whitespace-pre-wrap break-words'>{stage.rejectionReason}</p>
+                    <p className='text-muted-foreground'>{stage.rejectedByName || stage.rejectedByUserId} · {stage.rejectedAt ? new Date(stage.rejectedAt).toLocaleString('pt-BR') : ''}</p>
+                  </div>
+                ) : null}
                 {due || share ? (
                   <>
                     <div className='min-h-3 flex-1' aria-hidden />
@@ -290,6 +281,53 @@ export function WorkflowTimeline({
           );
         })}
       </div>
+  );
+  if (workflow.kind === 'COMMERCIAL_SIMULATION') {
+    return <div className={cn('@container w-full space-y-3', className)}>
+      {stages.length > 1 && <p className='text-xs font-medium text-muted-foreground'>Em paralelo</p>}
+      {stages.map((stage) => <div key={stage.id}>{renderStages([stage])}</div>)}
+    </div>;
+  }
+  const parallel = workflow.requiresTooling && stages.some((stage) => stage.stage === 'PCP_FERRAMENTARIA')
+    && stages.some((stage) => stage.stage === 'ENGENHARIA');
+  const quality = stages.filter((stage) => stage.stage === 'QUALIDADE');
+  const upstream = stages.filter((stage) => !['QUALIDADE', 'AMOSTRA'].includes(stage.stage));
+  const renderUpstream = () => parallel ? (
+    <div className='space-y-3 rounded-xl border border-dashed p-3'>
+      <p className='text-xs font-medium text-muted-foreground'>Em paralelo</p>
+      {renderStages(upstream.filter((stage) => stage.stage === 'ENGENHARIA'))}
+      {renderStages(upstream.filter((stage) => stage.stage !== 'ENGENHARIA'))}
+    </div>
+  ) : renderStages(upstream);
+  return (
+    <div className={cn('@container w-full', className)}>
+      {quality.length > 0 ? (
+        <div className='space-y-3'>
+          {renderUpstream()}
+          <div className='space-y-2 rounded-xl border border-dashed p-3'>
+            <p className='text-xs font-medium text-muted-foreground'>Frente independente · Disponível desde a criação</p>
+            {renderStages(quality)}
+          </div>
+          <div className='flex items-center justify-center gap-2 text-xs text-muted-foreground'>
+            <ChevronDown className='size-4' aria-hidden />
+            Amostra após concluir ou recusar as etapas anteriores, incluindo Qualidade · PPAP
+          </div>
+          {renderStages(stages.filter((stage) => stage.stage === 'AMOSTRA'))}
+        </div>
+      ) : parallel ? (
+        <div className='space-y-3'>
+          <div className='space-y-3 rounded-xl border border-dashed p-3'>
+            <p className='text-xs font-medium text-muted-foreground'>Em paralelo</p>
+            {renderStages(stages.filter((stage) => stage.stage === 'ENGENHARIA'))}
+            {renderStages(stages.filter((stage) => !['ENGENHARIA', 'AMOSTRA'].includes(stage.stage)))}
+          </div>
+          <div className='flex items-center justify-center gap-2 text-xs text-muted-foreground'>
+            <ChevronDown className='size-4' aria-hidden />
+            Após concluir as duas frentes
+          </div>
+          {renderStages(stages.filter((stage) => stage.stage === 'AMOSTRA'))}
+        </div>
+      ) : renderStages(stages)}
     </div>
   );
 }

@@ -5,6 +5,7 @@ export const ROLE_BASE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Administrador',
   SUPER_ADMIN: 'Super admin',
   COMERCIAL: 'Comercial',
+  PCP: 'PCP',
 };
 
 /** @deprecated Prefer roleLabel(role, department) */
@@ -14,6 +15,7 @@ export const DEPARTMENT_LABELS: Record<UserDepartment, string> = {
   ENG_MECANICA: 'Engenharia Mecânica',
   DESENVOLVIMENTO_PROCESSOS: 'Desenvolvimento de Processos',
   FERRAMENTARIA: 'Ferramentaria',
+  QUALIDADE: 'Qualidade',
   AMOSTRA: 'Amostra',
 };
 
@@ -27,6 +29,7 @@ const ADMIN_DEPARTMENT_LABELS: Partial<Record<UserDepartment, string>> = {
   ENG_MECANICA: 'Adm. Engenharia',
   DESENVOLVIMENTO_PROCESSOS: 'Adm. Processos',
   FERRAMENTARIA: 'Adm. Ferramentaria',
+  QUALIDADE: 'Adm. Qualidade',
   AMOSTRA: 'Adm. Amostra',
 };
 

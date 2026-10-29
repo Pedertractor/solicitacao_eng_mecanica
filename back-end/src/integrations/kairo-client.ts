@@ -192,6 +192,20 @@ export class KairoClient {
     );
   }
 
+  async cancelActivity(teamId: string, activityId: string) {
+    return kairoFetch<{ activity: KairoActivity }>(
+      `/integrations/v1/teams/${encodeURIComponent(teamId)}/activities/${encodeURIComponent(activityId)}/cancel`,
+      this.apiKey, { method: 'POST', signal: AbortSignal.timeout(10_000) },
+    );
+  }
+
+  async cancelProject(teamId: string, projectId: string) {
+    return kairoFetch<{ project: KairoProject }>(
+      `/integrations/v1/teams/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(projectId)}/cancel`,
+      this.apiKey, { method: 'POST', signal: AbortSignal.timeout(10_000) },
+    );
+  }
+
   async deleteActivity(teamId: string, activityId: string) {
     return kairoFetch<{ activity: KairoActivity }>(
       `/integrations/v1/teams/${encodeURIComponent(teamId)}/activities/${encodeURIComponent(activityId)}`,

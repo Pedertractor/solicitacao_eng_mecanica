@@ -216,6 +216,7 @@ export class UserService {
           in: [
             $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
             $Enums.UserDepartment.FERRAMENTARIA,
+            $Enums.UserDepartment.QUALIDADE,
             $Enums.UserDepartment.AMOSTRA,
           ],
         },
@@ -452,7 +453,7 @@ export class UserService {
     if (role === $Enums.UserRole.SUPER_ADMIN) {
       return null;
     }
-    if (role === $Enums.UserRole.COMERCIAL) {
+    if (role === $Enums.UserRole.COMERCIAL || role === $Enums.UserRole.PCP) {
       return $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS;
     }
     if (role === $Enums.UserRole.ADMIN) {
@@ -533,11 +534,11 @@ export class UserService {
       throw new HttpError('Informe o departamento', 400);
     }
     if (
-      role === $Enums.UserRole.COMERCIAL &&
+      (role === $Enums.UserRole.COMERCIAL || role === $Enums.UserRole.PCP) &&
       department !== $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS
     ) {
       throw new HttpError(
-        'Comercial precisa do departamento de desenvolvimento de processos',
+        'Comercial e PCP precisam do departamento de desenvolvimento de processos',
         400,
       );
     }
@@ -546,6 +547,7 @@ export class UserService {
         $Enums.UserDepartment.ENG_MECANICA,
         $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
         $Enums.UserDepartment.FERRAMENTARIA,
+        $Enums.UserDepartment.QUALIDADE,
         $Enums.UserDepartment.AMOSTRA,
       ];
       if (!allowed.includes(department)) {

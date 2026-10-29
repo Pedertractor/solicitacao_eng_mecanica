@@ -173,7 +173,9 @@ export function PublicSolicitationTrackPage() {
               <CardContent className='min-w-0 max-w-full space-y-4 overflow-x-hidden py-4'>
                 <div className='grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2'>
                   <Field label='Solicitante' value={query.data.requesterName} />
-                  <Field label='Unidade' value={UNIT_LABELS[query.data.unit]} />
+                  {query.data.department === 'ENG_MECANICA' && query.data.processInstructionRequester && <Field label='Departamento solicitante' value={query.data.processInstructionRequester} />}
+                  <Field label='Unidade do solicitante' value={UNIT_LABELS[query.data.unit]} />
+                  {query.data.executionUnit && <Field label='Unidade de execução' value={query.data.executionUnit} />}
                   <Field label='Setor' value={query.data.sectorName} />
                   <Field
                     label='Pilar / local'
@@ -193,16 +195,16 @@ export function PublicSolicitationTrackPage() {
                   />
                 </div>
 
-                {query.data.department === 'DESENVOLVIMENTO_PROCESSOS' ? (
+                {query.data.department === 'DESENVOLVIMENTO_PROCESSOS' || query.data.department === 'FERRAMENTARIA' ? (
                   <div className='grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2'>
                     <Field
                       label='Área solicitante'
                       value={query.data.processInstructionRequester ?? '—'}
                     />
-                    <Field
+                      {query.data.department !== 'FERRAMENTARIA' && <Field
                       label='Processo'
                       value={query.data.processInstructionProcess ?? '—'}
-                    />
+                      />}
                     <Field
                       label='Tipo'
                       value={query.data.processInstructionType ?? '—'}

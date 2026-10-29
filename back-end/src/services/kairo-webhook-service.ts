@@ -29,11 +29,17 @@ export async function syncKairoWebhookCard(teamId: string, cardId: string) {
   }
   for (const item of stages) {
     if (!hasLinkedKairoCard(item.kairoCardIds, cardId)) continue;
-    if (item.stage === 'FERRAMENTARIA') {
+    if (item.stage === 'QUALIDADE') {
+      await workflow.syncQualityFromKairo(item.solicitationId);
+      synced += 1;
+    } else if (item.stage === 'FERRAMENTARIA') {
       await workflow.syncToolingFromKairo(item.solicitationId);
       synced += 1;
     } else if (item.stage === 'AMOSTRA') {
       await workflow.syncSampleFromKairo(item.solicitationId);
+      synced += 1;
+    } else if (item.stage === 'PCP_FERRAMENTARIA' || item.stage === 'PCP_AMOSTRA') {
+      await workflow.syncPcpFromKairo(item.solicitationId, item.stage);
       synced += 1;
     }
   }

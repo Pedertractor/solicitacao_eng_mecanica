@@ -63,12 +63,14 @@ export type SolicitationPriority =
 
 export type SolicitationKind = 'PROJETO' | 'ATIVIDADE';
 
-export type WorkflowStageKind = 'ENGENHARIA' | 'FERRAMENTARIA' | 'AMOSTRA';
+export type PcpStageKind = 'PCP_FERRAMENTARIA' | 'PCP_AMOSTRA';
+export type WorkflowStageKind = 'ENGENHARIA' | PcpStageKind | 'FERRAMENTARIA' | 'QUALIDADE' | 'AMOSTRA';
 
 export type WorkflowStageStatus =
   | 'PENDING'
   | 'READY'
   | 'IN_PROGRESS'
+  | 'REJECTED'
   | 'DONE'
   | 'CANCELLED';
 
@@ -86,10 +88,15 @@ export interface WorkflowStageItem {
   kairoCardIds: string | null;
   kairoSyncedAt: string | null;
   kairoSyncedByUserId: string | null;
+  rejectionReason?: string | null;
+  rejectedAt?: string | null;
+  rejectedByUserId?: string | null;
+  rejectedByName?: string | null;
   completedByUserId: string | null;
 }
 
 export interface SolicitationWorkflow {
+  kind?: 'COMMERCIAL_SIMULATION' | 'COMMERCIAL_DIRECT_TOOLING' | 'STANDARD';
   requiresTooling: boolean;
   stages: WorkflowStageItem[];
 }
@@ -100,9 +107,12 @@ export interface WorkflowSummaryStage {
   inProgress: number;
   waiting: number;
   done: number;
+  rejected: number;
 }
 
 export interface Solicitation {
+  executionUnit: Unit | null;
+  directTooling: boolean;
   id: string;
   trackingCode: string;
   employeeId: string;
@@ -150,6 +160,8 @@ export interface Solicitation {
 }
 
 export interface PublicSolicitationTicket {
+  executionUnit: Unit | null;
+  directTooling: boolean;
   trackingCode: string;
   status: SolicitationStatus;
   title: string;
@@ -207,7 +219,18 @@ type CreateSolicitationBase = {
 
 export type CreateSolicitationPayload =
   | (CreateSolicitationBase & {
+      department: 'FERRAMENTARIA';
+      processInstructionRequester: 'Comercial';
+      processInstructionType: 'Simulação Comercial';
+      executionUnit: Unit;
+      client: SolicitationClient;
+      partNumbers?: string;
+      fileLink?: string;
+      comments?: string;
+    })
+  | (CreateSolicitationBase & {
       department: 'ENG_MECANICA';
+      processInstructionRequester?: string;
       title: string;
       description: string;
     })
@@ -222,6 +245,8 @@ export type CreateSolicitationPayload =
       fileLink?: string;
       comments?: string;
       requiresTooling?: boolean;
+      executionUnit?: Unit;
+      directTooling?: boolean;
     });
 
 export interface UpdateSolicitationReviewPayload {
@@ -285,6 +310,16 @@ export interface ProcessCharts {
 }
 
 export const solicitationApi = {
+  async productionTracking(): Promise<{ solicitations: Solicitation[] }> {
+    const { data } = await api.get<{ solicitations: Solicitation[] }>(`${BASE}/workflow/production-tracking`);
+    return data;
+  },
+  async declineStage(id: string, stage: WorkflowStageKind, reason: string) {
+    const { data } = await api.post<{ solicitation: Solicitation; warnings: string[] }>(
+      `${BASE}/${id}/workflow/${stage}/decline`, { reason }, { skipErrorToast: true },
+    );
+    return data;
+  },
   async processCharts(
     teamId: string,
     period: ProcessChartPeriod,
@@ -358,6 +393,22 @@ export const solicitationApi = {
       `${BASE}/workflow/summary`,
     );
     return data;
+  },
+
+  async addTooling(id: string): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(`${BASE}/${id}/workflow/tooling`);
+    return data.solicitation;
+  },
+
+  async updatePcpStage(id: string, stage: PcpStageKind, action: 'start' | 'finish' | 'sync-kairo'): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(`${BASE}/${id}/workflow/pcp/${stage}/${action}`);
+    return data.solicitation;
+  },
+
+  async sendPcpToKairo(id: string, stage: PcpStageKind,
+    payload: { teamId: string; title?: string; description?: string; tagId?: string }): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(`${BASE}/${id}/workflow/pcp/${stage}/send-to-kairo`, payload);
+    return data.solicitation;
   },
 
   async engineeringQueue(): Promise<{ solicitations: Solicitation[] }> {
@@ -473,6 +524,20 @@ export const solicitationApi = {
     return data.solicitation;
   },
 
+  async updateQualityStage(id: string, action: 'start' | 'finish' | 'sync-kairo'): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(
+      `${BASE}/${id}/workflow/quality/${action}`, {}, { skipErrorToast: true },
+    );
+    return data.solicitation;
+  },
+
+  async sendQualityToKairo(id: string, payload: { teamId: string; title?: string; description?: string; tagId?: string }): Promise<Solicitation> {
+    const { data } = await api.post<{ solicitation: Solicitation }>(
+      `${BASE}/${id}/workflow/quality/send-to-kairo`, payload, { skipErrorToast: true },
+    );
+    return data.solicitation;
+  },
+
   async sendToolingToKairo(
     id: string,
     payload: {
@@ -528,7 +593,10 @@ export const solicitationApi = {
 
 export const WORKFLOW_STAGE_LABELS: Record<WorkflowStageKind, string> = {
   ENGENHARIA: 'Engenharia',
+  PCP_FERRAMENTARIA: 'PCP · Ferramentaria',
   FERRAMENTARIA: 'Ferramentaria',
+  PCP_AMOSTRA: 'PCP · Amostra',
+  QUALIDADE: 'Qualidade · PPAP',
   AMOSTRA: 'Amostra',
 };
 
@@ -538,6 +606,7 @@ export const WORKFLOW_STAGE_STATUS_LABELS: Record<WorkflowStageStatus, string> =
     READY: 'Liberada',
     IN_PROGRESS: 'Em andamento',
     DONE: 'Concluída',
+    REJECTED: 'Recusada',
     CANCELLED: 'Cancelada',
   };
 

@@ -1,4 +1,5 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, type RouteObject } from 'react-router-dom';
+import { PlatformThemeLayout } from '@/layouts/PlatformThemeLayout';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RoleProtectedRoute } from '@/components/RoleProtectedRoute';
@@ -16,6 +17,7 @@ import { SolicitationDetailPage } from '@/pages/Solicitacao/SolicitationDetailPa
 import { SettingsPage } from '@/pages/Configuracoes/SettingsPage';
 import { ProfilePage } from '@/pages/Perfil/ProfilePage';
 import { WorkflowPage } from '@/pages/Workflow/WorkflowPage';
+import { ProductionTrackingPage } from '@/pages/Workflow/ProductionTrackingPage';
 import { ProcessChartsPage } from '@/pages/Indicadores/ProcessChartsPage';
 import { OfTrackingPage } from '@/pages/Rastreio/OfTrackingPage';
 import { HomeRedirect } from '@/components/HomeRedirect';
@@ -23,7 +25,7 @@ import { ROUTES } from './constants';
 
 export { ROUTES } from './constants';
 
-const router = createBrowserRouter([
+const appRoutes: RouteObject[] = [
   {
     path: ROUTES.LOGIN,
     element: <LoginPage />,
@@ -71,6 +73,10 @@ const router = createBrowserRouter([
                 element: <WorkflowPage />,
               },
               {
+                path: ROUTES.AMOSTRAS_PROTOTIPOS,
+                element: <ProductionTrackingPage />,
+              },
+              {
                 path: ROUTES.RASTREIO,
                 element: <OfTrackingPage />,
               },
@@ -98,6 +104,10 @@ const router = createBrowserRouter([
       },
     ],
   },
+];
+
+const router = createBrowserRouter([
+  { element: <PlatformThemeLayout />, children: appRoutes },
 ]);
 
 export function AppRouter() {

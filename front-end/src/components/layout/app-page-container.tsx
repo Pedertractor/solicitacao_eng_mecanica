@@ -13,6 +13,7 @@ export function AppPageContainer({
 }) {
   return (
     <div
+      data-slot='app-page-container'
       className={cn(
         width === 'narrow'
           ? surfaceStyles.containerNarrow

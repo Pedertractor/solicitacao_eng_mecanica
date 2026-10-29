@@ -7,8 +7,10 @@ import {
   type ProcessInstructionFieldErrors,
 } from '@/config/process-instruction';
 import type { ProcessInstructionDraft } from '@/config/process-instruction-draft';
+import type { Unit } from '@/types/auth';
+import { changeSolicitationRequester } from '@/config/solicitation-routing';
 import { PartNumberAllocator } from '@/components/PartNumberAllocator';
-import { Checkbox } from '@/components/ui/checkbox';
+import { ComercialWorkflowOptions } from '@/components/ComercialWorkflowOptions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -30,11 +32,15 @@ export function ProcessInstructionFormSection({
   onChange,
   errors,
   onClearError,
+  showRouting = true,
+  directCommercialTooling = false,
 }: {
   value: ProcessInstructionDraft;
   onChange: (next: ProcessInstructionDraft) => void;
   errors: ProcessInstructionFieldErrors;
   onClearError: (field: keyof ProcessInstructionFieldErrors) => void;
+  showRouting?: boolean;
+  directCommercialTooling?: boolean;
 }) {
   const processes = listProcesses(value.requester);
   const types = listTypes(value.requester, value.process);
@@ -52,7 +58,7 @@ export function ProcessInstructionFormSection({
 
   return (
     <div className='space-y-4'>
-      <OptionSelect
+      {showRouting && <OptionSelect
         id='processRequester'
         label='Solicitante'
         required
@@ -68,39 +74,33 @@ export function ProcessInstructionFormSection({
           onClearError('process');
           onClearError('type');
           onClearError('deliveryDate');
-          onChange({
-            ...value,
-            requester,
-            process: '',
-            type: '',
-            deliveryDate: '',
-            requiresTooling:
-              requester === 'Comercial' ? value.requiresTooling : false,
-          });
+          onClearError('executionUnit');
+          onChange(changeSolicitationRequester(value, requester));
         }}
-      />
+      />}
 
       {value.requester === 'Comercial' ? (
-        <div className='flex items-start gap-3 rounded-md border px-3 py-3'>
-          <Checkbox
-            id='requiresTooling'
-            checked={value.requiresTooling}
-            onCheckedChange={(checked) =>
-              onChange({ ...value, requiresTooling: checked === true })
-            }
+        <>
+          <OptionSelect
+            id='executionUnit'
+            label='Unidade de execução'
+            required
+            placeholder='Selecione a unidade de execução...'
+            value={value.executionUnit}
+            options={['PEDERTRACTOR', 'TRACTOR'].map((unit) => ({ value: unit, label: unit }))}
+            error={errors.executionUnit}
+            onChange={(executionUnit) => {
+              onClearError('executionUnit');
+              onChange({ ...value, executionUnit: executionUnit as Unit });
+            }}
           />
-          <div className='grid gap-1'>
-            <Label htmlFor='requiresTooling' className='cursor-pointer'>
-              Requer ferramentaria
-            </Label>
-            <p className='text-xs text-muted-foreground'>
-              Inclui a etapa Ferramentaria no workflow após Engenharia.
-            </p>
-          </div>
-        </div>
+          {showRouting && <ComercialWorkflowOptions value={value} onChange={onChange} />}
+        </>
       ) : null}
 
-      <OptionSelect
+      {directCommercialTooling ? <div className='rounded-md border bg-muted/40 px-3 py-2 text-sm'>
+        <p>Tipo: Simulação Comercial</p><p>Prazo: 10 dias úteis</p>
+      </div> : <><OptionSelect
         id='processName'
         label='Processo'
         required
@@ -138,9 +138,12 @@ export function ProcessInstructionFormSection({
           onChange={(type) => {
             onClearError('type');
             onClearError('deliveryDate');
-            onChange({ ...value, type, deliveryDate: '' });
+            onChange({ ...value, type, deliveryDate: '', ...(value.requester === 'Comercial' && type === 'Simulação Comercial' ? { directTooling: false, requiresTooling: false } : {}) });
           }}
         />
+        {value.requester === 'Comercial' && value.type === 'Simulação Comercial' && !showRouting && (
+          <p className='text-sm text-muted-foreground'>A Engenharia avaliará a necessidade de envolver a Ferramentaria.</p>
+        )}
         {deadline && (
           <div className='rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground'>
             <p>
@@ -154,7 +157,7 @@ export function ProcessInstructionFormSection({
           </div>
         )}
       </div>
-
+      </>}
       {showDelivery && (
         <div className='grid gap-2'>
           <Label htmlFor='deliveryDate'>
