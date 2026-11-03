@@ -46,13 +46,15 @@ export function changeSolicitationDestination(draft: ProcessInstructionDraft, pr
 }
 
 export function buildSolicitationPreview(route: SolicitationRoute): {
-  mode: 'unconfigured' | 'provisional' | 'simulation' | 'single' | 'direct' | 'sample';
+  mode: 'simulation' | 'single' | 'direct' | 'sample';
   title: string;
   description: string;
   lanes: PreviewNode[][];
 } {
-  if (!route.destination || !route.requester) return { mode: 'unconfigured', title: 'Cada escolha desenha o caminho.',
-    description: 'Selecione o destino e quem está solicitando para visualizar as etapas do chamado.', lanes: [] };
+  if (!route.destination || !route.requester) return buildSolicitationPreview({
+    destination: 'DESENVOLVIMENTO_PROCESSOS', requester: 'Comercial',
+    type: 'Desenvolvimento Amostra', requiresTooling: true, directTooling: false,
+  });
   if (route.destination === 'FERRAMENTARIA') return {
     mode: 'direct', title: 'Comercial → Ferramentaria',
     description: 'A Ferramentaria recebe a Simulação Comercial, executa e encerra o chamado.',
@@ -62,10 +64,6 @@ export function buildSolicitationPreview(route: SolicitationRoute): {
     mode: 'single', title: 'Um caminho direto até a solução.',
     description: 'A equipe de destino recebe, analisa e executa a solicitação.',
     lanes: [[{ kind: 'engineering', label: route.destination === 'ENG_MECANICA' ? 'Engenharia Mecânica' : 'Engenharia de Processos', description: 'Análise e execução' }]],
-  };
-  if (!route.type) return { mode: 'provisional', title: 'Caminho provisório.',
-    description: 'Selecione o processo e o tipo para definir as etapas do chamado.',
-    lanes: [[{ kind: 'engineering', label: 'Engenharia', description: 'Destino inicial sujeito ao tipo escolhido' }]],
   };
   if (route.type === 'Simulação Comercial') return { mode: 'simulation', title: 'Simulação com a Engenharia.',
     description: 'A Engenharia avaliará a necessidade de envolver a Ferramentaria. As equipes poderão trabalhar em paralelo.',

@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+const out=resolve('../qa-local'), fx=JSON.parse(readFileSync(resolve(out,'fixtures.json'),'utf8'));
+const S='http://localhost:3142/api',K='http://localhost:3000/api';
+const results:any[]=[];let st='',kt='',key='';
+async function req(base:string,p:string,method='GET',body?:unknown,token?:string){const r=await fetch(base+p,{method,headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();assert(r.ok,JSON.stringify(data));return data;}
+const s=(p:string,m='GET',b?:unknown)=>req(S,p,m,b,st),k=(p:string,m='GET',b?:unknown)=>req(K,p,m,b,kt);
+const cards:any[]=[];
+async function test(name:string,fn:()=>Promise<any>){try{const detail=await fn();results.push({name,passed:true,detail});}catch(e){results.push({name,passed:false,error:String(e)});}writeFileSync(resolve(out,'edge-results.json'),JSON.stringify({results},null,2));console.log(JSON.stringify(results.at(-1)));}
+async function create(tool=false){const x=(await req(S,'/solicitations','POST',{...fx.requests[0],pillarOrLocation:'QA_LOCAL_EDGE',requesterEmail:'qa-local@example.invalid',...(tool?{department:'FERRAMENTARIA',processInstructionRequester:'Comercial',processInstructionType:'Simulação Comercial',executionUnit:'PEDERTRACTOR',client:'PEDERTRACTOR',comments:'QA_LOCAL_EDGE'}:{department:'ENG_MECANICA',title:'QA_LOCAL_EDGE',description:'Verificação de transições manuais'})})).solicitation;return x;}
+async function eng(){let x=await create();await s(`/solicitations/${x.id}/start-review`,'POST',{});await s(`/solicitations/${x.id}/review`,'PATCH',{approve:true});x=(await s(`/solicitations/${x.id}/send-to-kairo`,'POST',{teamId:fx.teamId,kind:'ATIVIDADE',title:'QA_LOCAL_EDGE',description:'Verificação de espelhamento'})).solicitation;cards.push({id:x.kairoCardId});return x;}
+const card=async(id:string)=>(await req(K,`/integrations/v1/teams/${fx.teamId}/activities/${id}`,'GET',undefined,key)).dados.activity;
+st=(await req(S,'/users/login','POST',{...fx.users.super,password:fx.password})).token;
+kt=(await req(K,'/auth/login','POST',{cardNumber:fx.kairoUser.cardNumber,unit:'PEDERTRACTOR',password:fx.password})).dados.token;
+key=(await k('/api-keys','POST',{name:'QA LOCAL transições gerais'})).dados.apiKey.key;
+await s('/me/kairo','PUT',{apiKey:key});
+await test('Excluir solicitação simples no Pederflow exclui seu card e para o timer no Kairo',async()=>{const x=await eng();await k(`/teams/${fx.teamId}/activities/${x.kairoCardId}/time-entries`,'POST',{});await s(`/solicitations/${x.id}`,'DELETE');const c=await card(x.kairoCardId);assert(c.deletedAt);assert.equal((await k('/time-entries/active')).dados.activeTimer,null);return {solicitationId:x.id,kairoDeleted:true};});
+await test('Cancelar solicitação inteira espelha cancelamento do card no Kairo',async()=>{const x=await eng();await k(`/teams/${fx.teamId}/activities/${x.kairoCardId}/time-entries`,'POST',{});await s(`/solicitations/${x.id}/status`,'PATCH',{status:'CANCELLED'});const c=await card(x.kairoCardId);assert.equal(c.status,'CANCELED',`Solicitação ${x.id} CANCELLED; card ${c.id} ${c.status}`);return {solicitationId:x.id};});
+await test('Conclusão manual é bloqueada enquanto o card do Kairo está aberto',async()=>{const x=await eng();const response=await fetch(`${S}/solicitations/${x.id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+st},body:JSON.stringify({status:'COMPLETED'})});assert.equal(response.status,400);const local=(await s(`/solicitations/${x.id}`)).solicitation;assert.notEqual(local.status,'COMPLETED');const c=await card(x.kairoCardId);assert.equal(c.status,'TODO');return {solicitationId:x.id};});
+await test('Excluir solicitação de Ferramentaria exclui também o card vinculado à etapa',async()=>{let x=await create(true);x=(await s(`/solicitations/${x.id}/workflow/tooling/send-to-kairo`,'POST',{teamId:fx.teamId})).solicitation;const id=x.workflow.stages[0].kairoCardIds;cards.push({id});await s(`/solicitations/${x.id}`,'DELETE');const c=await card(id);assert(c.deletedAt,`Solicitação ${x.id} DELETED; card de etapa ${c.id} continua ${c.status}`);return {solicitationId:x.id};});
+// Close only this script's test cards so an intentionally reproduced divergence leaves no running timer.
+for(const c of cards){try{const current=await card(c.id);if(!current.deletedAt&&!['DONE','CANCELED'].includes(current.status))await req(K,`/integrations/v1/teams/${fx.teamId}/activities/${c.id}/cancel`,'POST',undefined,key);}catch{}}

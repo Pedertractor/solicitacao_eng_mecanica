@@ -23,13 +23,13 @@ describe('direct Commercial tooling access', () => {
   const item = { department: 'FERRAMENTARIA' as const, cardNumber: 'other', unit: 'TRACTOR' as const,
     processInstructionRequester: 'Comercial', workflowStages: [{ stage: 'FERRAMENTARIA' as const }] };
   it.each([
-    ['COMERCIAL', 'DESENVOLVIMENTO_PROCESSOS', true], ['ADMIN', 'FERRAMENTARIA', true],
-    ['SUPER_ADMIN', null, true], ['PCP', 'DESENVOLVIMENTO_PROCESSOS', false],
+    ['ADMIN', 'COMERCIAL', true], ['ADMIN', 'FERRAMENTARIA', true],
+    ['SUPER_ADMIN', null, true], ['ADMIN', 'PCP', false],
     ['ADMIN', 'QUALIDADE', false], ['ADMIN', 'AMOSTRA', false], ['ADMIN', 'DESENVOLVIMENTO_PROCESSOS', false],
   ] as const)('limits access for %s in %s', (role, department, expected) => {
     const actor = { role, department, cardNumber: '123', unit: 'PEDERTRACTOR' as const };
     expect(canAccessSolicitation(actor, item)).toBe(expected);
-    if (role === 'COMERCIAL' || department === 'FERRAMENTARIA') {
+    if (department === 'COMERCIAL' || department === 'FERRAMENTARIA') {
       expect(solicitationScope(actor)).toMatchObject({ department: { in: ['DESENVOLVIMENTO_PROCESSOS', 'FERRAMENTARIA'] } });
     }
   });
@@ -37,17 +37,17 @@ describe('direct Commercial tooling access', () => {
 
 describe('commercial production tracking access', () => {
   it('allows Commercial and supervising admins only', () => {
-    expect(canAccessProductionTracking({ role: 'COMERCIAL', department: 'DESENVOLVIMENTO_PROCESSOS' })).toBe(true);
+    expect(canAccessProductionTracking({ role: 'ADMIN', department: 'COMERCIAL' })).toBe(true);
     expect(canAccessProductionTracking({ role: 'SUPER_ADMIN', department: null })).toBe(true);
     expect(canAccessProductionTracking({ role: 'ADMIN', department: 'DESENVOLVIMENTO_PROCESSOS' })).toBe(true);
-    for (const role of ['PCP', 'USER', 'ADMIN'] as const) {
+    for (const role of ['USER', 'ADMIN'] as const) {
       expect(canAccessProductionTracking({ role, department: 'AMOSTRA' })).toBe(false);
     }
   });
 });
 
 describe('PCP access', () => {
-  const pcp = { role: $Enums.UserRole.PCP, department: $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
+  const pcp = { role: $Enums.UserRole.ADMIN, department: $Enums.UserDepartment.PCP,
     cardNumber: '123', unit: $Enums.Unit.PEDERTRACTOR };
   it('manages PCP and sees commercial workflows, without managing other stages or users', () => {
     expect(canManagePcpStage(pcp)).toBe(true);
@@ -66,10 +66,10 @@ describe('PCP access', () => {
   });
   it('can be assigned by Processos admins and remains in Processos', () => {
     const lead = { role: $Enums.UserRole.ADMIN, department: $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS };
-    expect(canAssignRole(lead, 'PCP')).toBe(true);
-    expect(canAssignDepartment(lead, 'PCP', 'DESENVOLVIMENTO_PROCESSOS')).toBe(true);
-    expect(canAssignDepartment(lead, 'PCP', 'ENG_MECANICA')).toBe(false);
-    expect(departmentForAssignedRole('PCP', 'ENG_MECANICA')).toBe('DESENVOLVIMENTO_PROCESSOS');
+    expect(canAssignRole(lead, 'ADMIN')).toBe(true);
+    expect(canAssignDepartment(lead, 'ADMIN', 'PCP')).toBe(true);
+    expect(canAssignDepartment(lead, 'ADMIN', 'ENG_MECANICA')).toBe(false);
+    expect(departmentForAssignedRole('ADMIN', 'ENG_MECANICA', 'PCP')).toBe('PCP');
     expect(canManagePcpStage(lead)).toBe(false);
     expect(canManagePcpStage({ role: 'SUPER_ADMIN', department: null })).toBe(true);
   });
@@ -120,7 +120,7 @@ describe('canManageToolingStage', () => {
     ).toBe(false);
   });
 
-  it('shows process charts only to the process development admin', () => {
+  it('preserves existing process charts access restrictions', () => {
     expect(
       canAccessProcessCharts({
         role: $Enums.UserRole.ADMIN,
@@ -198,11 +198,11 @@ describe('Quality access', () => {
 describe('stage decline ownership', () => {
   const owners = [
     { role: 'ADMIN', department: 'DESENVOLVIMENTO_PROCESSOS', stages: ['ENGENHARIA'] },
-    { role: 'PCP', department: 'DESENVOLVIMENTO_PROCESSOS', stages: ['PCP_FERRAMENTARIA', 'PCP_AMOSTRA'] },
+    { role: 'ADMIN', department: 'PCP', stages: ['PCP_FERRAMENTARIA', 'PCP_AMOSTRA'] },
     { role: 'ADMIN', department: 'FERRAMENTARIA', stages: ['FERRAMENTARIA'] },
     { role: 'ADMIN', department: 'QUALIDADE', stages: ['QUALIDADE'] },
     { role: 'ADMIN', department: 'AMOSTRA', stages: ['AMOSTRA'] },
-    { role: 'COMERCIAL', department: 'DESENVOLVIMENTO_PROCESSOS', stages: [] },
+    { role: 'ADMIN', department: 'COMERCIAL', stages: [] },
     { role: 'USER', department: 'DESENVOLVIMENTO_PROCESSOS', stages: [] },
     { role: 'ADMIN', department: 'ENG_MECANICA', stages: [] },
   ] as const;
@@ -220,4 +220,36 @@ it('never grants stage decline to a super admin, even with a matching department
       expect(canDeclineWorkflowStage({ role: 'SUPER_ADMIN', department }, stage)).toBe(false);
     }
   }
+});
+
+
+describe('PCP and Commercial department security matrix', () => {
+  for (const role of ['USER', 'ADMIN', 'SUPER_ADMIN'] as const) {
+    for (const department of [null, ...Object.values($Enums.UserDepartment)]) {
+      it(role + ' / ' + department, () => {
+        const actor = { role, department, cardNumber: 'owner', unit: 'TRACTOR' as const };
+        expect(canManagePcpStage(actor)).toBe(role === 'SUPER_ADMIN' || role === 'ADMIN' && department === 'PCP');
+        expect(canAccessProductionTracking(actor)).toBe(role === 'SUPER_ADMIN' || role === 'ADMIN' && ['COMERCIAL', 'DESENVOLVIMENTO_PROCESSOS'].includes(department ?? ''));
+        if (department === 'PCP' || department === 'COMERCIAL') {
+          expect(canManageSolicitations(actor)).toBe(role === 'SUPER_ADMIN');
+          expect(canManageUser(actor, { role: 'ADMIN', department: 'ENG_MECANICA' })).toBe(role === 'SUPER_ADMIN');
+          expect(canAssignRole(actor, 'SUPER_ADMIN')).toBe(role === 'SUPER_ADMIN');
+          expect(canAssignDepartment(actor, 'ADMIN', 'DESENVOLVIMENTO_PROCESSOS')).toBe(role === 'SUPER_ADMIN');
+          if (role === 'USER') {
+            expect(canAccessWorkflow(actor)).toBe(false);
+            expect(solicitationScope(actor)).toEqual({ department, cardNumber: 'owner', unit: 'TRACTOR' });
+            expect(canAccessSolicitation(actor, { department, cardNumber: 'other', unit: 'TRACTOR' })).toBe(false);
+          }
+        }
+      });
+    }
+  }
+});
+
+
+describe('Commercial indicators access', () => {
+  it.each(['USER', 'ADMIN', 'SUPER_ADMIN'] as const)('limits Commercial indicators for %s', (role) => {
+    expect(canAccessProcessCharts({ role, department: 'COMERCIAL' })).toBe(role === 'ADMIN');
+    expect(canAccessProcessCharts({ role, department: 'PCP' })).toBe(false);
+  });
 });

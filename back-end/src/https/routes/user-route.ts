@@ -23,10 +23,10 @@ const userRoleEnum = [
   'SUPER_ADMIN',
   'ADMIN',
   'USER',
-  'COMERCIAL',
-  'PCP',
 ] as const;
 const departmentEnum = [
+  'COMERCIAL',
+  'PCP',
   'ENG_MECANICA',
   'DESENVOLVIMENTO_PROCESSOS',
   'FERRAMENTARIA',
@@ -225,7 +225,7 @@ export async function userRoutes(app: FastifyInstance) {
               type: 'string',
               enum: departmentEnum,
               description:
-                'Obrigatório para USER/ADMIN/COMERCIAL/PCP. Omitir para SUPER_ADMIN.',
+                'Obrigatório para USER/ADMIN. Omitir para SUPER_ADMIN.',
             },
           },
         },

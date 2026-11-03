@@ -1,4 +1,5 @@
 import { isCommercialSimulation } from '../lib/commercial-simulation.js';
+import { collectKairoLinks } from '../lib/kairo-links.js';
 import { HttpError } from '../https/errors/index.js';
 import { prisma } from '../lib/prisma.js';
 import { $Enums } from '../generated/prisma/client.js';
@@ -816,6 +817,23 @@ export class SolicitationService {
       && existing.workflowStages.some((stage) => !['DONE', 'REJECTED'].includes(stage.status))) {
       throw new HttpError('Conclua todas as etapas do workflow antes de encerrar a solicitação', 400);
     }
+    if (status === $Enums.SolicitationStatus.COMPLETED && previousStatus !== status && listLinkedKairoCardIds(existing).length) {
+      const synced = await this.syncFromKairo(id, actingUserId);
+      if (synced.status !== $Enums.SolicitationStatus.COMPLETED) {
+        throw new HttpError('Conclua as atividades ou o projeto no Kairo antes de encerrar esta solicitação.', 400);
+      }
+      return synced;
+    }
+    if (status === $Enums.SolicitationStatus.CANCELLED && previousStatus !== status) {
+      const credentials = new KairoCredentialService();
+      for (const link of collectKairoLinks(existing)) {
+        const client = (link.userId ? await credentials.tryGetClientForUser(link.userId) : null)
+          ?? await credentials.getClientForUser(actingUserId);
+        const kind = link.kind ?? (await this.fetchKairoCardStatus(client, link.teamId, link.cardId, null))?.kind;
+        if (kind === 'PROJETO') await client.cancelProject(link.teamId, link.cardId);
+        else await client.cancelActivity(link.teamId, link.cardId);
+      }
+    }
     const updated = await repo.updateStatus(id, status, actingUserId);
 
     if (
@@ -867,35 +885,18 @@ export class SolicitationService {
 
     // Tenta remover no Kairo, mas nunca bloqueia o soft-delete local
     // (falha de rede/502/credencial ausente não deve impedir a exclusão).
-    const linkedCardIds = listLinkedKairoCardIds(existing);
-    if (linkedCardIds.length > 0 && existing.kairoTeamId) {
-      const credentials = new KairoCredentialService();
-      const client = await credentials.tryGetClientForUser(actingUserId);
-
-      if (client) {
-        let deletedAny = false;
-        for (const cardId of linkedCardIds) {
-          try {
-            await this.deleteKairoCard(
-              client,
-              existing.kairoTeamId,
-              cardId,
-              existing.kind,
-            );
-            deletedAny = true;
-          } catch (error) {
-            if (
-              !(error instanceof HttpError && error.statusCode === 404)
-            ) {
-              console.error(
-                '[solicitation.delete] Falha ao excluir card no Kairo; seguindo com soft-delete local',
-                error,
-              );
-            }
-          }
-        }
-        if (deletedAny) {
-          await credentials.touchValidated(actingUserId);
+    const credentials = new KairoCredentialService();
+    for (const link of collectKairoLinks(existing)) {
+      try {
+        const ownerId = link.userId ?? actingUserId;
+        const ownerClient = await credentials.tryGetClientForUser(ownerId);
+        const client = ownerClient ?? await credentials.tryGetClientForUser(actingUserId);
+        if (!client) continue;
+        await this.deleteKairoCard(client, link.teamId, link.cardId, link.kind);
+        await credentials.touchValidated(ownerClient ? ownerId : actingUserId);
+      } catch (error) {
+        if (!(error instanceof HttpError && error.statusCode === 404)) {
+          console.error('[solicitation.delete] Falha ao excluir card no Kairo; seguindo com soft-delete local', error);
         }
       }
     }

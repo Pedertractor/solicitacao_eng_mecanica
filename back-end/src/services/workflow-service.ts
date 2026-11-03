@@ -718,7 +718,8 @@ export class WorkflowService {
           try {
             if (engineering && declined.kind === 'PROJETO') await resolved.client.cancelProject(teamId, cardId);
             else await resolved.client.cancelActivity(teamId, cardId);
-          } catch {
+          } catch (error) {
+            console.error(`[workflow-kairo-cancel] Falha ao cancelar card ${cardId}:`, error);
             warnings.push(`Etapa recusada. Não foi possível cancelar o card ${cardId} no Kairo.`);
           }
         }

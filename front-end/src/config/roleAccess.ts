@@ -17,11 +17,6 @@ import {
 
 const SOLICITATION_NAV: readonly string[] = [ROUTES.SOLICITACOES] as const;
 
-const WORKFLOW_NAV: readonly string[] = [
-  ROUTES.WORKFLOW,
-  ROUTES.SOLICITACOES,
-] as const;
-
 const ADMIN_PROCESSOS_NAV: readonly string[] = [
   ROUTES.AMOSTRAS_PROTOTIPOS,
   ROUTES.SOLICITACOES,
@@ -68,8 +63,8 @@ export function getNavPaths(
   department?: UserDepartment | null,
 ): readonly string[] {
   if (role === 'SUPER_ADMIN') return SUPER_ADMIN_NAV;
-  if (role === 'COMERCIAL') return [...WORKFLOW_NAV, ROUTES.AMOSTRAS_PROTOTIPOS];
-  if (role === 'PCP') return WORKFLOW_NAV;
+  if (role === 'ADMIN' && department === 'COMERCIAL') return [...ADMIN_WORKFLOW_NAV, ROUTES.AMOSTRAS_PROTOTIPOS, ROUTES.INDICADORES];
+  if (role === 'ADMIN' && department === 'PCP') return ADMIN_WORKFLOW_NAV;
   if (role === 'USER') return SOLICITATION_NAV;
   if (role === 'ADMIN') {
     if (department === 'ENG_MECANICA') return ADMIN_ENG_NAV;

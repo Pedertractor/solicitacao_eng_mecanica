@@ -56,7 +56,7 @@ describe('Comercial request options', () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ type: 'Simulação Comercial', directTooling: false, requiresTooling: false }));
     const { markup } = render({ ...draft, type: 'Simulação Comercial', directTooling: false, requiresTooling: false });
     expect(markup).toContain('A Engenharia avaliará');
-    expect(controls.checkboxes.get('directTooling')).toMatchObject({ checked: false, disabled: true });
+    expect(controls.checkboxes.has('directTooling')).toBe(false);
     expect(controls.checkboxes.get('requiresTooling')).toMatchObject({ checked: false, disabled: true });
   });
 
@@ -81,7 +81,8 @@ describe('Comercial request options', () => {
     expect(markup).toContain('Unidade de execução');
     expect(markup).toContain('PEDERTRACTOR');
     expect(markup).toContain('TRACTOR');
-    expect(markup).toContain('Direto para Ferramentaria');
+    expect(markup).not.toContain('Direto para Ferramentaria');
+    expect(markup).toContain('Requer ferramentaria');
   });
 
   it('requires an execution unit only for Comercial', () => {
@@ -93,19 +94,17 @@ describe('Comercial request options', () => {
     expect(validateProcessInstructionFields({ ...draft, requester: 'Engenharia' })).not.toHaveProperty('executionUnit');
   });
 
-  it('forces tooling on the direct route and leaves it enabled and editable when deselected', () => {
+  it('keeps tooling optional without offering the direct route', () => {
     const draft = { ...emptyProcessInstructionDraft(), requester: 'Comercial' };
     const initial = render(draft);
-    controls.checkboxes.get('directTooling')!.onCheckedChange(true);
-    const direct = initial.onChange.mock.calls[0][0] as ProcessInstructionDraft;
-    expect(direct).toMatchObject({ directTooling: true, requiresTooling: true });
-    const selected = render(direct);
-    expect(controls.checkboxes.get('requiresTooling')!.disabled).toBe(true);
-    controls.checkboxes.get('directTooling')!.onCheckedChange(false);
-    const standard = selected.onChange.mock.calls[0][0] as ProcessInstructionDraft;
-    expect(standard).toMatchObject({ directTooling: false, requiresTooling: true });
-    render(standard);
+    expect(controls.checkboxes.has('directTooling')).toBe(false);
+    controls.checkboxes.get('requiresTooling')!.onCheckedChange(true);
+    const selected = initial.onChange.mock.calls[0][0] as ProcessInstructionDraft;
+    expect(selected).toMatchObject({ directTooling: false, requiresTooling: true });
+    const updated = render(selected);
     expect(controls.checkboxes.get('requiresTooling')!.disabled).toBe(false);
+    controls.checkboxes.get('requiresTooling')!.onCheckedChange(false);
+    expect(updated.onChange).toHaveBeenCalledWith(expect.objectContaining({ directTooling: false, requiresTooling: false }));
   });
 
   it('saves the execution unit selection and clears Comercial options when changing requester', () => {

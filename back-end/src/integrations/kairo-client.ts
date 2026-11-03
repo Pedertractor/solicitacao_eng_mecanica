@@ -85,7 +85,7 @@ async function kairoFetch<T>(
   const response = await fetch(`${requireBaseUrl()}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(init?.body != null ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${apiKey}`,
       ...(init?.headers ?? {}),
     },
@@ -97,6 +97,12 @@ async function kairoFetch<T>(
     | null;
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new HttpError(
+        'A chave de API do Kairo é inválida ou foi revogada. Vincule uma chave válida em Integrações.',
+        400,
+      );
+    }
     const message =
       body && 'mensagem' in body && typeof body.mensagem === 'string'
         ? body.mensagem

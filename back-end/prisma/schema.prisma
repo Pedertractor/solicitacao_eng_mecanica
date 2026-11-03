@@ -16,8 +16,6 @@ enum UserRole {
   SUPER_ADMIN
   ADMIN
   USER
-  COMERCIAL
-  PCP
 }
 
 enum WorkflowStage {
@@ -39,6 +37,8 @@ enum WorkflowStageStatus {
 }
 
 enum UserDepartment {
+  COMERCIAL
+  PCP
   ENG_MECANICA
   DESENVOLVIMENTO_PROCESSOS
   FERRAMENTARIA

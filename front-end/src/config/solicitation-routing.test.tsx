@@ -32,8 +32,8 @@ describe('solicitation routing preview', () => {
     expect(changeSolicitationDestination(tooling, 'FERRAMENTARIA', 'DESENVOLVIMENTO_PROCESSOS')).toMatchObject({ type: '', process: '' });
     expect(changeSolicitationDestination(tooling, 'FERRAMENTARIA', 'ENG_MECANICA')).toMatchObject({ type: '', process: '', executionUnit: '' });
   });
-  it('keeps the route provisional until a type is selected', () => {
-    expect(buildSolicitationPreview({ ...commercial, type: '' }).mode).toBe('provisional');
+  it('shows the parallel workflow before a type is selected', () => {
+    expect(buildSolicitationPreview({ ...commercial, type: '' }).mode).toBe('sample');
   });
 
   it('shows Engineering only for simulations even with stale routing flags', () => {
@@ -49,7 +49,12 @@ describe('solicitation routing preview', () => {
       destination: 'Selecione o destino da solicitação.', requester: 'Selecione o departamento solicitante.',
     });
     expect(validateSolicitationRouting(commercial)).toEqual({});
-    expect(buildSolicitationPreview({ ...commercial, destination: '' }).mode).toBe('unconfigured');
+    const route = { ...commercial, destination: '' as const, requester: '' };
+    const preview = buildSolicitationPreview(route);
+    expect(preview.mode).toBe('sample');
+    expect(preview.lanes.map((lane) => lane.map((node) => node.kind))).toEqual([['engineering'], ['pcp', 'tooling', 'pcp'], ['quality']]);
+    const markup = renderToStaticMarkup(createElement(SolicitationWorkflowPreview, { route }));
+    for (const label of ['Engenharia', 'PCP', 'Ferramentaria', 'Qualidade', 'Amostra', 'Exemplo do fluxo de Processos']) expect(markup).toContain(label);
   });
 
   it.each(['ENG_MECANICA', 'DESENVOLVIMENTO_PROCESSOS'] as const)('uses a single destination team for a non-Comercial %s request', (destination) => {

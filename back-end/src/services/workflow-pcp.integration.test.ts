@@ -66,12 +66,22 @@ describe.skipIf(!testUrl)('PCP workflow against PostgreSQL', () => {
       }
     }
     for (const migration of migrations.filter((name) => name >= '20261023120000')) {
+      if (migration.startsWith('20261103120000')) {
+        for (const role of ['PCP', 'COMERCIAL']) {
+          await pool.query(`INSERT INTO "User" ("id", "employeeId", "name", "cardNumber", "unit", "passwordHash", "role", "department", "updatedAt") VALUES ($1, $1, $1, $1, 'PEDERTRACTOR', 'test', $2::"UserRole", 'DESENVOLVIMENTO_PROCESSOS', CURRENT_TIMESTAMP)`, ['legacy-' + role, role]);
+        }
+      }
       await pool.query(await readFile(`prisma/migrations/${migration}/migration.sql`, 'utf8'));
     }
-    for (const [role, department, cardNumber] of [['PCP', 'DESENVOLVIMENTO_PROCESSOS', 'pcp'], ['ADMIN', 'AMOSTRA', 'sample'], ['ADMIN', 'FERRAMENTARIA', 'tool'], ['ADMIN', 'QUALIDADE', 'quality'], ['ADMIN', 'DESENVOLVIMENTO_PROCESSOS', 'engineering']] as const) {
+    for (const department of ['PCP', 'COMERCIAL'] as const) {
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: 'legacy-' + department } });
+      expect(user).toMatchObject({ role: 'ADMIN', department, active: true, approvalStatus: 'APPROVED' });
+    }
+    await expect(pool.query(`UPDATE "User" SET "role" = 'PCP' WHERE "id" = 'legacy-PCP'`)).rejects.toThrow();
+    for (const [role, department, cardNumber] of [['ADMIN', 'PCP', 'pcp'], ['ADMIN', 'AMOSTRA', 'sample'], ['ADMIN', 'FERRAMENTARIA', 'tool'], ['ADMIN', 'QUALIDADE', 'quality'], ['ADMIN', 'DESENVOLVIMENTO_PROCESSOS', 'engineering']] as const) {
       const user = await prisma.user.create({ data: { employeeId: cardNumber, name: cardNumber, cardNumber,
         unit: 'PEDERTRACTOR', role, department, passwordHash: 'test', mustChangePassword: false } });
-      if (role === 'PCP') pcpUserId = user.id;
+      if (department === 'PCP') pcpUserId = user.id;
       else if (department === 'AMOSTRA') sampleUserId = user.id;
       else if (department === 'QUALIDADE') qualityUserId = user.id;
       else if (department === 'DESENVOLVIMENTO_PROCESSOS') engineeringUserId = user.id;

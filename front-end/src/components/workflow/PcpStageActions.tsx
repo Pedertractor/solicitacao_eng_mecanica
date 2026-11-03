@@ -27,7 +27,7 @@ export function PcpStageActions({ item }: { item: Solicitation }) {
       toast.error(message || 'Falha ao atualizar PCP.');
     },
   });
-  if (!user || !canManagePcpStage(user.role) || !item.workflow
+  if (!user || !canManagePcpStage(user.role, user.department) || !item.workflow
     || ['COMPLETED', 'CANCELLED', 'DELETED'].includes(item.status)) return null;
   const workflow = item.workflow;
   return (

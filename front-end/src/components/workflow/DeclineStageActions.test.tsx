@@ -38,9 +38,9 @@ describe('decline stage actions', () => {
     expect(render()).not.toContain('Recusar etapa');
   });
   it('offers both PCP steps independently and no actions to Comercial', () => {
-    auth.user = { role: 'PCP', department: 'DESENVOLVIMENTO_PROCESSOS' };
+    auth.user = { role: 'ADMIN', department: 'PCP' };
     expect(render().match(/Recusar etapa/g)).toHaveLength(2);
-    auth.user = { role: 'COMERCIAL', department: 'DESENVOLVIMENTO_PROCESSOS' };
+    auth.user = { role: 'ADMIN', department: 'COMERCIAL' };
     expect(render()).not.toContain('Recusar etapa');
   });
 });

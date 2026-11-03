@@ -218,8 +218,6 @@ function EditUserFormBody({
             value={department ?? undefined}
             disabled={
               isCurrentUser ||
-              role === 'COMERCIAL' ||
-              role === 'PCP' ||
               departmentOptions.length <= 1
             }
             onValueChange={(v) => setDepartment(v as UserDepartment)}

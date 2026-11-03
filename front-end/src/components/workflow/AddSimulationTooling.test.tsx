@@ -21,8 +21,8 @@ describe('simulation tooling actions', () => {
     auth.user = { role, department: 'DESENVOLVIMENTO_PROCESSOS' };
     expect(render()).toContain('Adicionar Ferramentaria');
   });
-  it.each(['USER', 'COMERCIAL', 'PCP'] as const)('denies inclusion to %s', (role) => {
-    auth.user = { role, department: 'DESENVOLVIMENTO_PROCESSOS' };
+  it.each([['USER', 'DESENVOLVIMENTO_PROCESSOS'], ['ADMIN', 'COMERCIAL'], ['ADMIN', 'PCP']] as const)('denies inclusion to %s in %s', (role, department) => {
+    auth.user = { role, department };
     expect(render()).not.toContain('Adicionar Ferramentaria');
   });
   it('hides inclusion in other areas, closed stages, legacy modes and after inclusion', () => {

@@ -19,6 +19,8 @@ const PROCESSOS_ORG_DEPARTMENTS: $Enums.UserDepartment[] = [
   $Enums.UserDepartment.FERRAMENTARIA,
   $Enums.UserDepartment.QUALIDADE,
   $Enums.UserDepartment.AMOSTRA,
+  $Enums.UserDepartment.COMERCIAL,
+  $Enums.UserDepartment.PCP,
 ];
 
 export function isSuperAdmin(role: $Enums.UserRole): boolean {
@@ -82,7 +84,7 @@ export function canManageQualityStage(actor: Pick<AccessActor, 'role' | 'departm
 }
 
 export function canManagePcpStage(actor: Pick<AccessActor, 'role' | 'department'>): boolean {
-  return isSuperAdmin(actor.role) || actor.role === $Enums.UserRole.PCP;
+  return isSuperAdmin(actor.role) || isAdminOf(actor, $Enums.UserDepartment.PCP);
 }
 
 /** Líder de Desenvolvimento de Processos: acompanha só a etapa de Engenharia. */
@@ -108,11 +110,12 @@ export function visibleWorkflowStages(
   ];
 }
 
-/** Indicadores de pedidos. Só o admin de Desenvolvimento de Processos. */
+/** Indicadores de pedidos para administradores de Processos e Comercial. */
 export function canAccessProcessCharts(
   actor: Pick<AccessActor, 'role' | 'department'>,
 ): boolean {
-  return isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS);
+  return isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS)
+    || isAdminOf(actor, $Enums.UserDepartment.COMERCIAL);
 }
 
 export function canAccessWorkflow(
@@ -120,8 +123,8 @@ export function canAccessWorkflow(
 ): boolean {
   return (
     isSuperAdmin(actor.role) ||
-    actor.role === $Enums.UserRole.COMERCIAL ||
-    actor.role === $Enums.UserRole.PCP ||
+    isAdminOf(actor, $Enums.UserDepartment.COMERCIAL) ||
+    isAdminOf(actor, $Enums.UserDepartment.PCP) ||
     isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS) ||
     isAdminOf(actor, $Enums.UserDepartment.FERRAMENTARIA) ||
     isAdminOf(actor, $Enums.UserDepartment.AMOSTRA) ||
@@ -133,8 +136,8 @@ export function isWorkflowOperator(
   actor: Pick<AccessActor, 'role' | 'department'>,
 ): boolean {
   return (
-    actor.role === $Enums.UserRole.COMERCIAL ||
-    actor.role === $Enums.UserRole.PCP ||
+    isAdminOf(actor, $Enums.UserDepartment.COMERCIAL) ||
+    isAdminOf(actor, $Enums.UserDepartment.PCP) ||
     isAdminOf(actor, $Enums.UserDepartment.FERRAMENTARIA) ||
     isAdminOf(actor, $Enums.UserDepartment.AMOSTRA) ||
     isAdminOf(actor, $Enums.UserDepartment.QUALIDADE)
@@ -179,9 +182,7 @@ export function canAssignRole(
   if (isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS)) {
     return (
       nextRole === $Enums.UserRole.USER ||
-      nextRole === $Enums.UserRole.ADMIN ||
-      nextRole === $Enums.UserRole.COMERCIAL ||
-      nextRole === $Enums.UserRole.PCP
+      nextRole === $Enums.UserRole.ADMIN
     );
   }
 
@@ -197,8 +198,6 @@ export function canAssignDepartment(
     return isSuperAdmin(actor.role) && department === null;
   }
   if (department === null) return false;
-  if ((role === $Enums.UserRole.PCP || role === $Enums.UserRole.COMERCIAL)
-    && department !== $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS) return false;
 
   if (isSuperAdmin(actor.role)) return true;
 
@@ -207,9 +206,6 @@ export function canAssignDepartment(
   }
 
   if (isAdminOf(actor, $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS)) {
-    if (role === $Enums.UserRole.COMERCIAL || role === $Enums.UserRole.PCP) {
-      return department === $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS;
-    }
     return PROCESSOS_ORG_DEPARTMENTS.includes(department);
   }
 
@@ -224,9 +220,6 @@ export function departmentForAssignedRole(
   if (role === $Enums.UserRole.SUPER_ADMIN) {
     return null;
   }
-  if (role === $Enums.UserRole.COMERCIAL || role === $Enums.UserRole.PCP) {
-    return $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS;
-  }
   if (role === $Enums.UserRole.ADMIN && explicit) {
     return explicit;
   }
@@ -234,7 +227,7 @@ export function departmentForAssignedRole(
 }
 
 export function canAccessProductionTracking(actor: Pick<AccessActor, 'role' | 'department'>): boolean {
-  return actor.role === 'COMERCIAL' || actor.role === 'SUPER_ADMIN'
+  return isAdminOf(actor, 'COMERCIAL') || actor.role === 'SUPER_ADMIN'
     || (actor.role === 'ADMIN' && actor.department === 'DESENVOLVIMENTO_PROCESSOS');
 }
 
@@ -242,7 +235,7 @@ function comercialWorkflowScope(
   actor: Pick<AccessActor, 'role' | 'department'>,
 ): Prisma.SolicitationWhereInput {
   const base: Prisma.SolicitationWhereInput = {
-    department: actor.role === 'COMERCIAL' || isAdminOf(actor, 'FERRAMENTARIA')
+    department: isAdminOf(actor, 'COMERCIAL') || isAdminOf(actor, 'FERRAMENTARIA')
       ? { in: ['DESENVOLVIMENTO_PROCESSOS', 'FERRAMENTARIA'] }
       : $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
     processInstructionRequester: 'Comercial',
@@ -315,7 +308,7 @@ export function canAccessSolicitation(
     if (!hasWorkflow) return false;
     if (
       !(solicitation.department === 'DESENVOLVIMENTO_PROCESSOS'
-        || solicitation.department === 'FERRAMENTARIA' && (actor.role === 'COMERCIAL' || isAdminOf(actor, 'FERRAMENTARIA'))) ||
+        || solicitation.department === 'FERRAMENTARIA' && (isAdminOf(actor, 'COMERCIAL') || isAdminOf(actor, 'FERRAMENTARIA'))) ||
       solicitation.processInstructionRequester !== 'Comercial'
     ) {
       return false;

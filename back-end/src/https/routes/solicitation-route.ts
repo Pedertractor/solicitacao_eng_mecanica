@@ -787,7 +787,7 @@ export async function solicitationRoutes(app: FastifyInstance) {
       preHandler: [authMiddleware],
       schema: {
         tags: ['solicitations'],
-        summary: 'Indicadores de pedidos por time (admin de processos)',
+        summary: 'Indicadores de pedidos por time (administradores de Processos e Comercial)',
         security: [{ bearerAuth: [] }],
         querystring: {
           type: 'object',
