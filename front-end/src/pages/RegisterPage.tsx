@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Check, Loader2 } from 'lucide-react';
 import { PlatformPageShell } from '@/components/platform-backdrop';
+import { PublicPlatformHeader } from '@/components/public-platform-header';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -115,9 +116,10 @@ export function RegisterPage() {
 
   return (
     <PlatformPageShell
-      className='min-h-svh items-center justify-center overflow-y-auto p-6 md:p-10'
+      className='pederflow-registration min-h-svh items-center justify-center overflow-y-auto p-6 md:p-10'
       contentClassName='w-full max-w-lg flex-col items-center justify-center gap-6'
     >
+      <PublicPlatformHeader />
       <Card className={publicSolicitationCardClass}>
         <CardHeader>
           <CardTitle>Cadastrar</CardTitle>

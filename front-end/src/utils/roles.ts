@@ -4,7 +4,6 @@ export const ROLE_BASE_LABELS: Record<UserRole, string> = {
   USER: 'Usuário',
   ADMIN: 'Administrador',
   SUPER_ADMIN: 'Super admin',
-  COMERCIAL: 'Comercial',
 };
 
 /** @deprecated Prefer roleLabel(role, department) */
@@ -14,7 +13,10 @@ export const DEPARTMENT_LABELS: Record<UserDepartment, string> = {
   ENG_MECANICA: 'Engenharia Mecânica',
   DESENVOLVIMENTO_PROCESSOS: 'Desenvolvimento de Processos',
   FERRAMENTARIA: 'Ferramentaria',
+  QUALIDADE: 'Qualidade',
   AMOSTRA: 'Amostra',
+  COMERCIAL: 'Comercial',
+  PCP: 'PCP',
 };
 
 export const APPROVAL_STATUS_LABELS: Record<UserApprovalStatus, string> = {
@@ -27,7 +29,10 @@ const ADMIN_DEPARTMENT_LABELS: Partial<Record<UserDepartment, string>> = {
   ENG_MECANICA: 'Adm. Engenharia',
   DESENVOLVIMENTO_PROCESSOS: 'Adm. Processos',
   FERRAMENTARIA: 'Adm. Ferramentaria',
+  QUALIDADE: 'Adm. Qualidade',
   AMOSTRA: 'Adm. Amostra',
+  COMERCIAL: 'Adm. Comercial',
+  PCP: 'Adm. PCP',
 };
 
 export function roleLabel(

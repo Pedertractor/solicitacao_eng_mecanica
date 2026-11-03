@@ -1,3 +1,5 @@
+import { AddSimulationTooling } from '@/components/workflow/AddSimulationTooling';
+import { DeclineStageActions } from '@/components/workflow/DeclineStageActions';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -77,6 +79,9 @@ import {
 import { formatIsoDateLabel } from '@/config/process-instruction';
 import { PartNumberChips } from '@/components/PartNumberAllocator';
 import { WorkflowTimeline } from '@/components/workflow/WorkflowTimeline';
+import { QualityStageActions } from '@/components/workflow/QualityStageActions';
+import { PcpStageActions } from '@/components/workflow/PcpStageActions';
+import { workflowCanStart } from '@/lib/workflow';
 import { SolicitationKairoDialog } from './SolicitationKairoDialog';
 import { ToolingKairoDialog } from './ToolingKairoDialog';
 
@@ -366,25 +371,27 @@ export function SolicitationDetailPage() {
                 value={item.requesterEmail ?? '—'}
               />
               <Field
-                label="Cartão / Unidade"
+                label="Cartão / Unidade do solicitante"
                 value={`${item.cardNumber} · ${item.unit}`}
               />
               <Field label="Centro de custo" value={item.costCenter} />
+              {item.department === 'ENG_MECANICA' && item.processInstructionRequester && <Field label="Departamento solicitante" value={item.processInstructionRequester} />}
+              {item.executionUnit && <Field label="Unidade de execução" value={item.executionUnit} />}
               <Field label="Setor" value={item.sectorName} />
               <Field label="Pilar / local" value={item.pillarOrLocation} />
-              {item.department === 'DESENVOLVIMENTO_PROCESSOS' ? (
+              {item.department === 'DESENVOLVIMENTO_PROCESSOS' || item.department === 'FERRAMENTARIA' ? (
                 <div className="grid min-w-0 gap-4 md:col-span-2 md:grid-cols-2">
                   <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide md:col-span-2">
-                    Instrução de processo
+                    {item.department === 'FERRAMENTARIA' ? 'Simulação Comercial — Ferramentaria' : 'Instrução de processo'}
                   </div>
                   <Field
                     label="Área solicitante"
                     value={item.processInstructionRequester ?? '—'}
                   />
-                  <Field
+                  {item.department !== 'FERRAMENTARIA' && <Field
                     label="Processo"
                     value={item.processInstructionProcess ?? '—'}
-                  />
+                  />}
                   <Field
                     label="Tipo"
                     value={item.processInstructionType ?? '—'}
@@ -453,6 +460,7 @@ export function SolicitationDetailPage() {
                 </div>
               ) : null}
               {canManage &&
+              !item.directTooling &&
               item.department === 'DESENVOLVIMENTO_PROCESSOS' ? (
                 <SolicitationReviewPanel
                   key={`${item.id}-${item.updatedAt}-embedded`}
@@ -485,7 +493,7 @@ export function SolicitationDetailPage() {
 
           {canManage ? (
             <>
-          {item.department !== 'DESENVOLVIMENTO_PROCESSOS' ? (
+          {item.department === 'ENG_MECANICA' ? (
             <SolicitationReviewPanel
               key={`${item.id}-${item.updatedAt}`}
               id={id}
@@ -495,11 +503,11 @@ export function SolicitationDetailPage() {
             />
           ) : null}
 
-          <SolicitationKairoDialog
+          {!item.directTooling && <SolicitationKairoDialog
             open={kairoDialogOpen}
             onOpenChange={setKairoDialogOpen}
             solicitation={item}
-          />
+          />}
 
           <AlertDialog
             open={deleteConfirmOpen}
@@ -559,23 +567,9 @@ function WorkflowActionsCard({
   const workflow = item.workflow!;
   const tooling = workflow.stages.find((stage) => stage.stage === 'FERRAMENTARIA');
   const sample = workflow.stages.find((stage) => stage.stage === 'AMOSTRA');
-  const engineering = workflow.stages.find((stage) => stage.stage === 'ENGENHARIA');
-
-  const toolingReady =
-    engineering?.status === 'DONE' &&
-    tooling != null &&
-    (tooling.status === 'READY' || tooling.status === 'PENDING') &&
-    !tooling.kairoCardIds;
-
-  const previousDoneForSample = tooling
-    ? tooling.status === 'DONE'
-    : engineering?.status === 'DONE';
-
-  const sampleReady =
-    previousDoneForSample &&
-    sample != null &&
-    (sample.status === 'READY' || sample.status === 'PENDING') &&
-    !sample.kairoCardIds;
+  const open = !['COMPLETED', 'CANCELLED', 'DELETED'].includes(item.status);
+  const toolingReady = open && workflowCanStart(workflow, 'FERRAMENTARIA') && !tooling?.kairoCardIds;
+  const sampleReady = open && workflowCanStart(workflow, 'AMOSTRA') && !sample?.kairoCardIds;
 
   const syncToolingMutation = useMutation({
     mutationFn: () => solicitationApi.syncToolingFromKairo(item.id),
@@ -618,21 +612,36 @@ function WorkflowActionsCard({
       <CardHeader>
         <CardTitle>Workflow</CardTitle>
         <CardDescription>
-          Engenharia →{workflow.requiresTooling ? ' Ferramentaria →' : ''}{' '}
-          Amostra
+          {workflow.kind === 'COMMERCIAL_DIRECT_TOOLING'
+            ? 'Comercial → Ferramentaria. O chamado encerra na Ferramentaria.'
+            : workflow.kind === 'COMMERCIAL_SIMULATION'
+            ? workflow.requiresTooling ? 'Engenharia e Ferramentaria trabalham em paralelo. O chamado encerra quando ambas as etapas forem concluídas ou recusadas.' : 'A Engenharia avaliará a necessidade de envolver a Ferramentaria antes de concluir sua etapa.'
+            : item.directTooling
+            ? 'Comercial → PCP → Ferramentaria'
+            : workflow.stages.some((stage) => stage.stage === 'QUALIDADE')
+            ? 'Qualidade · PPAP disponível desde a criação, em paralelo às demais frentes. Amostra após a conclusão de todos os pré-requisitos.'
+            : workflow.stages.some((stage) => stage.stage.startsWith('PCP_'))
+            ? workflow.requiresTooling
+              ? 'Engenharia em paralelo com PCP → Ferramentaria → PCP. Amostra após a conclusão das duas frentes.'
+              : 'Engenharia → PCP → Amostra'
+            : `Engenharia → ${workflow.requiresTooling ? 'Ferramentaria → ' : ''}Amostra`}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
         <WorkflowTimeline workflow={workflow} />
+        <AddSimulationTooling item={item} />
+        <PcpStageActions item={item} />
+        <QualityStageActions item={item} />
+        <DeclineStageActions item={item} />
 
-        {(canTooling || canSample) && (
+        {open && (canTooling || canSample) && (
           <div className='flex flex-wrap gap-2'>
             {canTooling && toolingReady ? (
               <Button type='button' onClick={onOpenTooling}>
                 Enviar Ferramentaria ao Kairo
               </Button>
             ) : null}
-            {canTooling && tooling?.kairoCardIds ? (
+            {canTooling && tooling?.kairoCardIds && !['DONE', 'CANCELLED', 'REJECTED'].includes(tooling.status) ? (
               <Button
                 type='button'
                 variant='outline'
@@ -649,7 +658,7 @@ function WorkflowActionsCard({
                 Enviar Amostra ao Kairo
               </Button>
             ) : null}
-            {canSample && sample?.kairoCardIds ? (
+            {canSample && sample?.kairoCardIds && !['DONE', 'CANCELLED', 'REJECTED'].includes(sample.status) ? (
               <Button
                 type='button'
                 variant='outline'
@@ -691,6 +700,7 @@ function SolicitationReviewPanel({
     isDeleted;
   const reviewClosed = isApproved || isRejected;
   const sentToKairo = listKairoCardIds(item).length > 0;
+  const engineeringClosed = item.workflow?.stages.some((stage) => stage.stage === 'ENGENHARIA' && ['DONE', 'CANCELLED', 'REJECTED'].includes(stage.status)) ?? false;
 
   const approveMutation = useMutation({
     mutationFn: () => solicitationApi.updateReview(id, { approve: true }),
@@ -698,7 +708,7 @@ function SolicitationReviewPanel({
       queryClient.setQueryData(['solicitation', id], updated);
       queryClient.invalidateQueries({ queryKey: ['solicitations'] });
       toast.success('Solicitação aprovada.');
-      if (!listKairoCardIds(updated).length) {
+      if (!listKairoCardIds(updated).length && !engineeringClosed) {
         onApproved?.();
       }
     },
@@ -709,7 +719,7 @@ function SolicitationReviewPanel({
     onSuccess: (updated) => {
       queryClient.setQueryData(['solicitation', id], updated);
       queryClient.invalidateQueries({ queryKey: ['solicitations'] });
-      toast.success('Solicitação reprovada.');
+      toast.success(item.workflow ? 'Solicitação cancelada.' : 'Solicitação reprovada.');
     },
   });
 
@@ -739,7 +749,7 @@ function SolicitationReviewPanel({
       ) : null}
       {isApproved ? (
         <>
-          {!isDeleted ? (
+          {!isDeleted && !engineeringClosed ? (
             <Button type="button" variant="outline" onClick={onOpenKairo}>
               <KairoIcon className="size-4" />
               Kairo
@@ -771,7 +781,7 @@ function SolicitationReviewPanel({
             onClick={() => rejectMutation.mutate()}
           >
             <X className="size-4" />
-            Reprovar
+            {item.workflow ? 'Cancelar solicitação inteira' : 'Reprovar'}
           </Button>
           <Button
             type="button"

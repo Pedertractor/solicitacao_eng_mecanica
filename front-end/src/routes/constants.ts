@@ -12,6 +12,7 @@ export const ROUTES = {
   INDICADORES: '/indicadores',
   SOLICITACAO_DETALHE: '/solicitacoes/:id',
   WORKFLOW: '/workflow',
+  AMOSTRAS_PROTOTIPOS: '/amostras-prototipos',
   RASTREIO: '/rastreio',
   USUARIOS: '/usuarios',
   USUARIOS_SOLICITACOES: '/usuarios/solicitacoes',

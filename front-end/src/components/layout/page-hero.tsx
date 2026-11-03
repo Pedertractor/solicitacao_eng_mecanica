@@ -24,6 +24,8 @@ export function PageHero({
 }) {
   return (
     <div
+      data-slot='page-hero'
+      data-compact={compact}
       className={cn(
         surfaceStyles.hero,
         compact && 'px-5 py-5 sm:px-6 sm:py-6',
@@ -33,10 +35,18 @@ export function PageHero({
       <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,hsl(var(--primary)/0.08),transparent_32%)]' />
       <div className='pointer-events-none absolute -right-16 -top-24 size-64 rounded-full border border-primary/10' />
       <div className='pointer-events-none absolute -right-6 -top-14 size-40 rounded-full border border-primary/10' />
+      <svg className='pederflow-hero-flow' viewBox='0 0 360 160' fill='none' aria-hidden='true'>
+        <path d='M10 34h137a22 22 0 0 1 22 22v48a22 22 0 0 0 22 22h159M76 0v65a18 18 0 0 0 18 18h173a18 18 0 0 1 18 18v59' stroke='currentColor' strokeWidth='1' />
+        <path d='M10 34h137a22 22 0 0 1 22 22v48a22 22 0 0 0 22 22h159' stroke='currentColor' strokeWidth='6' strokeOpacity='.08' />
+        <circle cx='76' cy='34' r='5' fill='#f4ce57' />
+        <circle cx='169' cy='83' r='5' fill='#d5efff' />
+        <circle cx='285' cy='126' r='5' fill='#f4ce57' />
+        <circle cx='169' cy='83' r='12' stroke='currentColor' strokeOpacity='.3' />
+      </svg>
       <div className='relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
         <div className='min-w-0'>
           {eyebrow ? (
-            <div className={surfaceStyles.eyebrow}>
+            <div data-slot='page-eyebrow' className={surfaceStyles.eyebrow}>
               {EyebrowIcon ? <EyebrowIcon className='size-3.5' /> : null}
               {eyebrow}
             </div>
@@ -52,7 +62,7 @@ export function PageHero({
           {description ? (
             <p
               className={cn(
-                'mt-2 max-w-2xl text-muted-foreground',
+                'page-hero-description mt-2 max-w-2xl text-muted-foreground',
                 compact ? 'text-sm' : 'text-sm sm:text-base',
               )}
             >
@@ -62,7 +72,7 @@ export function PageHero({
           {children ? <div className='mt-5'>{children}</div> : null}
         </div>
         {actions ? (
-          <div className='flex shrink-0 flex-wrap items-center gap-2'>
+          <div className='page-hero-actions flex shrink-0 flex-wrap items-center gap-2'>
             {actions}
           </div>
         ) : null}

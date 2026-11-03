@@ -5,9 +5,11 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Compass,
+  ClipboardList,
   FlaskConical,
   Layers3,
   Wrench,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   AppPageContainer,
@@ -54,6 +56,24 @@ const STAGE_APPEARANCE = {
     barClass: 'bg-violet-500',
     glowClass: 'bg-violet-400/10',
   },
+  PCP_FERRAMENTARIA: {
+    icon: ClipboardList,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+    barClass: 'bg-amber-500',
+    glowClass: 'bg-amber-400/10',
+  },
+  PCP_AMOSTRA: {
+    icon: ClipboardList,
+    iconClass: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+    barClass: 'bg-orange-500',
+    glowClass: 'bg-orange-400/10',
+  },
+  QUALIDADE: {
+    icon: ShieldCheck,
+    iconClass: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300',
+    barClass: 'bg-cyan-500',
+    glowClass: 'bg-cyan-400/10',
+  },
   AMOSTRA: {
     icon: FlaskConical,
     iconClass:
@@ -83,7 +103,7 @@ function SummaryCards() {
   const stages = summaryQuery.data?.stages ?? [];
 
   return (
-    <div className='grid gap-4 sm:grid-cols-3'>
+    <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3 min-[1800px]:grid-cols-6'>
       {stages.map((stage) => {
         const appearance = STAGE_APPEARANCE[stage.stage];
         const Icon = appearance.icon;
@@ -141,24 +161,28 @@ function SummaryCards() {
                   style={{ width: `${completion}%` }}
                 />
               </div>
-              <div className='grid grid-cols-3 divide-x divide-border/70'>
+              <div className='grid grid-cols-2 gap-3'>
                 <div>
                   <p className='text-lg font-semibold tabular-nums'>
                     {stage.inProgress}
                   </p>
                   <p className='text-xs text-muted-foreground'>Em curso</p>
                 </div>
-                <div className='pl-3'>
+                <div>
                   <p className='text-lg font-semibold tabular-nums'>
                     {stage.waiting}
                   </p>
                   <p className='text-xs text-muted-foreground'>Aguardando</p>
                 </div>
-                <div className='pl-3'>
+                <div>
                   <p className='text-lg font-semibold tabular-nums'>
                     {stage.done}
                   </p>
                   <p className='text-xs text-muted-foreground'>Concluídas</p>
+                </div>
+                <div>
+                  <p className='text-lg font-semibold tabular-nums'>{stage.rejected}</p>
+                  <p className='text-xs text-muted-foreground'>Recusadas</p>
                 </div>
               </div>
             </CardContent>
@@ -258,14 +282,10 @@ function FullWorkflowView() {
         eyebrow='Visão geral do fluxo'
         eyebrowIcon={Layers3}
         title='Operação Comercial'
-        description='Acompanhe cada solicitação da Engenharia até a entrega da Amostra.'
+        description='Acompanhe Engenharia, planejamento PCP, Ferramentaria, Qualidade · PPAP e Amostra em cada solicitação.'
       >
         <div className='flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground'>
-          <span>Engenharia</span>
-          <span className='text-border'>→</span>
-          <span>Ferramentaria</span>
-          <span className='text-border'>→</span>
-          <span>Amostra</span>
+          <span>Qualidade · PPAP pode iniciar desde a criação, em paralelo às demais frentes. Amostra aguarda a conclusão de todos os pré-requisitos.</span>
         </div>
       </PageHero>
 

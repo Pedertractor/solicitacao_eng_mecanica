@@ -138,7 +138,7 @@ export function NewUserPage() {
     allowedRoles.includes(opt.value),
   );
   const showDepartment = role !== 'SUPER_ADMIN';
-  const departmentLocked = role === 'COMERCIAL' || departmentOptions.length <= 1;
+  const departmentLocked = departmentOptions.length <= 1;
 
   return (
     <AppPageContainer width='form'>

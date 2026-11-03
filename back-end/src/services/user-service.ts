@@ -216,7 +216,10 @@ export class UserService {
           in: [
             $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
             $Enums.UserDepartment.FERRAMENTARIA,
+            $Enums.UserDepartment.QUALIDADE,
             $Enums.UserDepartment.AMOSTRA,
+            $Enums.UserDepartment.COMERCIAL,
+            $Enums.UserDepartment.PCP,
           ],
         },
         role: { not: $Enums.UserRole.SUPER_ADMIN },
@@ -452,9 +455,6 @@ export class UserService {
     if (role === $Enums.UserRole.SUPER_ADMIN) {
       return null;
     }
-    if (role === $Enums.UserRole.COMERCIAL) {
-      return $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS;
-    }
     if (role === $Enums.UserRole.ADMIN) {
       if (!input.department) {
         throw new HttpError(
@@ -532,21 +532,15 @@ export class UserService {
     if (!department) {
       throw new HttpError('Informe o departamento', 400);
     }
-    if (
-      role === $Enums.UserRole.COMERCIAL &&
-      department !== $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS
-    ) {
-      throw new HttpError(
-        'Comercial precisa do departamento de desenvolvimento de processos',
-        400,
-      );
-    }
     if (role === $Enums.UserRole.ADMIN) {
       const allowed: $Enums.UserDepartment[] = [
         $Enums.UserDepartment.ENG_MECANICA,
         $Enums.UserDepartment.DESENVOLVIMENTO_PROCESSOS,
         $Enums.UserDepartment.FERRAMENTARIA,
+        $Enums.UserDepartment.QUALIDADE,
         $Enums.UserDepartment.AMOSTRA,
+        $Enums.UserDepartment.COMERCIAL,
+        $Enums.UserDepartment.PCP,
       ];
       if (!allowed.includes(department)) {
         throw new HttpError('Departamento inválido para administrador', 400);

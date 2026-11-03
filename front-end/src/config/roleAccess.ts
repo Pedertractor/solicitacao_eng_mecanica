@@ -6,6 +6,7 @@ import {
 import type { UserDepartment, UserRole } from '@/types/auth';
 import {
   canAccessOfTracking,
+  canAccessProductionTracking,
   canAccessProcessCharts,
   canAccessSettings,
   canAccessSolicitations,
@@ -16,12 +17,8 @@ import {
 
 const SOLICITATION_NAV: readonly string[] = [ROUTES.SOLICITACOES] as const;
 
-const WORKFLOW_NAV: readonly string[] = [
-  ROUTES.WORKFLOW,
-  ROUTES.SOLICITACOES,
-] as const;
-
 const ADMIN_PROCESSOS_NAV: readonly string[] = [
+  ROUTES.AMOSTRAS_PROTOTIPOS,
   ROUTES.SOLICITACOES,
   ROUTES.INDICADORES,
   ROUTES.WORKFLOW,
@@ -42,6 +39,7 @@ const ADMIN_WORKFLOW_NAV: readonly string[] = [
 ] as const;
 
 const SUPER_ADMIN_NAV: readonly string[] = [
+  ROUTES.AMOSTRAS_PROTOTIPOS,
   ROUTES.SOLICITACOES,
   ROUTES.WORKFLOW,
   ROUTES.RASTREIO,
@@ -53,6 +51,7 @@ const PROTECTED_PATH_PATTERNS: RegExp[] = [
   /^\/solicitacoes(\/.*)?$/,
   /^\/indicadores(\/.*)?$/,
   /^\/workflow(\/.*)?$/,
+  /^\/amostras-prototipos(\/.*)?$/,
   /^\/rastreio(\/.*)?$/,
   /^\/usuarios(\/.*)?$/,
   /^\/configuracoes(\/.*)?$/,
@@ -64,12 +63,13 @@ export function getNavPaths(
   department?: UserDepartment | null,
 ): readonly string[] {
   if (role === 'SUPER_ADMIN') return SUPER_ADMIN_NAV;
-  if (role === 'COMERCIAL') return WORKFLOW_NAV;
+  if (role === 'ADMIN' && department === 'COMERCIAL') return [...ADMIN_WORKFLOW_NAV, ROUTES.AMOSTRAS_PROTOTIPOS, ROUTES.INDICADORES];
+  if (role === 'ADMIN' && department === 'PCP') return ADMIN_WORKFLOW_NAV;
   if (role === 'USER') return SOLICITATION_NAV;
   if (role === 'ADMIN') {
     if (department === 'ENG_MECANICA') return ADMIN_ENG_NAV;
     if (department === 'DESENVOLVIMENTO_PROCESSOS') return ADMIN_PROCESSOS_NAV;
-    if (department === 'FERRAMENTARIA' || department === 'AMOSTRA') {
+    if (department === 'FERRAMENTARIA' || department === 'AMOSTRA' || department === 'QUALIDADE') {
       return ADMIN_WORKFLOW_NAV;
     }
   }
@@ -99,6 +99,10 @@ export function canRoleAccessPath(
 ): boolean {
   const normalized = pathname || '/';
   if (!isAppShellPath(normalized)) return true;
+
+  if (pathMatchesNavSegment(normalized, ROUTES.AMOSTRAS_PROTOTIPOS)) {
+    return canAccessProductionTracking(role, department);
+  }
 
   if (normalized === '/' || normalized === '') {
     return (

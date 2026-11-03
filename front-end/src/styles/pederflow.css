@@ -1,0 +1,229 @@
+/* Route-scoped tokens also reach dialogs, popovers and the mobile sidebar portals. */
+:root[data-platform-theme='pederflow'] {
+  --background: 0 0% 100%;
+  --foreground: 205 38% 23%;
+  --card: 0 0% 100%;
+  --card-foreground: 205 38% 23%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 205 38% 23%;
+  --primary: 204 94% 38%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 204 70% 96%;
+  --secondary-foreground: 204 75% 34%;
+  --muted: 207 35% 96%;
+  --muted-foreground: 205 13% 47%;
+  --accent: 204 70% 96%;
+  --accent-foreground: 204 75% 34%;
+  --border: 205 25% 88%;
+  --input: 207 23% 85%;
+  --ring: 204 94% 38%;
+  --radius: .625rem;
+  --sidebar: #fff;
+  --sidebar-foreground: #526b7c;
+  --sidebar-primary: #0675bd;
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: #edf7fd;
+  --sidebar-accent-foreground: #0871b1;
+  --sidebar-border: #dce6ed;
+  --sidebar-ring: #0675bd;
+  --pederflow-yellow: #f4ce57;
+}
+
+[data-platform-theme='pederflow'] body {
+  background: #edf3f7;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+[data-platform-theme='pederflow'] .platform-backdrop > :first-child {
+  background: radial-gradient(ellipse at 50% 15%, #f8fbfd 0%, #edf3f7 78%);
+}
+
+[data-platform-theme='pederflow'] .platform-backdrop > :not(:first-child) { display: none; }
+
+/* The white masthead and blue page panels mirror the login composition. */
+[data-platform-theme='pederflow'] .pederflow-app-header {
+  min-height: 80px;
+  height: 80px;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+  padding: 0 32px 0 16px;
+  border-bottom: 1px solid #dfe8ee;
+  background: #ffffffed;
+}
+
+.pederflow-header-context { display: grid; gap: 5px; }
+.pederflow-header-eyebrow { color: #8195a3; font-size: 7px; font-weight: 600; line-height: 1; letter-spacing: 1.7px; }
+.pederflow-header-companies { display: block; width: 230px; height: auto; max-height: 54px; object-fit: contain; }
+[data-platform-theme='pederflow'] .pederflow-app-header [data-slot='breadcrumb-page'] { color: #314e60; font-size: 13px; font-weight: 500; }
+[data-platform-theme='pederflow'] .pederflow-page-content { padding: 0 28px 20px; }
+[data-platform-theme='pederflow'] [data-slot='app-page-container'] { padding-bottom: 32px; }
+
+.pederflow-hero-flow { display: none; }
+[data-platform-theme='pederflow'] [data-slot='page-hero'] {
+  border: 1px solid #0872b2;
+  border-radius: 18px;
+  background: linear-gradient(115deg, #087dc3, #006daf 72%, #08639f);
+  color: #fff;
+  box-shadow: 0 8px 24px -16px #0069a966;
+}
+
+[data-platform-theme='pederflow'] [data-slot='page-hero'] > .pointer-events-none { display: none; }
+[data-platform-theme='pederflow'] .pederflow-hero-flow {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  display: block;
+  width: 360px;
+  height: 160px;
+  transform: translateY(-50%);
+  color: #caecff;
+  opacity: .32;
+  pointer-events: none;
+  mask-image: linear-gradient(to right, transparent, #000 45%);
+}
+
+[data-platform-theme='pederflow'] [data-slot='page-hero'] h1 { color: #fff; font-weight: 500; letter-spacing: -1px; }
+[data-platform-theme='pederflow'] .page-hero-description { color: #cee9f7; font-size: 13px; line-height: 1.8; }
+[data-platform-theme='pederflow'] [data-slot='page-hero'] .text-muted-foreground { color: #cee9f7; }
+[data-platform-theme='pederflow'] [data-slot='page-hero'] .bg-muted { background: #ffffff1a; }
+[data-platform-theme='pederflow'] [data-slot='page-eyebrow'] { gap: 9px; padding: 0; border: 0; border-radius: 0; background: transparent; color: #c4e5f7; font-size: 9px; font-weight: 500; letter-spacing: 1.8px; text-transform: uppercase; box-shadow: none; backdrop-filter: none; }
+[data-platform-theme='pederflow'] [data-slot='page-eyebrow']::before { width: 5px; height: 5px; background: var(--pederflow-yellow); content: ''; }
+[data-platform-theme='pederflow'] [data-slot='page-eyebrow'] > svg { display: none; }
+[data-platform-theme='pederflow'] .page-hero-actions [data-variant='default'] { background: #fff; color: #086da9; box-shadow: 0 2px 4px #004a771a; }
+[data-platform-theme='pederflow'] .page-hero-actions [data-variant='default']:hover { background: #eaf6fd; }
+[data-platform-theme='pederflow'] .page-hero-actions [data-variant='outline']:not([class*='destructive']),
+[data-platform-theme='pederflow'] [data-slot='page-hero'] [data-variant='ghost'] { border-color: #b5e1fa66; background: #ffffff0d; color: #e3f4ff; }
+[data-platform-theme='pederflow'] .page-hero-actions [data-variant='outline']:not([class*='destructive']):hover,
+[data-platform-theme='pederflow'] [data-slot='page-hero'] [data-variant='ghost']:hover { background: #ffffff1f; }
+[data-platform-theme='pederflow'] [data-slot='page-hero'] [data-variant='outline'][class*='destructive'] { border-color: #ffcbd0; background: #fff1f2; color: #be123c; }
+
+/* Keep status and destructive colors semantic; the primary action becomes blue. */
+[data-platform-theme='pederflow'] [data-slot='button'] { border-radius: 7px; font-size: 12px; }
+[data-platform-theme='pederflow'] [data-slot='button'][data-size='default'] { min-height: 40px; }
+[data-platform-theme='pederflow'] [data-slot='button'][data-size='lg'] { min-height: 44px; }
+[data-platform-theme='pederflow'] [data-slot='button'][data-variant='default'] { box-shadow: 0 3px 8px #0068a912; }
+[data-platform-theme='pederflow'] [data-slot='button'][data-variant='outline'] { box-shadow: 0 1px 2px #243e5005; }
+[data-platform-theme='pederflow'] [data-slot='button']:focus-visible { outline: 2px solid #98cdea; outline-offset: 3px; }
+[data-platform-theme='pederflow'] [data-slot='button']:disabled { box-shadow: none; }
+
+[data-platform-theme='pederflow'] [data-slot='input'],
+[data-platform-theme='pederflow'] [data-slot='select-trigger'] {
+  min-height: 40px;
+  border-radius: 7px;
+  font-size: 12px;
+  box-shadow: 0 1px 2px #243e5003;
+  transition: border-color 160ms, box-shadow 160ms;
+}
+
+[data-platform-theme='pederflow'] [data-slot='input']::placeholder,
+[data-platform-theme='pederflow'] textarea::placeholder { color: #8e9fac; }
+[data-platform-theme='pederflow'] [data-slot='input']:hover:not(:disabled),
+[data-platform-theme='pederflow'] [data-slot='select-trigger']:hover:not(:disabled) { border-color: #a9c4d6; }
+[data-platform-theme='pederflow'] [data-slot='input']:focus-visible:not([aria-invalid='true']),
+[data-platform-theme='pederflow'] [data-slot='select-trigger']:focus { border-color: #0879bf; box-shadow: 0 0 0 3px #0879bf1a; }
+[data-platform-theme='pederflow'] [data-slot='input']:read-only { background: #f3f7fa; }
+[data-platform-theme='pederflow'] [data-slot='label'],
+[data-platform-theme='pederflow'] [data-slot='field-label'] { font-size: 12px; font-weight: 500; }
+[data-platform-theme='pederflow'] textarea { border-radius: 7px; font-size: 13px; }
+
+[data-platform-theme='pederflow'] [data-slot='card'],
+[data-platform-theme='pederflow'] [data-slot='filter-panel'] { border-color: #dce6ed; border-radius: 16px; box-shadow: 0 4px 18px -10px #345b7726; }
+[data-platform-theme='pederflow'] [data-slot='card-title'] { color: #29495c; font-size: 15px; font-weight: 600; line-height: 1.4; letter-spacing: -.2px; }
+[data-platform-theme='pederflow'] [data-slot='card-description'] { font-size: 12px; line-height: 1.8; }
+[data-platform-theme='pederflow'] [data-slot='filter-panel'] { background: #fff; }
+[data-platform-theme='pederflow'] [data-slot='filter-panel'] h2 { color: #385769; }
+
+/* Tables use quiet blue headers and more breathing room. */
+[data-platform-theme='pederflow'] [data-slot='table-header'] { background: #f3f8fc; }
+[data-platform-theme='pederflow'] [data-slot='table-head'] { height: 46px; padding-right: 16px; padding-left: 16px; color: #6d8494; font-size: 10px; font-weight: 600; letter-spacing: .7px; }
+[data-platform-theme='pederflow'] [data-slot='table-cell'] { padding: 14px 16px; font-size: 12px; }
+[data-platform-theme='pederflow'] [data-slot='table-body'] [data-slot='table-row']:hover { background: #f4faff; }
+[data-platform-theme='pederflow'] [data-slot='table-body'] [data-slot='table-row'][data-state='selected'] { background: #eaf5fd; }
+
+/* Sidebar styles apply to its mobile portal as well as the desktop rail. */
+[data-platform-theme='pederflow'] [data-slot='sidebar-header'] { min-height: 80px; justify-content: center; padding: 14px 10px; border-bottom: 1px solid #e5edf3; }
+[data-platform-theme='pederflow'] [data-slot='sidebar-footer'] { padding: 12px 8px; border-top: 1px solid #e5edf3; }
+[data-platform-theme='pederflow'] [data-slot='sidebar-group-label'] { margin: 10px 0 8px; color: #8295a2; font-size: 9px; font-weight: 500; letter-spacing: 1.3px; text-transform: uppercase; }
+[data-platform-theme='pederflow'] [data-slot='sidebar-menu-button'] { border-radius: 8px; }
+[data-platform-theme='pederflow'] [data-slot='sidebar-content'] [data-slot='sidebar-menu-button'] { min-height: 40px; color: #617887; font-size: 12px; }
+[data-platform-theme='pederflow'] [data-slot='sidebar-content'] [data-slot='sidebar-menu-button'][data-active='true'] { background: #0675bd; color: #fff; box-shadow: 0 3px 10px #0675bd1f; }
+[data-platform-theme='pederflow'] [data-slot='sidebar-menu-sub-button'][data-active='true'] { background: #eaf5fd; color: #0675bd; }
+.pederflow-sidebar-brand { min-width: 0; flex: 1; }
+.pederflow-sidebar-brand .pederflow-brand { gap: 9px; vertical-align: middle; }
+.pederflow-sidebar-brand .pederflow-brand-mark { width: 32px; height: 32px; }
+.pederflow-sidebar-brand .pederflow-brand-name { font-size: 23px; }
+.pederflow-sidebar-brand .pederflow-brand-caption { max-width: 146px; overflow: hidden; margin-top: 6px; font-size: 8px; letter-spacing: .1px; text-overflow: ellipsis; white-space: nowrap; }
+[data-platform-theme='pederflow'] [data-collapsible='icon'] [data-slot='sidebar-header'] { padding-right: 8px; padding-left: 8px; }
+[data-platform-theme='pederflow'] [data-collapsible='icon'] .pederflow-sidebar-brand .pederflow-brand-name,
+[data-platform-theme='pederflow'] [data-collapsible='icon'] .pederflow-sidebar-brand + svg { display: none; }
+[data-platform-theme='pederflow'] [data-collapsible='icon'] .pederflow-sidebar-brand .pederflow-brand { display: flex; width: 32px; justify-content: center; }
+[data-platform-theme='pederflow'] [data-collapsible='icon'] [data-slot='sidebar-menu-button'] { border-radius: 8px; }
+
+/* Portals inherit the route palette from the document root. */
+[data-platform-theme='pederflow'] [data-slot='dialog-content'],
+[data-platform-theme='pederflow'] [data-slot='alert-dialog-content'] { border-color: #dce6ed; border-radius: 18px; box-shadow: 0 24px 90px -20px #163e5966; }
+[data-platform-theme='pederflow'] [data-slot='dialog-title'],
+[data-platform-theme='pederflow'] [data-slot='alert-dialog-title'] { color: #29495c; font-size: 20px; font-weight: 600; line-height: 1.3; letter-spacing: -.5px; }
+[data-platform-theme='pederflow'] [data-slot='dialog-description'],
+[data-platform-theme='pederflow'] [data-slot='alert-dialog-description'] { font-size: 12px; line-height: 1.8; }
+[data-platform-theme='pederflow'] [data-slot='dialog-overlay'],
+[data-platform-theme='pederflow'] [data-slot='alert-dialog-overlay'],
+[data-platform-theme='pederflow'] [data-slot='sheet-overlay'] { background: #1b3f5670; backdrop-filter: blur(3px); }
+[data-platform-theme='pederflow'] [data-slot='select-content'],
+[data-platform-theme='pederflow'] [data-slot='dropdown-menu-content'],
+[data-platform-theme='pederflow'] [data-slot='popover-content'] { border-color: #dce6ed; border-radius: 10px; box-shadow: 0 10px 35px -10px #345b7733; }
+
+/* Public requests, tracking and registration share the login branding. */
+.pederflow-public-header { display: flex; width: 100%; min-height: 76px; align-items: center; justify-content: space-between; gap: 20px; padding: 17px 22px; border: 1px solid #dce6ed; border-radius: 16px; background: #fff; box-shadow: 0 4px 18px -10px #345b7726; }
+.pederflow-public-header > a { flex-shrink: 0; border-radius: 6px; }
+.pederflow-public-header .pederflow-brand-mark { width: 34px; height: 34px; }
+.pederflow-public-header .pederflow-brand-name { font-size: 25px; }
+.pederflow-public-header .pederflow-brand-caption { font-size: 6px; letter-spacing: 1.6px; }
+.pederflow-public-header > img { width: 180px; max-width: 45%; height: auto; }
+.pederflow-public-masthead { margin-bottom: 16px; }
+[data-platform-theme='pederflow'] .pederflow-public-shell [data-slot='card'],
+[data-platform-theme='pederflow'] .pederflow-registration [data-slot='card'] { padding-top: 0; background: #fff; backdrop-filter: none; }
+[data-platform-theme='pederflow'] .pederflow-public-shell [data-slot='card'] > [data-slot='card-header']:first-child,
+[data-platform-theme='pederflow'] .pederflow-registration [data-slot='card'] > [data-slot='card-header']:first-child { padding-top: 26px; padding-bottom: 26px; border-bottom-color: #0872b2; background: linear-gradient(115deg, #087dc3, #006daf); }
+[data-platform-theme='pederflow'] .pederflow-public-shell [data-slot='card'] > [data-slot='card-header']:first-child [data-slot='card-title'],
+[data-platform-theme='pederflow'] .pederflow-registration [data-slot='card'] > [data-slot='card-header']:first-child [data-slot='card-title'] { color: #fff; font-size: 22px; font-weight: 500; letter-spacing: -.6px; }
+[data-platform-theme='pederflow'] .pederflow-public-shell [data-slot='card'] > [data-slot='card-header']:first-child [data-slot='card-description'],
+[data-platform-theme='pederflow'] .pederflow-registration [data-slot='card'] > [data-slot='card-header']:first-child [data-slot='card-description'] { color: #cee9f7; }
+[data-platform-theme='pederflow'] .pederflow-public-shell [data-slot='card'] > [data-slot='card-header']:first-child .text-muted-foreground { color: #cee9f7; }
+[data-platform-theme='pederflow'] .pederflow-ticket-notch { background: #edf3f7; }
+
+@media (max-width: 900px) {
+  [data-platform-theme='pederflow'] .pederflow-page-content { padding-right: 20px; padding-left: 20px; }
+  [data-platform-theme='pederflow'] .pederflow-app-header { padding-right: 24px; }
+  .pederflow-header-companies { width: 190px; }
+}
+
+@media (max-width: 700px) {
+  [data-platform-theme='pederflow'] .pederflow-app-header { min-height: 70px; height: 70px; margin-bottom: 20px; padding-right: 16px; padding-left: 4px; }
+  [data-platform-theme='pederflow'] .pederflow-page-content { padding-right: 14px; padding-left: 14px; }
+  .pederflow-header-companies { width: 146px; }
+  .pederflow-header-eyebrow { font-size: 6px; letter-spacing: 1.2px; }
+  [data-platform-theme='pederflow'] [data-slot='page-hero'] { border-radius: 14px; }
+  [data-platform-theme='pederflow'] .pederflow-hero-flow { right: -70px; opacity: .2; }
+  [data-platform-theme='pederflow'] [data-slot='input'],
+  [data-platform-theme='pederflow'] [data-slot='select-trigger'],
+  [data-platform-theme='pederflow'] textarea { min-height: 42px; font-size: 16px; }
+  [data-platform-theme='pederflow'] [data-slot='table-cell'] { padding: 12px; }
+  .pederflow-public-header { min-height: 68px; gap: 12px; padding: 14px 18px; border-radius: 14px; }
+  .pederflow-public-header > img { width: 135px; }
+  .pederflow-public-header .pederflow-brand-name { font-size: 22px; }
+  .pederflow-public-header .pederflow-brand-mark { width: 30px; height: 30px; }
+  .pederflow-public-header .pederflow-brand { gap: 8px; }
+  [data-platform-theme='pederflow'] .pederflow-registration { padding: 20px 14px; }
+}
+
+@media (max-width: 380px) {
+  .pederflow-public-header > img { width: 110px; }
+  .pederflow-header-companies { width: 120px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-platform-theme='pederflow'] [data-slot='input'],
+  [data-platform-theme='pederflow'] [data-slot='select-trigger'] { transition: none; }
+}

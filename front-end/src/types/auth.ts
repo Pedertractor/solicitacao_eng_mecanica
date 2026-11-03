@@ -5,14 +5,16 @@ export const USER_ROLES = [
   'SUPER_ADMIN',
   'ADMIN',
   'USER',
-  'COMERCIAL',
 ] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const USER_DEPARTMENTS = [
+  'COMERCIAL',
+  'PCP',
   'ENG_MECANICA',
   'DESENVOLVIMENTO_PROCESSOS',
   'FERRAMENTARIA',
+  'QUALIDADE',
   'AMOSTRA',
 ] as const;
 export type UserDepartment = (typeof USER_DEPARTMENTS)[number];

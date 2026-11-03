@@ -12,7 +12,7 @@ export function PlatformBackdrop({ className }: PlatformBackdropProps) {
   return (
     <div
       className={cn(
-        'pointer-events-none absolute inset-0 overflow-hidden',
+        'platform-backdrop pointer-events-none absolute inset-0 overflow-hidden',
         className,
       )}
       aria-hidden

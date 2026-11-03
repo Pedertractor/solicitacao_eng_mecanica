@@ -85,7 +85,7 @@ async function kairoFetch<T>(
   const response = await fetch(`${requireBaseUrl()}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(init?.body != null ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${apiKey}`,
       ...(init?.headers ?? {}),
     },
@@ -97,6 +97,12 @@ async function kairoFetch<T>(
     | null;
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new HttpError(
+        'A chave de API do Kairo é inválida ou foi revogada. Vincule uma chave válida em Integrações.',
+        400,
+      );
+    }
     const message =
       body && 'mensagem' in body && typeof body.mensagem === 'string'
         ? body.mensagem
@@ -189,6 +195,20 @@ export class KairoClient {
         method: 'POST',
         body: JSON.stringify(input),
       },
+    );
+  }
+
+  async cancelActivity(teamId: string, activityId: string) {
+    return kairoFetch<{ activity: KairoActivity }>(
+      `/integrations/v1/teams/${encodeURIComponent(teamId)}/activities/${encodeURIComponent(activityId)}/cancel`,
+      this.apiKey, { method: 'POST', signal: AbortSignal.timeout(10_000) },
+    );
+  }
+
+  async cancelProject(teamId: string, projectId: string) {
+    return kairoFetch<{ project: KairoProject }>(
+      `/integrations/v1/teams/${encodeURIComponent(teamId)}/projects/${encodeURIComponent(projectId)}/cancel`,
+      this.apiKey, { method: 'POST', signal: AbortSignal.timeout(10_000) },
     );
   }
 

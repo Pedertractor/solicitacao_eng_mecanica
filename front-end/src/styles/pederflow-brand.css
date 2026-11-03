@@ -1,0 +1,5 @@
+.pederflow-brand { display: inline-flex; align-items: center; gap: 11px; }
+.pederflow-brand-mark { flex-shrink: 0; }
+.pederflow-brand-name { color: #244155; font-size: 28px; font-weight: 700; line-height: 1; letter-spacing: -1.3px; }
+.pederflow-brand-name > span:first-child { color: #0675bd; font-weight: 400; }
+.pederflow-brand-caption { display: block; margin: 7px 0 0 2px; color: #718391; font-size: 7px; font-weight: 500; letter-spacing: 2.1px; }

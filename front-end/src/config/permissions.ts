@@ -41,7 +41,7 @@ export function assignableRoles(
   actorDepartment?: UserDepartment | null,
 ): UserRole[] {
   if (actorRole === 'SUPER_ADMIN') {
-    return ['USER', 'ADMIN', 'SUPER_ADMIN', 'COMERCIAL'];
+    return ['USER', 'ADMIN', 'SUPER_ADMIN'];
   }
   if (actorRole === 'ADMIN' && actorDepartment === 'ENG_MECANICA') {
     return ['USER', 'ADMIN'];
@@ -50,7 +50,7 @@ export function assignableRoles(
     actorRole === 'ADMIN' &&
     actorDepartment === 'DESENVOLVIMENTO_PROCESSOS'
   ) {
-    return ['USER', 'ADMIN', 'COMERCIAL'];
+    return ['USER', 'ADMIN'];
   }
   return [];
 }
@@ -64,12 +64,14 @@ export function assignableDepartments(
     return [];
   }
   if (actorRole === 'SUPER_ADMIN') {
-    if (targetRole === 'COMERCIAL') return ['DESENVOLVIMENTO_PROCESSOS'];
     return [
       'ENG_MECANICA',
       'DESENVOLVIMENTO_PROCESSOS',
       'FERRAMENTARIA',
+      'QUALIDADE',
       'AMOSTRA',
+      'COMERCIAL',
+      'PCP',
     ];
   }
   if (actorRole === 'ADMIN' && actorDepartment === 'ENG_MECANICA') {
@@ -79,8 +81,7 @@ export function assignableDepartments(
     actorRole === 'ADMIN' &&
     actorDepartment === 'DESENVOLVIMENTO_PROCESSOS'
   ) {
-    if (targetRole === 'COMERCIAL') return ['DESENVOLVIMENTO_PROCESSOS'];
-    return ['DESENVOLVIMENTO_PROCESSOS', 'FERRAMENTARIA', 'AMOSTRA'];
+    return ['DESENVOLVIMENTO_PROCESSOS', 'FERRAMENTARIA', 'QUALIDADE', 'AMOSTRA', 'COMERCIAL', 'PCP'];
   }
   return [];
 }
@@ -112,8 +113,7 @@ export function canAccessSolicitations(
 ): boolean {
   if (
     role === 'USER' ||
-    role === 'SUPER_ADMIN' ||
-    role === 'COMERCIAL'
+    role === 'SUPER_ADMIN'
   ) {
     return true;
   }
@@ -136,20 +136,28 @@ export function canAccessProcessCharts(
   role: UserRole,
   department?: UserDepartment | null,
 ): boolean {
-  return role === 'ADMIN' && department === 'DESENVOLVIMENTO_PROCESSOS';
+  return role === 'ADMIN' && (department === 'DESENVOLVIMENTO_PROCESSOS' || department === 'COMERCIAL');
 }
 
 export function canAccessWorkflow(
   role: UserRole,
   department?: UserDepartment | null,
 ): boolean {
-  if (isSuperAdmin(role) || role === 'COMERCIAL') return true;
+  if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
   return (
     department === 'DESENVOLVIMENTO_PROCESSOS' ||
     department === 'FERRAMENTARIA' ||
-    department === 'AMOSTRA'
+    department === 'AMOSTRA' ||
+    department === 'COMERCIAL' ||
+    department === 'PCP' ||
+    department === 'QUALIDADE'
   );
+}
+
+export function canAccessProductionTracking(role: UserRole, department?: UserDepartment | null): boolean {
+  return (role === 'ADMIN' && department === 'COMERCIAL') || role === 'SUPER_ADMIN'
+    || (role === 'ADMIN' && department === 'DESENVOLVIMENTO_PROCESSOS');
 }
 
 export function canManageToolingStage(
@@ -168,6 +176,14 @@ export function canManageSampleStage(
   if (isSuperAdmin(role)) return true;
   if (role !== 'ADMIN' || !department) return false;
   return department === 'AMOSTRA';
+}
+
+export function canManageQualityStage(role: UserRole, department?: UserDepartment | null): boolean {
+  return role === 'SUPER_ADMIN' || (role === 'ADMIN' && department === 'QUALIDADE');
+}
+
+export function canManagePcpStage(role: UserRole, department?: UserDepartment | null): boolean {
+  return role === 'SUPER_ADMIN' || (role === 'ADMIN' && department === 'PCP');
 }
 
 /** Líder de Desenvolvimento de Processos: acompanha só a etapa de Engenharia. */
@@ -193,9 +209,19 @@ export function isWorkflowOnlyRole(
   role: UserRole,
   department?: UserDepartment | null,
 ): boolean {
-  if (role === 'COMERCIAL') return true;
   if (role === 'ADMIN' && department) {
-    return department === 'FERRAMENTARIA' || department === 'AMOSTRA';
+    return department === 'COMERCIAL' || department === 'PCP' || department === 'FERRAMENTARIA' || department === 'AMOSTRA' || department === 'QUALIDADE';
   }
   return false;
+}
+
+export function canDeclineWorkflowStage(role: UserRole, department: UserDepartment | null, stage: import('@/services/solicitation').WorkflowStageKind): boolean {
+  if (role === 'SUPER_ADMIN') return false;
+  switch (stage) {
+    case 'ENGENHARIA': return isProcessEngineeringLead(role, department);
+    case 'PCP_FERRAMENTARIA': case 'PCP_AMOSTRA': return role === 'ADMIN' && department === 'PCP';
+    case 'FERRAMENTARIA': return canManageToolingStage(role, department);
+    case 'QUALIDADE': return canManageQualityStage(role, department);
+    case 'AMOSTRA': return canManageSampleStage(role, department);
+  }
 }

@@ -8,13 +8,73 @@ export const PROCESS_REQUESTERS = [
 
 export type ProcessRequester = (typeof PROCESS_REQUESTERS)[number];
 
+export const ROBOTIC_WELDING_ACTIVITY_TYPES = [
+  'Ajuste (Programa)',
+  'Backup',
+  'Programa (Novo)',
+  'Programa (Teste)',
+  'Reunião',
+  'Simulação',
+  'Suporte',
+  'Teste',
+] as const;
+
+export const MACHINING_ACTIVITY_TYPES = [
+  'Alteração',
+  'Cotação',
+  'Ferramentaria Centro',
+  'Ferramentaria Torno',
+  'Processo Centro',
+  'Processo Torno',
+  'Retrabalho',
+  'Contagem de Pedido',
+] as const;
+
+export const MANUAL_WELDING_ACTIVITY_TYPES = [
+  'Processo De Montagem',
+  'Processo De Solda',
+  'Processo De Solda Robô',
+  'Suporte Técnico',
+  'Contagem de Pedido',
+] as const;
+
+export const PUNCH_PRESS_ACTIVITY_TYPES = [
+  'Programação',
+  'Tipagem',
+  'Suporte Técnico',
+  'Processo Realizado',
+  'Análise Comercial',
+  'Reprogramação',
+] as const;
+
+export const CUTTING_ACTIVITY_TYPES = [
+  'Programação',
+  'Reprocessamento',
+  'Alteração Dimensional',
+  'Remodelar 3D',
+  'Atualiz. Tempo Controlado',
+] as const;
+
+export const BENDING_ACTIVITY_TYPES = [
+  'Atualizar Processo',
+  'Elaborar Gabarito',
+  'Extrair Dxf',
+  'Processo Dobra',
+  'Simulação Comercial',
+  'Suporte Técnico',
+  'Teste Ferramenta',
+  'Contagem de pedido',
+] as const;
+
 export const PROCESS_PERMISSIONS: Record<
   ProcessRequester,
   Record<string, readonly string[]>
 > = {
   Comercial: {
-    Corte: ['Simulação Comercial'],
-    Dobra: ['Simulação Comercial'],
+    Puncionadeira: PUNCH_PRESS_ACTIVITY_TYPES,
+    'Solda (Manual)': MANUAL_WELDING_ACTIVITY_TYPES,
+    Corte: [...CUTTING_ACTIVITY_TYPES, 'Simulação Comercial'],
+    Dobra: BENDING_ACTIVITY_TYPES,
     Engenharia: [
       'Alteração Cliente',
       'Alteração Interna',
@@ -22,22 +82,28 @@ export const PROCESS_PERMISSIONS: Record<
       'Desenvolvimento Protótipo',
       'Desenvolvimento Teste',
     ],
-    'Solda Robotizada': ['Simulação Comercial'],
-    Usinagem: ['Simulação Comercial'],
+    'Solda Robotizada': [...ROBOTIC_WELDING_ACTIVITY_TYPES, 'Simulação Comercial'],
+    Usinagem: [...MACHINING_ACTIVITY_TYPES, 'Simulação Comercial'],
   },
   Ferramentaria: {
-    Dobra: ['Atualização de Processo', 'Desenvolvimento de Processo'],
-    'Solda Robotizada': ['Simulação Comercial'],
-    Usinagem: ['Ferramental Centro', 'Ferramental Torno'],
+    Puncionadeira: PUNCH_PRESS_ACTIVITY_TYPES,
+    'Solda (Manual)': MANUAL_WELDING_ACTIVITY_TYPES,
+    Dobra: [...BENDING_ACTIVITY_TYPES, 'Atualização de Processo', 'Desenvolvimento de Processo'],
+    'Solda Robotizada': [...ROBOTIC_WELDING_ACTIVITY_TYPES, 'Simulação Comercial'],
+    Usinagem: [...MACHINING_ACTIVITY_TYPES, 'Ferramental Centro', 'Ferramental Torno'],
   },
   Produção: {
+    Puncionadeira: PUNCH_PRESS_ACTIVITY_TYPES,
+    'Solda (Manual)': MANUAL_WELDING_ACTIVITY_TYPES,
     Dobra: [
+      ...BENDING_ACTIVITY_TYPES,
       'Atualização de Blank',
       'Atualização de Processo',
       'Desenvolvimento de Gabarito',
     ],
     Engenharia: ['Alteração Interna'],
     Pintura: [
+      'Alteração Interna Eng.',
       'Atualização de Processo',
       'Calafetagem',
       'Check List',
@@ -51,12 +117,7 @@ export const PROCESS_PERMISSIONS: Record<
       'Sala Limpa',
       'Teste Estanqueidade',
     ],
-    'Solda Robotizada': [
-      'Ajuste Arame',
-      'Ajuste Programa',
-      'Backup',
-      'Programação',
-    ],
+    'Solda Robotizada': ROBOTIC_WELDING_ACTIVITY_TYPES,
     'Solda Semiautomática': [
       'Atualização de Processo',
       'Auxílio Visual',
@@ -65,14 +126,18 @@ export const PROCESS_PERMISSIONS: Record<
       'Desen. Processo Teste Estanq.',
     ],
     Usinagem: [
+      ...MACHINING_ACTIVITY_TYPES,
       'Atualização Processo Centro',
       'Atualização Processo Torno',
       'Desen. Processo Retrabalho',
     ],
   },
   Qualidade: {
+    Puncionadeira: PUNCH_PRESS_ACTIVITY_TYPES,
+    'Solda (Manual)': MANUAL_WELDING_ACTIVITY_TYPES,
     Engenharia: ['Alteração Cliente', 'Alteração Interna'],
     Pintura: [
+      'Alteração Interna Eng.',
       'Atualização de Processo',
       'Calafetagem',
       'Check List',
@@ -94,18 +159,23 @@ export const PROCESS_PERMISSIONS: Record<
       'Desen. Processo Teste Estanq.',
     ],
     Usinagem: [
+      ...MACHINING_ACTIVITY_TYPES,
       'Atualização Processo Centro',
       'Atualização Processo Torno',
       'Desen. Processo Retrabalho',
     ],
   },
   Engenharia: {
+    Puncionadeira: PUNCH_PRESS_ACTIVITY_TYPES,
+    'Solda (Manual)': MANUAL_WELDING_ACTIVITY_TYPES,
     Dobra: [
+      ...BENDING_ACTIVITY_TYPES,
       'Atualização de Blank',
       'Atualização de Processo',
       'Desenvolvimento de Processo',
     ],
     Usinagem: [
+      ...MACHINING_ACTIVITY_TYPES,
       'Atualização Processo Centro',
       'Atualização Processo Torno',
       'Desen. Processo Centro Amostra',
@@ -175,8 +245,10 @@ const PROCESS_DEADLINES: Record<
     'Solda Robotizada': {
       'Ajuste Arame': 2,
       'Ajuste Programa': 2,
+      'Ajuste (Programa)': 2,
       Backup: 2,
       Programação: 2,
+      'Programa (Novo)': 2,
     },
     'Solda Semiautomática': {
       'Atualização de Processo': 30,

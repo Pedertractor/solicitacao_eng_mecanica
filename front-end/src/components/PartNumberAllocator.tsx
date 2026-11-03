@@ -1,14 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { Check, Loader2, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState } from 'react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { splitStoredPartNumbers } from '@/lib/part-numbers';
-import { solicitationApi } from '@/services/solicitation';
-import { cn } from '@/lib/utils';
-
-type LookupPhase = 'idle' | 'loading' | 'found' | 'notFound' | 'error';
 
 function samePart(left: string, right: string) {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
@@ -22,112 +17,47 @@ export function PartNumberAllocator({
   onChange: (parts: string[]) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [phase, setPhase] = useState<LookupPhase>('idle');
   const [message, setMessage] = useState<string | null>(null);
-  const valueRef = useRef(value);
-  const onChangeRef = useRef(onChange);
-  const debounceTimerRef = useRef<number | undefined>(undefined);
-  const requestIdRef = useRef(0);
-
-  useEffect(() => {
-    valueRef.current = value;
-    onChangeRef.current = onChange;
-  });
-
-  useEffect(() => {
-    return () => {
-      window.clearTimeout(debounceTimerRef.current);
-      requestIdRef.current += 1;
-    };
-  }, []);
 
   const trimmedQuery = query.trim();
-  const displayPhase = trimmedQuery ? phase : 'idle';
-  const displayMessage = trimmedQuery ? message : null;
 
-  const runLookup = (trimmed: string) => {
-    requestIdRef.current += 1;
-    const requestId = requestIdRef.current;
-
-    void (async () => {
-      try {
-        const part = await solicitationApi.lookupPartByNumber(trimmed);
-        if (requestId !== requestIdRef.current) return;
-        if (valueRef.current.some((item) => samePart(item, part.partNumber))) {
-          toast.error('Part number já adicionado.');
-          setPhase('error');
-          setMessage('Part number já adicionado.');
-          return;
-        }
-        onChangeRef.current([...valueRef.current, part.partNumber]);
-        setPhase('found');
-        setMessage(null);
-        window.setTimeout(() => {
-          if (requestId !== requestIdRef.current) return;
-          setQuery('');
-          setPhase('idle');
-        }, 450);
-      } catch (error) {
-        if (requestId !== requestIdRef.current) return;
-        const status = (error as { status?: number }).status;
-        setPhase(status === 404 ? 'notFound' : 'error');
-        setMessage(
-          status === 404
-            ? 'Part number não encontrado.'
-            : ((error as { message?: string }).message ??
-              'Não foi possível consultar o part number.'),
-        );
-      }
-    })();
-  };
-
-  const handleQueryChange = (next: string) => {
-    setQuery(next);
-    window.clearTimeout(debounceTimerRef.current);
-
-    const trimmed = next.trim();
-    if (!trimmed) {
-      requestIdRef.current += 1;
-      setPhase('idle');
-      setMessage(null);
+  const addPart = () => {
+    if (!trimmedQuery) return;
+    if (value.some((item) => samePart(item, trimmedQuery))) {
+      setMessage('Part number já adicionado.');
       return;
     }
-
-    setPhase('loading');
+    onChange([...value, trimmedQuery]);
+    setQuery('');
     setMessage(null);
-    debounceTimerRef.current = window.setTimeout(() => {
-      runLookup(trimmed);
-    }, 500);
   };
 
   return (
     <div className='grid gap-2'>
       <Label htmlFor='partNumber'>partnumber (P.N)</Label>
-      <div className='relative'>
+      <div className='flex gap-2'>
         <Input
           id='partNumber'
           value={query}
           placeholder='Digite o part number'
-          onChange={(event) => handleQueryChange(event.target.value)}
-          aria-invalid={displayPhase === 'notFound' || displayPhase === 'error'}
-          className={cn(
-            (displayPhase === 'loading' || displayPhase === 'found') && 'pr-9',
-          )}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setMessage(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              addPart();
+            }
+          }}
+          aria-invalid={Boolean(message)}
         />
-        {displayPhase === 'loading' && (
-          <Loader2
-            className='pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground'
-            aria-hidden
-          />
-        )}
-        {displayPhase === 'found' && (
-          <Check
-            className='pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-green-600'
-            aria-hidden
-          />
-        )}
+        <Button type='button' variant='outline' disabled={!trimmedQuery} onClick={addPart}>
+          Adicionar
+        </Button>
       </div>
-      {displayMessage && <p className='text-sm text-destructive'>{displayMessage}</p>}
+      <p className='text-sm text-muted-foreground'>Digite o part number e clique em Adicionar ou pressione Enter.</p>
+      {message && <p role='alert' className='text-sm text-destructive'>{message}</p>}
       {value.length > 0 && (
         <ul className='grid grid-cols-3 gap-2'>
           {value.map((part) => (

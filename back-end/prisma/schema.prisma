@@ -16,12 +16,14 @@ enum UserRole {
   SUPER_ADMIN
   ADMIN
   USER
-  COMERCIAL
 }
 
 enum WorkflowStage {
   ENGENHARIA
+  PCP_FERRAMENTARIA
   FERRAMENTARIA
+  PCP_AMOSTRA
+  QUALIDADE
   AMOSTRA
 }
 
@@ -31,12 +33,16 @@ enum WorkflowStageStatus {
   IN_PROGRESS
   DONE
   CANCELLED
+  REJECTED
 }
 
 enum UserDepartment {
+  COMERCIAL
+  PCP
   ENG_MECANICA
   DESENVOLVIMENTO_PROCESSOS
   FERRAMENTARIA
+  QUALIDADE
   AMOSTRA
 }
 
@@ -220,6 +226,8 @@ model Solicitation {
   kairoSyncedByUserId  String?
 
   requiresTooling Boolean @default(false)
+  executionUnit   Unit?
+  directTooling   Boolean @default(false)
 
   deletedAt       DateTime?
   deletedByUserId String?
@@ -259,6 +267,11 @@ model SolicitationWorkflowStage {
   kairoCardIds        String?
   kairoSyncedAt       DateTime?
   kairoSyncedByUserId String?
+
+  rejectionReason String?
+  rejectedAt DateTime?
+  rejectedByUserId String?
+  rejectedByName String?
 
   completedByUserId String?
 

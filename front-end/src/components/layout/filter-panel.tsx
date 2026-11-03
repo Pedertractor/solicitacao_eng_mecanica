@@ -20,7 +20,7 @@ export function FilterPanel({
   className?: string;
 }) {
   return (
-    <section className={cn(surfaceStyles.filterPanel, className)}>
+    <section data-slot='filter-panel' className={cn(surfaceStyles.filterPanel, className)}>
       <div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
         <div className='flex items-center gap-2.5'>
           <div className={surfaceStyles.filterIcon}>

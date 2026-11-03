@@ -9,7 +9,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { BrushCleaning, Check, CircleCheck, Copy, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BrushCleaning, Check, CircleCheck, Copy, Loader2 } from 'lucide-react';
 import { SendIcon, type SendIconHandle } from 'lucide-animated';
 import { motion, useAnimation } from 'motion/react';
 import {
@@ -30,6 +30,7 @@ import {
   type SolicitationClient,
 } from '@/services/solicitation';
 import { type Unit } from '@/types/auth';
+import { changeSolicitationDestination } from '@/config/solicitation-routing';
 import {
   cardNumberForApi,
 } from '@/utils/card-number-input';
@@ -49,6 +50,10 @@ import { Separator } from '@/components/ui/separator';
 import { copyToClipboard } from '@/lib/clipboard';
 import { cn } from '@/lib/utils';
 import type { AnimatedIconHandle } from '@/config/sidebar';
+import { SolicitationRoutingStep } from '@/components/SolicitationRoutingStep';
+import { SolicitationWorkflowPreview } from '@/components/SolicitationWorkflowPreview';
+import { SOLICITATION_DESTINATIONS, validateSolicitationRouting, type SolicitationDestination, type SolicitationRoutingErrors } from '@/config/solicitation-routing';
+import './solicitation-create.css';
 import {
   PublicSolicitationShell,
   publicSolicitationCardClass,
@@ -88,25 +93,6 @@ const UNIT_OPTIONS: { value: Unit; label: string }[] = [
   { value: 'TRACTOR', label: 'T' },
 ];
 
-type PublicSolicitationDepartment =
-  | 'ENG_MECANICA'
-  | 'DESENVOLVIMENTO_PROCESSOS';
-
-const DEPARTMENT_OPTIONS: {
-  value: PublicSolicitationDepartment;
-  label: string;
-}[] = [
-  { value: 'ENG_MECANICA', label: 'Engenharia (Mecânica)' },
-  { value: 'DESENVOLVIMENTO_PROCESSOS', label: 'Engenharia (Processos)' },
-];
-
-const DEPARTMENT_DESCRIPTION: Record<PublicSolicitationDepartment, string> = {
-  ENG_MECANICA:
-    'Engenharia Mecânica. Página para fazer solicitações para a equipe.',
-  DESENVOLVIMENTO_PROCESSOS:
-    'Preencha os dados abaixo para solicitar um novo serviço.',
-};
-
 const CARD_NUMBER_LENGTH = 4;
 
 function isCompleteCardNumber(value: string) {
@@ -133,7 +119,12 @@ async function copyText(value: string) {
 
 export function PublicSolicitationPage() {
   const [department, setDepartment] =
-    useState<PublicSolicitationDepartment>('ENG_MECANICA');
+    useState<SolicitationDestination | ''>('');
+  const [step, setStep] = useState<1 | 2>(1);
+  const [routingErrors, setRoutingErrors] = useState<SolicitationRoutingErrors>({});
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const fieldsScrollRef = useRef<HTMLDivElement>(null);
+  const previousStepRef = useRef(step);
   const [cardNumber, setCardNumber] = useState('');
   const [unit, setUnit] = useState<Unit>('PEDERTRACTOR');
   const [requesterName, setRequesterName] = useState<string | null>(null);
@@ -162,6 +153,24 @@ export function PublicSolicitationPage() {
   const sectorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearIconRef = useRef<AnimatedIconHandle>(null);
   const sendIconRef = useRef<SendIconHandle>(null);
+  const route = { destination: department, requester: processDraft.requester, type: processDraft.type,
+    requiresTooling: processDraft.requiresTooling, directTooling: processDraft.directTooling };
+
+  useEffect(() => {
+    if (previousStepRef.current === step) return;
+    previousStepRef.current = step;
+    if (stepHeadingRef.current) {
+      stepHeadingRef.current.focus({ preventScroll: true });
+      if (fieldsScrollRef.current) fieldsScrollRef.current.scrollTop = 0;
+    }
+  }, [step]);
+
+  const continueToDetails = () => {
+    const errors = validateSolicitationRouting(route);
+    setRoutingErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    setStep(2);
+  };
   const validateRequester = useCallback(async () => {
     if (!isCompleteCardNumber(cardNumber)) {
       setRequesterName(null);
@@ -248,6 +257,16 @@ export function PublicSolicitationPage() {
         requesterEmail: requesterEmail.trim(),
       };
 
+      if (department === 'FERRAMENTARIA') {
+        return solicitationApi.create({
+          ...shared, department, processInstructionRequester: 'Comercial',
+          processInstructionType: 'Simulação Comercial',
+          executionUnit: processDraft.executionUnit as Unit,
+          client: processDraft.client as SolicitationClient,
+          partNumbers: processDraft.allocatedPartNumbers.join(', '),
+          fileLink: processDraft.fileLink.trim(), comments: processDraft.comments.trim(),
+        });
+      }
       if (department === 'DESENVOLVIMENTO_PROCESSOS') {
         return solicitationApi.create({
           ...shared,
@@ -273,7 +292,11 @@ export function PublicSolicitationPage() {
             ? { comments: processDraft.comments.trim() }
             : {}),
           ...(processDraft.requester === 'Comercial'
-            ? { requiresTooling: processDraft.requiresTooling }
+            ? {
+                requiresTooling: processDraft.requiresTooling,
+                executionUnit: processDraft.executionUnit as Unit,
+                directTooling: processDraft.directTooling,
+              }
             : {}),
         });
       }
@@ -281,6 +304,7 @@ export function PublicSolicitationPage() {
       return solicitationApi.create({
         ...shared,
         department: 'ENG_MECANICA',
+        processInstructionRequester: processDraft.requester,
         title: title.trim(),
         description: description.trim(),
       });
@@ -301,7 +325,9 @@ export function PublicSolicitationPage() {
   };
 
   const resetFormFields = () => {
-    setDepartment('ENG_MECANICA');
+    setDepartment('');
+    setStep(1);
+    setRoutingErrors({});
     setCardNumber('');
     setUnit('PEDERTRACTOR');
     setRequesterName(null);
@@ -326,6 +352,16 @@ export function PublicSolicitationPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (step === 1) {
+      continueToDetails();
+      return;
+    }
+    const routeErrors = validateSolicitationRouting(route);
+    if (Object.keys(routeErrors).length > 0) {
+      setRoutingErrors(routeErrors);
+      setStep(1);
+      return;
+    }
 
     let requesterValidated = Boolean(requesterName);
     if (
@@ -373,8 +409,10 @@ export function PublicSolicitationPage() {
     }
 
     const nextProcessErrors =
-      department === 'DESENVOLVIMENTO_PROCESSOS'
+      department === 'DESENVOLVIMENTO_PROCESSOS' || department === 'FERRAMENTARIA'
         ? validateProcessInstructionFields({
+            directCommercialTooling: department === 'FERRAMENTARIA',
+            executionUnit: processDraft.executionUnit,
             requester: processDraft.requester,
             process: processDraft.process,
             type: processDraft.type,
@@ -399,6 +437,7 @@ export function PublicSolicitationPage() {
     ) {
       setProcessErrors(nextProcessErrors);
       setFieldErrors(errors);
+      if (fieldsScrollRef.current) fieldsScrollRef.current.scrollTop = 0;
       return;
     }
 
@@ -426,6 +465,7 @@ export function PublicSolicitationPage() {
               Sua solicitação foi registrada e será analisada pela equipe de{' '}
               {submittedSolicitation.department === 'DESENVOLVIMENTO_PROCESSOS'
                 ? 'desenvolvimento de processos'
+                : submittedSolicitation.department === 'FERRAMENTARIA' ? 'ferramentaria'
                 : 'engenharia mecânica'}
               . Guarde o protocolo para acompanhar o andamento.
             </CardDescription>
@@ -501,26 +541,60 @@ export function PublicSolicitationPage() {
   }
 
   return (
-    <PublicSolicitationShell contentClassName='justify-center'>
+    <PublicSolicitationShell wide className='solicitation-create-shell' contentClassName='solicitation-create-content'>
+      <div className='solicitation-create-intro'>
+        <p>NOVA SOLICITAÇÃO</p>
+        <h1>Um bom começo faz o fluxo acontecer.</h1>
+        <span>Defina o caminho. Conte o que precisa. Acompanhe cada etapa.</span>
+      </div>
+      <div className='solicitation-create-layout'>
       <Card
         className={cn(
-          'flex h-[min(720px,calc(100svh-2rem))] w-full flex-col gap-0 overflow-hidden py-0',
+          'solicitation-create-card w-full gap-0 py-0',
           publicSolicitationCardClass,
         )}
       >
-        <CardHeader className='shrink-0 border-b py-6'>
-          <CardTitle>
-            {department === 'DESENVOLVIMENTO_PROCESSOS'
-              ? 'Solicitação de Instrução de Processo'
-              : 'Solicitação Pedertractor'}
-          </CardTitle>
-          <CardDescription>{DEPARTMENT_DESCRIPTION[department]}</CardDescription>
-        </CardHeader>
+        <div className='solicitation-create-card-heading'>
+          <ol className='solicitation-stepper' aria-label='Etapas da solicitação'>
+            <li aria-current={step === 1 ? 'step' : undefined} data-complete={step === 2}>
+              <button type='button' onClick={() => setStep(1)} disabled={createMutation.isPending}><span>{step === 2 ? <Check size={13} aria-hidden /> : '1'}</span>Definir o caminho</button>
+            </li>
+            <li className='solicitation-stepper-line' aria-hidden />
+            <li aria-current={step === 2 ? 'step' : undefined}>
+              <button type='button' disabled={step === 1 || createMutation.isPending}><span>2</span>Detalhar o chamado</button>
+            </li>
+          </ol>
+          <div className='solicitation-step-title'>
+            <p>ETAPA {step} DE 2</p>
+            <h2 ref={stepHeadingRef} tabIndex={-1}>{step === 1 ? 'Por onde vamos começar?' : 'Conte o que você precisa.'}</h2>
+            <span>{step === 1 ? 'Escolha a origem e o destino. O fluxo se desenha ao lado.' : 'O caminho está definido. Agora, preencha os dados da solicitação.'}</span>
+          </div>
+        </div>
         <form
           onSubmit={handleSubmit}
-          className='flex min-h-0 flex-1 flex-col overflow-hidden'
+          noValidate
         >
-          <CardContent className='min-h-0 flex-1 space-y-4 overflow-y-auto py-6'>
+          <CardContent ref={fieldsScrollRef} className='solicitation-create-fields space-y-5'>
+            {step === 1 ? (
+              <SolicitationRoutingStep destination={department} value={processDraft} errors={routingErrors}
+                onDestinationChange={(destination) => {
+                  if (destination === department) return;
+                  setDepartment(destination);
+                  setRoutingErrors((prev) => ({ ...prev, destination: undefined }));
+                  setProcessErrors({});
+                  setProcessDraft((prev) => changeSolicitationDestination(prev, department, destination));
+                }}
+                onChange={(draft) => {
+                  setProcessDraft(draft);
+                  setProcessErrors({});
+                  setRoutingErrors((prev) => ({ ...prev, requester: undefined }));
+                }} />
+            ) : <>
+            <div className='solicitation-route-summary'>
+              <span><small>CAMINHO DEFINIDO</small><strong>{processDraft.requester} <ArrowRight size={13} aria-hidden /> {SOLICITATION_DESTINATIONS.find((item) => item.value === department)?.label}</strong></span>
+              <button type='button' onClick={() => setStep(1)} disabled={createMutation.isPending}>Alterar</button>
+            </div>
+            <h3 className='solicitation-details-section-title'>Seus dados</h3>
             <div className='grid gap-2'>
               <div className='flex items-start gap-3'>
                 <div className='grid min-w-0 flex-1 gap-2'>
@@ -708,45 +782,13 @@ export function PublicSolicitationPage() {
               )}
             </div>
 
-            <div className='grid gap-2'>
-              <Label id='department-label'>Destino da solicitação</Label>
-              <div
-                className='grid grid-cols-2 gap-2'
-                role='group'
-                aria-labelledby='department-label'
-              >
-                {DEPARTMENT_OPTIONS.map(({ value, label }) => (
-                  <Button
-                    key={value}
-                    type='button'
-                    variant={department === value ? 'default' : 'outline'}
-                    className='h-auto min-h-9 whitespace-normal px-2 py-2 text-center text-sm font-medium leading-snug'
-                    aria-pressed={department === value}
-                    aria-label={label}
-                    onClick={() => {
-                      if (value === department) return;
-                      if (value === 'ENG_MECANICA') {
-                        setProcessDraft(emptyProcessInstructionDraft());
-                        setProcessErrors({});
-                      } else {
-                        setTitle('');
-                        setDescription('');
-                        clearFieldError('title');
-                        clearFieldError('description');
-                      }
-                      setDepartment(value);
-                    }}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
             <Separator className='bg-border/60' />
+            <h3 className='solicitation-details-section-title'>Detalhes da solicitação</h3>
 
-            {department === 'DESENVOLVIMENTO_PROCESSOS' ? (
+            {department === 'DESENVOLVIMENTO_PROCESSOS' || department === 'FERRAMENTARIA' ? (
               <ProcessInstructionFormSection
+                directCommercialTooling={department === 'FERRAMENTARIA'}
+                showRouting={false}
                 value={processDraft}
                 errors={processErrors}
                 onChange={setProcessDraft}
@@ -804,11 +846,14 @@ export function PublicSolicitationPage() {
               </>
             )}
 
-            <div className='flex flex-col gap-2 sm:flex-row'>
+            </>}
+          </CardContent>
+          <div className='solicitation-create-actions'>
+            {step === 2 && <Button type='button' variant='ghost' onClick={() => setStep(1)} disabled={createMutation.isPending}><ArrowLeft size={16} aria-hidden /> Voltar</Button>}
               <Button
                 type='button'
                 variant='outline'
-                className='flex-1'
+                className='solicitation-clear-action'
                 disabled={
                   createMutation.isPending || requesterLoading || sectorLoading
                 }
@@ -817,11 +862,11 @@ export function PublicSolicitationPage() {
                 onClick={handleClearForm}
               >
                 <AnimatedBrushCleaning ref={clearIconRef} />
-                Limpar formulário
+                Limpar
               </Button>
               <Button
                 type='submit'
-                className='flex-1'
+                className='solicitation-continue-action'
                 disabled={
                   createMutation.isPending || requesterLoading || sectorLoading
                 }
@@ -832,21 +877,22 @@ export function PublicSolicitationPage() {
                   <>
                     <Loader2 className='size-4 animate-spin' /> Enviando…
                   </>
-                ) : (
+                ) : step === 1 ? <>Continuar <ArrowRight size={16} aria-hidden /></> : (
                   <>
                     <SendIcon
                       ref={sendIconRef}
                       size={FORM_ICON_SIZE}
                       animateOnHover={false}
                     />
-                    Enviar solicitações
+                    Enviar solicitação
                   </>
                 )}
               </Button>
-            </div>
-          </CardContent>
+          </div>
         </form>
       </Card>
+      <SolicitationWorkflowPreview route={route} />
+      </div>
     </PublicSolicitationShell>
   );
 }

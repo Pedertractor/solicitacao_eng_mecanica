@@ -1,0 +1,185 @@
+.pederflow-login {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 32px 24px;
+  background: radial-gradient(ellipse at 50% 36%, #f8fbfd 0%, #edf3f7 72%);
+  color: #243e50;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.login-shell {
+  width: 100%;
+  max-width: 1080px;
+  overflow: hidden;
+  border: 1px solid #dce5eb;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 20px 70px -25px #345b7726, 0 2px 8px #345b7704;
+  animation: login-arrive 450ms ease-out both;
+}
+
+.login-header {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 36px;
+  border-bottom: 1px solid #e6edf2;
+}
+
+.login-brand-link { border-radius: 8px; }
+
+.login-companies { display: flex; width: 270px; max-width: 45%; align-items: center; }
+.login-companies-logo { display: block; width: 100%; height: auto; }
+
+.login-body { display: grid; grid-template-columns: 46% 54%; min-height: 550px; }
+.login-story {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 42px 36px 28px;
+  background: linear-gradient(145deg, #087dc3 0%, #006daf 70%, #08639f 100%);
+  color: #fff;
+}
+.login-story::after { position: absolute; inset: 0; border-right: 1px solid #005f9b1a; content: ''; pointer-events: none; }
+.login-story-copy { position: relative; z-index: 1; }
+.pederflow-login .login-eyebrow { margin: 0 0 10px; color: #7b8d9b; font-size: 9px; font-weight: 600; line-height: 1.5; letter-spacing: 1.9px; }
+.pederflow-login .login-eyebrow-light { display: flex; align-items: center; gap: 9px; margin-bottom: 25px; color: #c0e4f7; font-size: 8px; letter-spacing: 1.7px; }
+.login-eyebrow-light > span { width: 5px; height: 5px; background: #f4ce57; }
+.login-story h2 { margin: 0; color: #fff; font-size: clamp(35px, 3.5vw, 44px); font-weight: 400; line-height: 1.13; letter-spacing: -1.8px; }
+.pederflow-login .login-story-description { margin: 20px 0 0; color: #cee9f7; font-size: 12px; line-height: 1.9; }
+.login-flow { width: calc(100% + 26px); margin: 24px -13px 14px; }
+.login-flow svg { display: block; width: 100%; height: auto; max-height: 270px; overflow: visible; font-family: 'Segoe UI', Arial, sans-serif; }
+.flow-moving-dashes { animation: flow-dash-travel 8s linear infinite; }
+.flow-step { --step-delay: 0s; }
+.flow-step-two { --step-delay: 2.2s; }
+.flow-step-three { --step-delay: 5.7s; }
+.flow-card-outline { animation: flow-card-pulse 10.2s ease-out infinite; animation-delay: var(--step-delay); }
+.flow-step-indicator { animation: flow-indicator-pulse 10.2s ease-in-out infinite; animation-delay: var(--step-delay); }
+.flow-complete-ring { transform-box: fill-box; transform-origin: center; animation: flow-complete-pulse 3.4s ease-out infinite; }
+.login-story-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; color: #c2e1f2; font-family: 'Segoe UI', Arial, sans-serif; font-size: 7px; font-weight: 500; letter-spacing: 1.25px; }
+.login-story-footer > div { display: flex; align-items: center; gap: 10px; }
+.login-yellow-line { width: 20px; height: 2px; background: #f4ce57; }
+.login-drawing-number { color: #a9d5ed; font-family: Consolas, monospace; font-size: 8px; letter-spacing: 1px; }
+
+.login-access { display: flex; align-items: center; justify-content: center; padding: 44px 48px; }
+.login-form-content { width: 100%; max-width: 354px; }
+.login-form-heading { margin-bottom: 29px; }
+.login-form-heading h1 { margin: 0 0 10px; color: #243e50; font-size: 32px; font-weight: 600; line-height: 1.15; letter-spacing: -1.5px; }
+.login-form-heading > p:last-child { margin: 0; color: #768690; font-size: 12px; line-height: 1.7; }
+.login-fields { display: flex; min-width: 0; flex-direction: column; gap: 19px; padding: 0; border: 0; }
+.login-field { display: flex; flex-direction: column; gap: 8px; }
+.login-field > label, .login-unit-field > legend { color: #364f5f; font-size: 11px; font-weight: 500; line-height: 1.5; }
+.login-input-wrap { position: relative; }
+.login-input-icon { position: absolute; z-index: 1; top: 50%; left: 14px; color: #94a6b3; transform: translateY(-50%); pointer-events: none; }
+.pederflow-login .login-input { height: 46px; padding: 0 14px 0 40px; border: 1px solid #d6dfe6; border-radius: 7px; background: #fff; color: #243e50; font-size: 12px; box-shadow: 0 1px 2px #243e5003; transition: border-color 160ms, box-shadow 160ms; }
+.pederflow-login .login-input::placeholder { color: #9aa7b2; }
+.pederflow-login .login-input:hover { border-color: #b4c7d5; }
+.pederflow-login .login-input:focus-visible { border-color: #0879bf; outline: none; box-shadow: 0 0 0 3px #0879bf1a; }
+.pederflow-login .login-password-input { padding-right: 46px; }
+.pederflow-login .login-password-toggle { position: absolute; top: 3px; right: 3px; width: 40px; height: 40px; border-radius: 5px; color: #8b9aa7; }
+.pederflow-login .login-password-toggle:hover { background: #edf6fc; color: #0875b7; }
+.login-unit-field { min-width: 0; padding: 0; border: 0; }
+.login-unit-field > legend { margin-bottom: 8px; }
+.login-unit-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.login-unit-option { display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 9px; padding: 8px; border: 1px solid #d6dfe6; border-radius: 7px; color: #516674; font-size: 11px; cursor: pointer; transition: background 160ms, border-color 160ms, box-shadow 160ms; }
+.login-unit-option:hover { border-color: #8bb9d7; background: #f7fbfe; }
+.login-unit-option:has(input:checked) { border-color: #0879bf; background: #f0f8fd; color: #096fae; }
+.login-unit-option:has(input:focus-visible) { border-color: #0879bf; box-shadow: 0 0 0 3px #0879bf1a; }
+.login-unit-option input { width: 15px; height: 15px; margin: 0; accent-color: #0879bf; cursor: pointer; }
+.login-fields:disabled .login-unit-option { opacity: .6; cursor: wait; }
+.pederflow-login .login-submit { width: 100%; height: 46px; justify-content: space-between; margin-top: -2px; padding: 0 17px; border: 1px solid #0071b8; border-radius: 7px; background: #0578bd; color: #fff; font-size: 12px; font-weight: 600; box-shadow: 0 3px 6px #0068a90a; transition: background 160ms, box-shadow 160ms; }
+.pederflow-login .login-submit:hover { background: #006aaa; box-shadow: 0 4px 12px #0068a921; }
+.pederflow-login .login-submit:focus-visible { outline: 3px solid #acd8f3; outline-offset: 3px; }
+.pederflow-login .login-first-access { margin: 21px 0 0; color: #81909b; font-size: 10px; line-height: 1.8; text-align: center; }
+.login-first-access strong { color: #5e7381; font-weight: 500; }
+.login-register { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; margin-top: 23px; padding-top: 19px; border-top: 1px solid #edf1f4; color: #7c8c97; font-size: 10px; }
+.login-register a { display: inline-flex; align-items: center; gap: 4px; border-radius: 2px; color: #0875b7; font-weight: 500; }
+.login-register a:hover { color: #045c95; text-decoration: underline; text-underline-offset: 3px; }
+.pederflow-login .login-caps-warning { margin: -9px 0 -5px; color: #a56311; font-size: 11px; }
+
+.login-footer { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 28px; border-top: 1px solid #e6edf2; color: #8898a2; font-size: 8px; line-height: 1.5; }
+.login-footer strong { color: #657e8c; font-weight: 500; }
+.login-footer-slash { margin: 0 9px; color: #c0cbd2; }
+.login-footer-security { display: flex; align-items: center; gap: 7px; }
+.login-public-link { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; border-radius: 3px; color: #7a8e9c; font-size: 10px; line-height: 1.7; }
+.login-public-link > span { display: inline-flex; align-items: center; gap: 3px; color: #53768c; }
+.login-public-link:hover > span { color: #0875b7; text-decoration: underline; text-underline-offset: 3px; }
+.pederflow-login a:focus-visible { outline: 3px solid #91c8eb; outline-offset: 5px; }
+
+@keyframes login-arrive {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes flow-dash-travel {
+  to { stroke-dashoffset: -128; }
+}
+
+@keyframes flow-card-pulse {
+  0%, 23%, 100% { stroke-opacity: 0; }
+  6% { stroke-opacity: .75; }
+}
+
+@keyframes flow-indicator-pulse {
+  0%, 23%, 100% { opacity: .3; }
+  6%, 12% { opacity: 1; }
+}
+
+@keyframes flow-complete-pulse {
+  from { transform: scale(.8); opacity: .7; }
+  to { transform: scale(1.45); opacity: 0; }
+}
+
+@media (min-width: 1500px) {
+  .login-shell { max-width: 1120px; }
+  .login-story { padding-top: 46px; }
+  .login-access { padding-top: 48px; padding-bottom: 48px; }
+}
+
+@media (max-width: 900px) {
+  .login-header { padding-right: 26px; padding-left: 26px; }
+  .login-story { padding-right: 26px; padding-left: 26px; }
+  .login-story h2 { font-size: 36px; }
+  .login-access { padding-right: 32px; padding-left: 32px; }
+}
+
+@media (max-width: 700px) {
+  .pederflow-login { gap: 18px; padding: 20px 14px; }
+  .login-shell { max-width: 460px; border-radius: 17px; }
+  .login-header { min-height: 78px; padding: 18px 25px; }
+  .pederflow-brand-mark { width: 35px; height: 35px; }
+  .pederflow-brand-name { font-size: 25px; }
+  .pederflow-brand-caption { font-size: 6px; }
+  .login-companies { display: none; }
+  .login-body { grid-template-columns: 1fr; min-height: 0; }
+  .login-story { min-height: 168px; padding: 25px 26px; }
+  .pederflow-login .login-eyebrow-light { margin-bottom: 15px; font-size: 7px; letter-spacing: 1.3px; }
+  .login-story h2 { font-size: 29px; line-height: 1.16; letter-spacing: -1px; }
+  .pederflow-login .login-story-description, .login-story-footer { display: none; }
+  .login-flow { position: absolute; top: -11px; right: -100px; width: 290px; margin: 0; opacity: .55; transform: rotate(-8deg); }
+  .login-flow .flow-label { visibility: hidden; }
+  .login-story-copy { max-width: 240px; }
+  .login-access { padding: 32px 26px; }
+  .login-form-content { max-width: none; }
+  .login-form-heading { margin-bottom: 24px; }
+  .login-form-heading h1 { font-size: 29px; }
+  .pederflow-login .login-input { font-size: 16px; }
+  .login-footer { flex-wrap: wrap; justify-content: center; gap: 8px; padding: 14px 18px; text-align: center; }
+  .login-footer > span:first-child { display: none; }
+  .login-public-link { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-shell { animation: none; }
+  .flow-particle { display: none; }
+  .flow-moving-dashes, .flow-card-outline, .flow-step-indicator, .flow-complete-ring { animation: none; }
+  .pederflow-login *, .pederflow-login *::before, .pederflow-login *::after { transition: none; }
+}

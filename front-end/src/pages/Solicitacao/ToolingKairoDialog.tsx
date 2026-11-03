@@ -31,9 +31,23 @@ import {
 import { toast } from 'sonner';
 
 const STAGE_COPY: Record<
-  'FERRAMENTARIA' | 'AMOSTRA',
+  Exclude<WorkflowStageKind, 'ENGENHARIA'>,
   { title: string; description: (code: string) => string; success: string; error: string; defaultTitle: (code: string) => string }
 > = {
+  PCP_FERRAMENTARIA: {
+    title: 'Enviar PCP · Ferramentaria ao Kairo',
+    description: (code) => `Publique o planejamento de ferramentaria para a solicitação ${code}.`,
+    success: 'PCP · Ferramentaria enviado ao Kairo.',
+    error: 'Falha ao enviar PCP ao Kairo.',
+    defaultTitle: (code) => `${code} — PCP · Ferramentaria`,
+  },
+  PCP_AMOSTRA: {
+    title: 'Enviar PCP · Amostra ao Kairo',
+    description: (code) => `Publique o planejamento de amostra para a solicitação ${code}.`,
+    success: 'PCP · Amostra enviado ao Kairo.',
+    error: 'Falha ao enviar PCP ao Kairo.',
+    defaultTitle: (code) => `${code} — PCP · Amostra`,
+  },
   FERRAMENTARIA: {
     title: 'Enviar Ferramentaria ao Kairo',
     description: (code) =>
@@ -41,6 +55,13 @@ const STAGE_COPY: Record<
     success: 'Ferramentaria enviada ao Kairo.',
     error: 'Falha ao enviar ferramentaria ao Kairo.',
     defaultTitle: (code) => `${code} — Ferramentaria`,
+  },
+  QUALIDADE: {
+    title: 'Enviar Qualidade · PPAP ao Kairo',
+    description: (code) => `Publique a atividade PPAP para a solicitação ${code}.`,
+    success: 'Qualidade · PPAP enviada ao Kairo.',
+    error: 'Falha ao enviar PPAP ao Kairo.',
+    defaultTitle: (code) => `${code} — Qualidade · PPAP`,
   },
   AMOSTRA: {
     title: 'Enviar Amostra ao Kairo',
@@ -61,7 +82,7 @@ export function ToolingKairoDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   solicitation: Solicitation;
-  stage?: Extract<WorkflowStageKind, 'FERRAMENTARIA' | 'AMOSTRA'>;
+  stage?: Exclude<WorkflowStageKind, 'ENGENHARIA'>;
 }) {
   const queryClient = useQueryClient();
   const copy = STAGE_COPY[stage];
@@ -97,6 +118,10 @@ export function ToolingKairoDialog({
         title: title.trim() || undefined,
         ...(tagId ? { tagId } : {}),
       };
+      if (stage === 'PCP_FERRAMENTARIA' || stage === 'PCP_AMOSTRA') {
+        return solicitationApi.sendPcpToKairo(solicitation.id, stage, payload);
+      }
+      if (stage === 'QUALIDADE') return solicitationApi.sendQualityToKairo(solicitation.id, payload);
       return stage === 'AMOSTRA'
         ? solicitationApi.sendSampleToKairo(solicitation.id, payload)
         : solicitationApi.sendToolingToKairo(solicitation.id, payload);
@@ -104,6 +129,7 @@ export function ToolingKairoDialog({
     onSuccess: (updated) => {
       queryClient.setQueryData(['solicitation', solicitation.id], updated);
       void queryClient.invalidateQueries({ queryKey: ['solicitations'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow-summary'] });
       toast.success(copy.success);
       onOpenChange(false);
     },

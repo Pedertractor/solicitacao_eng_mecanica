@@ -1,3 +1,4 @@
+import { DeclineStageActions } from '@/components/workflow/DeclineStageActions';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -53,61 +54,64 @@ function EngineeringCard({ solicitation }: { solicitation: Solicitation }) {
     : null;
 
   return (
-    <Link
-      to={solicitationDetailPath(solicitation.id)}
-      state={{ from: 'comercial' }}
-      className='group block w-full rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-      aria-label={`Abrir chamado: ${solicitation.title}`}
-    >
-      <Card
-        className={cn(
-          'h-full gap-3 py-4',
-          surfaceStyles.interactiveCard,
-          'group-hover:-translate-y-0.5 group-hover:border-foreground/15 group-hover:shadow-lg',
-        )}
+    <div className="space-y-2">
+      <Link
+        to={solicitationDetailPath(solicitation.id)}
+        state={{ from: 'comercial' }}
+        className='group block w-full rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+        aria-label={`Abrir chamado: ${solicitation.title}`}
       >
-        <CardHeader className='grid-cols-[1fr_auto] gap-1.5 px-4'>
-          <div className='min-w-0 space-y-1.5'>
-            <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
-              <span className={surfaceStyles.monoCode}>
-                {solicitation.trackingCode}
-              </span>
-              <SolicitationStatusBadge status={solicitation.status} />
+        <Card
+          className={cn(
+            'h-full gap-3 py-4',
+            surfaceStyles.interactiveCard,
+            'group-hover:-translate-y-0.5 group-hover:border-foreground/15 group-hover:shadow-lg',
+          )}
+        >
+          <CardHeader className='grid-cols-[1fr_auto] gap-1.5 px-4'>
+            <div className='min-w-0 space-y-1.5'>
+              <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+                <span className={surfaceStyles.monoCode}>
+                  {solicitation.trackingCode}
+                </span>
+                <SolicitationStatusBadge status={solicitation.status} />
+              </div>
+              <CardTitle className='text-base leading-snug transition-colors group-hover:text-foreground'>
+                {solicitation.title}
+              </CardTitle>
+              {clientLabel ? (
+                <p className='text-sm text-muted-foreground'>{clientLabel}</p>
+              ) : null}
             </div>
-            <CardTitle className='text-base leading-snug transition-colors group-hover:text-foreground'>
-              {solicitation.title}
-            </CardTitle>
-            {clientLabel ? (
-              <p className='text-sm text-muted-foreground'>{clientLabel}</p>
+            <div className='flex size-8 items-center justify-center rounded-full border bg-background text-muted-foreground transition-all group-hover:border-foreground/20 group-hover:bg-foreground group-hover:text-background'>
+              <ArrowUpRight className='size-3.5' />
+            </div>
+          </CardHeader>
+          <CardContent className='space-y-2 px-4'>
+            <div
+              className={cn(
+                'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+                DEADLINE_TONE_CLASSES[deadline.tone],
+              )}
+            >
+              <CalendarClock className='size-4 shrink-0' />
+              <span className='font-medium'>{deadline.label}</span>
+              {deadline.date ? (
+                <span className='ml-auto tabular-nums opacity-80'>
+                  {deadline.date}
+                </span>
+              ) : null}
+            </div>
+            {stage ? (
+              <p className='text-xs text-muted-foreground'>
+                Engenharia · {WORKFLOW_STAGE_STATUS_LABELS[stage.status]}
+              </p>
             ) : null}
-          </div>
-          <div className='flex size-8 items-center justify-center rounded-full border bg-background text-muted-foreground transition-all group-hover:border-foreground/20 group-hover:bg-foreground group-hover:text-background'>
-            <ArrowUpRight className='size-3.5' />
-          </div>
-        </CardHeader>
-        <CardContent className='space-y-2 px-4'>
-          <div
-            className={cn(
-              'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm',
-              DEADLINE_TONE_CLASSES[deadline.tone],
-            )}
-          >
-            <CalendarClock className='size-4 shrink-0' />
-            <span className='font-medium'>{deadline.label}</span>
-            {deadline.date ? (
-              <span className='ml-auto tabular-nums opacity-80'>
-                {deadline.date}
-              </span>
-            ) : null}
-          </div>
-          {stage ? (
-            <p className='text-xs text-muted-foreground'>
-              Engenharia · {WORKFLOW_STAGE_STATUS_LABELS[stage.status]}
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
-    </Link>
+          </CardContent>
+        </Card>
+      </Link>
+    <DeclineStageActions item={solicitation} onlyStage="ENGENHARIA" />
+    </div>
   );
 }
 

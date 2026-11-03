@@ -4,8 +4,15 @@ import { actorFromSession } from '../../auth/access-policy.js';
 import { $Enums } from '../../generated/prisma/client.js';
 import { calendarDateInSaoPaulo } from '../../lib/process-charts.js';
 import { HttpError } from '../errors/index.js';
-import { SolicitationService } from '../../services/solicitation-service.js';
+import { mapSolicitation, SolicitationService } from '../../services/solicitation-service.js';
 import { WorkflowService } from '../../services/workflow-service.js';
+import { PCP_STAGES } from '../../lib/workflow-dependencies.js';
+
+export async function addTooling(request: FastifyRequest, reply: FastifyReply) {
+  const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+  const updated = await new WorkflowService().addTooling(id, request.user.sub);
+  return reply.send({ solicitation: mapSolicitation(updated) });
+}
 
 export async function validateRequester(
   request: FastifyRequest,
@@ -57,11 +64,26 @@ export async function createSolicitation(
     costCenter: z.string().min(1, 'Centro de custo é obrigatório'),
     pillarOrLocation: z.string().min(1, 'Pilar/local é obrigatório'),
     requesterEmail: z.email('E-mail inválido'),
+    executionUnit: z.enum($Enums.Unit).optional(),
+    directTooling: z.boolean().optional(),
   };
   const bodySchema = z.discriminatedUnion('department', [
     z.object({
       ...shared,
+      department: z.literal($Enums.UserDepartment.FERRAMENTARIA),
+      processInstructionRequester: z.literal('Comercial'),
+      processInstructionType: z.literal('Simulação Comercial'),
+      processInstructionProcess: z.null().optional(),
+      executionUnit: z.enum($Enums.Unit),
+      client: z.enum($Enums.SolicitationClient),
+      partNumbers: z.string().optional(),
+      fileLink: z.string().optional(),
+      comments: z.string().optional(),
+    }),
+    z.object({
+      ...shared,
       department: z.literal($Enums.UserDepartment.ENG_MECANICA),
+      processInstructionRequester: z.string().optional(),
       title: z.string().min(1, 'Título é obrigatório'),
       description: z.string().min(1, 'Descrição é obrigatória'),
     }),
@@ -207,6 +229,64 @@ export async function getEngineeringQueue(
     actorFromSession(request.user),
   );
   return reply.status(200).send(result);
+}
+
+export async function getProductionTracking(request: FastifyRequest, reply: FastifyReply) {
+  const result = await new SolicitationService().listProductionTracking(actorFromSession(request.user));
+  return reply.status(200).send(result);
+}
+
+export async function managePcpStage(request: FastifyRequest, reply: FastifyReply) {
+  const { id, stage, action } = z.object({
+    id: z.string().uuid('ID inválido'),
+    stage: z.enum(PCP_STAGES),
+    action: z.enum(['start', 'finish', 'send-to-kairo', 'sync-kairo']),
+  }).parse(request.params);
+  const service = new WorkflowService();
+  if (action === 'send-to-kairo') {
+    const body = z.object({
+      teamId: z.string().trim().min(1), title: z.string().trim().min(1).optional(),
+      description: z.string().trim().min(1).optional(), tagId: z.string().trim().min(1).optional(),
+    }).parse(request.body);
+    await service.sendPcpToKairo(id, stage, {
+      teamId: body.teamId,
+      ...(body.title ? { title: body.title } : {}),
+      ...(body.description ? { description: body.description } : {}),
+      ...(body.tagId ? { tagId: body.tagId } : {}),
+    }, request.user.sub);
+  } else if (action === 'sync-kairo') {
+    await service.syncPcpFromKairo(id, stage, request.user.sub);
+  } else {
+    await service.updatePcpStage(id, stage, action, request.user.sub);
+  }
+  const solicitation = await new SolicitationService().getById(id, actorFromSession(request.user));
+  return reply.status(200).send({ solicitation });
+}
+
+export async function manageQualityStage(request: FastifyRequest, reply: FastifyReply) {
+  const { id, action } = z.object({
+    id: z.string().uuid('ID inválido'),
+    action: z.enum(['start', 'finish', 'send-to-kairo', 'sync-kairo']),
+  }).parse(request.params);
+  const service = new WorkflowService();
+  if (action === 'send-to-kairo') {
+    const body = z.object({
+      teamId: z.string().trim().min(1), title: z.string().trim().min(1).optional(),
+      description: z.string().trim().min(1).optional(), tagId: z.string().trim().min(1).optional(),
+    }).parse(request.body);
+    await service.sendQualityToKairo(id, {
+      teamId: body.teamId,
+      ...(body.title ? { title: body.title } : {}),
+      ...(body.description ? { description: body.description } : {}),
+      ...(body.tagId ? { tagId: body.tagId } : {}),
+    }, request.user.sub);
+  } else if (action === 'sync-kairo') {
+    await service.syncQualityFromKairo(id, request.user.sub);
+  } else {
+    await service.updateQualityStage(id, action, request.user.sub);
+  }
+  const solicitation = await new SolicitationService().getById(id, actorFromSession(request.user));
+  return reply.status(200).send({ solicitation });
 }
 
 export async function sendToolingToKairo(
@@ -504,4 +584,11 @@ export async function deleteSolicitation(
   const service = new SolicitationService();
   const solicitation = await service.delete(id, request.user.sub);
   return reply.status(200).send({ solicitation });
+}
+
+export async function declineWorkflowStage(request: FastifyRequest, reply: FastifyReply) {
+  const { id, stage } = z.object({ id: z.string().uuid(), stage: z.enum($Enums.WorkflowStage) }).parse(request.params);
+  const { reason } = z.object({ reason: z.string().trim().min(1, 'Informe o motivo da recusa') }).parse(request.body);
+  const result = await new WorkflowService().declineStage(id, stage, reason, request.user.sub);
+  return reply.status(200).send({ solicitation: mapSolicitation(result.solicitation), warnings: result.warnings });
 }
