@@ -288,7 +288,7 @@ export function WorkflowTimeline({
       {stages.map((stage) => <div key={stage.id}>{renderStages([stage])}</div>)}
     </div>;
   }
-  const parallel = workflow.requiresTooling && stages.some((stage) => stage.stage === 'PCP_FERRAMENTARIA')
+  const parallel = workflow.requiresTooling && stages.some((stage) => stage.stage === 'FERRAMENTARIA')
     && stages.some((stage) => stage.stage === 'ENGENHARIA');
   const quality = stages.filter((stage) => stage.stage === 'QUALIDADE');
   const upstream = stages.filter((stage) => !['QUALIDADE', 'AMOSTRA'].includes(stage.stage));

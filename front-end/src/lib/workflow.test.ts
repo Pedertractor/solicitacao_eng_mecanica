@@ -17,6 +17,27 @@ const workflow: SolicitationWorkflow = { requiresTooling: true, stages: [
 ] };
 
 describe('workflow interface', () => {
+  it('offers tooling from creation, then PCP, and joins all branches before sample', () => {
+    const flow: SolicitationWorkflow = { requiresTooling: true, stages: [
+      stage('ENGENHARIA', 'PENDING'), stage('FERRAMENTARIA', 'READY', 1),
+      stage('PCP_FERRAMENTARIA', 'PENDING', 2), stage('PCP_AMOSTRA', 'PENDING', 3),
+      stage('QUALIDADE', 'READY', 4), stage('AMOSTRA', 'PENDING', 5),
+    ] };
+    expect(workflowCanStart(flow, 'FERRAMENTARIA')).toBe(true);
+    expect(workflowCanStart(flow, 'PCP_FERRAMENTARIA')).toBe(false);
+    expect(workflowCanStart(flow, 'PCP_AMOSTRA')).toBe(false);
+    const markup = renderToStaticMarkup(createElement(WorkflowTimeline, { workflow: flow }));
+    expect(markup).toContain('Em paralelo');
+    expect(markup).toContain('PCP · Ferramentaria');
+    flow.stages[1]!.status = 'DONE';
+    expect(workflowCanStart(flow, 'PCP_FERRAMENTARIA')).toBe(true);
+    expect(workflowCanStart(flow, 'PCP_AMOSTRA')).toBe(false);
+    flow.stages[2]!.status = 'DONE';
+    expect(workflowCanStart(flow, 'PCP_AMOSTRA')).toBe(true);
+    expect(workflowCanStart(flow, 'AMOSTRA')).toBe(false);
+    for (const item of flow.stages.slice(0, -1)) item.status = 'DONE';
+    expect(workflowCanStart(flow, 'AMOSTRA')).toBe(true);
+  });
   it('enables tooling alone and includes it in Commercial board filters for the new flow', () => {
     const direct: SolicitationWorkflow = { kind: 'COMMERCIAL_DIRECT_TOOLING', requiresTooling: true,
       stages: [stage('FERRAMENTARIA', 'READY')] };

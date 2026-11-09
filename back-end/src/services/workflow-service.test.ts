@@ -52,8 +52,8 @@ describe('WorkflowService.buildStagesForCreate', () => {
 
     expect(stages.map((stage) => stage.stage)).toEqual([
       $Enums.WorkflowStage.ENGENHARIA,
-      $Enums.WorkflowStage.PCP_FERRAMENTARIA,
       $Enums.WorkflowStage.FERRAMENTARIA,
+      $Enums.WorkflowStage.PCP_FERRAMENTARIA,
       $Enums.WorkflowStage.PCP_AMOSTRA,
       $Enums.WorkflowStage.QUALIDADE,
       $Enums.WorkflowStage.AMOSTRA,
@@ -63,5 +63,8 @@ describe('WorkflowService.buildStagesForCreate', () => {
     expect(stages[2]!.order).toBe(2);
     expect(stages[1]!.status).toBe('READY');
     expect(stages[2]!.status).toBe('PENDING');
+    expect(stages[1]!.stage).toBe('FERRAMENTARIA');
+    expect(stages[2]!.stage).toBe('PCP_FERRAMENTARIA');
+    expect(stages[3]!.stage).toBe('PCP_AMOSTRA');
   });
 });

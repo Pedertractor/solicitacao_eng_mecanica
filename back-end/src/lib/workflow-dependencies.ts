@@ -4,6 +4,7 @@ import { $Enums } from '../generated/prisma/client.js';
 export type WorkflowDependencyStage = {
   stage: $Enums.WorkflowStage;
   status: $Enums.WorkflowStageStatus;
+  order?: number;
 };
 
 export const PCP_STAGES = ['PCP_FERRAMENTARIA', 'PCP_AMOSTRA'] as const;
@@ -17,14 +18,22 @@ export function workflowPrerequisites(
 ): $Enums.WorkflowStage[] {
   // Closed historical workflows retain their original sequence.
   const hasPcp = stages.some((item) => PCP_STAGES.some((pcp) => pcp === item.stage));
+  const tooling = stages.find((item) => item.stage === 'FERRAMENTARIA');
+  const toolingPcp = stages.find((item) => item.stage === 'PCP_FERRAMENTARIA');
+  const toolingFirst = tooling?.order != null && toolingPcp?.order != null && tooling.order < toolingPcp.order;
   switch (stage) {
     case 'QUALIDADE':
     case 'ENGENHARIA':
-    case 'PCP_FERRAMENTARIA':
       return [];
+    case 'PCP_FERRAMENTARIA':
+      return toolingFirst ? ['FERRAMENTARIA'] : [];
     case 'FERRAMENTARIA':
-      return kind === 'COMMERCIAL_SIMULATION' || kind === 'COMMERCIAL_DIRECT_TOOLING' ? [] : [hasPcp ? 'PCP_FERRAMENTARIA' : 'ENGENHARIA'];
+      if (kind === 'COMMERCIAL_SIMULATION' || kind === 'COMMERCIAL_DIRECT_TOOLING') return [];
+      if (toolingFirst) return [];
+      if (stages.some((item) => item.stage === 'PCP_FERRAMENTARIA')) return ['PCP_FERRAMENTARIA'];
+      return hasPcp ? [] : ['ENGENHARIA'];
     case 'PCP_AMOSTRA':
+      if (requiresTooling && toolingFirst) return ['FERRAMENTARIA', 'PCP_FERRAMENTARIA'];
       return [requiresTooling ? 'FERRAMENTARIA' : 'ENGENHARIA'];
     case 'AMOSTRA':
       return [
@@ -32,7 +41,7 @@ export function workflowPrerequisites(
         ...(stages.some((item) => item.stage === 'QUALIDADE') ? ['QUALIDADE' as const] : []),
         ...(requiresTooling ? ['FERRAMENTARIA' as const] : []),
         ...(hasPcp
-          ? [...(requiresTooling ? ['PCP_FERRAMENTARIA' as const] : []), 'PCP_AMOSTRA' as const]
+          ? [...(requiresTooling && stages.some((item) => item.stage === 'PCP_FERRAMENTARIA') ? ['PCP_FERRAMENTARIA' as const] : []), 'PCP_AMOSTRA' as const]
           : []),
       ];
   }

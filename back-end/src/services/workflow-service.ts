@@ -166,12 +166,12 @@ export class WorkflowService {
 
     if (input.requiresTooling) {
       stages.push({
-        stage: $Enums.WorkflowStage.PCP_FERRAMENTARIA,
+        stage: $Enums.WorkflowStage.FERRAMENTARIA,
         order: 1,
         status: $Enums.WorkflowStageStatus.READY,
       });
       stages.push({
-        stage: $Enums.WorkflowStage.FERRAMENTARIA,
+        stage: $Enums.WorkflowStage.PCP_FERRAMENTARIA,
         order: 2,
         status: $Enums.WorkflowStageStatus.PENDING,
       });

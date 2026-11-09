@@ -34,7 +34,7 @@ describe.skipIf(!testUrl)('PCP workflow against PostgreSQL', () => {
 
   beforeAll(async () => {
     const url = new URL(testUrl!);
-    if (url.pathname !== '/pcp_workflow_test' || !['localhost', '127.0.0.1'].includes(url.hostname)
+    if (!/^\/pcp_workflow_test(?:_\d+)?$/.test(url.pathname) || !['localhost', '127.0.0.1'].includes(url.hostname)
       || process.env.DATABASE_URL !== testUrl) throw new Error('Use the disposable local pcp_workflow_test database for both URLs');
     await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
     const migrations = (await readdir('prisma/migrations')).filter((file) => /^\d/.test(file)).sort();
@@ -98,14 +98,24 @@ describe.skipIf(!testUrl)('PCP workflow against PostgreSQL', () => {
     kairo.getActivity.mockResolvedValue({ activity: { id: 'pcp-card', status: 'DONE', deletedAt: null, updatedAt: '2026-10-23T12:00:00Z' } });
   });
 
-  async function create(tooling = true, completeQuality = true) {
+  async function create(tooling = true, completeQuality = true, legacyFlow = true) {
     const id = randomUUID();
+    const initialStages = service.buildStagesForCreate({ requester: 'Comercial', process: 'Engenharia',
+      type: 'Desenvolvimento Amostra', deliveryDateIso: '2026-11-10', requiresTooling: tooling });
+    // Existing tests also cover worked workflows that retain the old PCP gate.
+    if (tooling && legacyFlow) {
+      const toolingStage = initialStages.find((stage) => stage.stage === 'FERRAMENTARIA')!;
+      toolingStage.status = 'PENDING';
+      toolingStage.order = 2;
+      const pcp = initialStages.find((stage) => stage.stage === 'PCP_FERRAMENTARIA')!;
+      pcp.status = 'READY';
+      pcp.order = 1;
+    }
     const created = await prisma.solicitation.create({ data: { id, trackingCode: id, employeeId: 'test', requesterName: 'Test',
       cardNumber: '123', unit: 'PEDERTRACTOR', costCenter: '1', sectorId: '1', sectorName: 'Test',
       pillarOrLocation: 'Test', title: 'Test', description: 'Test', department: 'DESENVOLVIMENTO_PROCESSOS',
       processInstructionRequester: 'Comercial', requiresTooling: tooling, status: 'APPROVED',
-      workflowStages: { create: service.buildStagesForCreate({ requester: 'Comercial', process: 'Engenharia',
-        type: 'Desenvolvimento Amostra', deliveryDateIso: '2026-11-10', requiresTooling: tooling }) } }, include: { workflowStages: true } });
+      workflowStages: { create: initialStages } }, include: { workflowStages: true } });
     if (completeQuality) await finishQuality(id);
     return created;
   }
@@ -120,6 +130,31 @@ describe.skipIf(!testUrl)('PCP workflow against PostgreSQL', () => {
     await service.updatePcpStage(id, stage, 'finish', pcpUserId);
   }
 
+  it('starts tooling immediately and releases the two PCP registrations in sequence', async () => {
+    const item = await create(true, false, false);
+    expect(await status(item.id, 'PCP_FERRAMENTARIA')).toBe('PENDING');
+    expect(await status(item.id, 'FERRAMENTARIA')).toBe('READY');
+    await expect(service.updatePcpStage(item.id, 'PCP_FERRAMENTARIA', 'start', pcpUserId)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(service.updatePcpStage(item.id, 'PCP_AMOSTRA', 'start', pcpUserId)).rejects.toMatchObject({ statusCode: 400 });
+    await service.sendToolingToKairo(item.id, { teamId: 'team' }, toolingUserId);
+    await service.syncToolingFromKairo(item.id, toolingUserId);
+    expect(await status(item.id, 'FERRAMENTARIA')).toBe('DONE');
+    expect(await status(item.id, 'PCP_FERRAMENTARIA')).toBe('READY');
+    expect(await status(item.id, 'PCP_AMOSTRA')).toBe('PENDING');
+    expect(await status(item.id, 'ENGENHARIA')).toBe('PENDING');
+    await expect(service.updatePcpStage(item.id, 'PCP_AMOSTRA', 'start', pcpUserId)).rejects.toMatchObject({ statusCode: 400 });
+    await finishPcp(item.id, 'PCP_FERRAMENTARIA');
+    expect(await status(item.id, 'PCP_AMOSTRA')).toBe('READY');
+    await finishPcp(item.id, 'PCP_AMOSTRA');
+    expect(await status(item.id, 'AMOSTRA')).toBe('PENDING');
+    await repo.markEngineeringFinished(item.id, new Date());
+    expect(await status(item.id, 'AMOSTRA')).toBe('PENDING');
+    await finishQuality(item.id);
+    expect(await status(item.id, 'AMOSTRA')).toBe('READY');
+    await service.syncToolingFromKairo(item.id, toolingUserId);
+    expect((await stages(item.id)).filter((stage) => stage.stage.startsWith('PCP_'))).toHaveLength(2);
+  });
+
   async function createDirect() {
     const id = randomUUID();
     return prisma.solicitation.create({ data: {
@@ -132,6 +167,24 @@ describe.skipIf(!testUrl)('PCP workflow against PostgreSQL', () => {
         type: 'Desenvolvimento Amostra', deliveryDateIso: null, requiresTooling: true, directTooling: true }) },
     }, include: { workflowStages: true } });
   }
+
+  it('restores the removed registration without resetting downstream work and is repeatable', async () => {
+    const item = await create(true, false, false);
+    await prisma.solicitationWorkflowStage.delete({ where: { solicitationId_stage: {
+      solicitationId: item.id, stage: 'PCP_FERRAMENTARIA',
+    } } });
+    await repo.markToolingFinished(item.id, new Date());
+    await service.updatePcpStage(item.id, 'PCP_AMOSTRA', 'start', pcpUserId);
+    const before = (await stages(item.id)).find((stage) => stage.stage === 'PCP_AMOSTRA')!;
+    const sql = await readFile('prisma/migrations/20261109110000_restore_two_pcp_registrations/migration.sql', 'utf8');
+    await pool.query(sql);
+    await pool.query(sql);
+    expect(await status(item.id, 'PCP_FERRAMENTARIA')).toBe('DONE');
+    const after = (await stages(item.id)).find((stage) => stage.stage === 'PCP_AMOSTRA')!;
+    expect(after.status).toBe('IN_PROGRESS');
+    expect(after.actualStartAt).toEqual(before.actualStartAt);
+    expect((await stages(item.id)).filter((stage) => stage.stage.startsWith('PCP_'))).toHaveLength(2);
+  });
 
   async function createSimulation() {
     const item = await create(false, false);
@@ -309,8 +362,8 @@ describe.skipIf(!testUrl)('PCP workflow against PostgreSQL', () => {
   it('backfills gates and preserves existing work and closed history', async () => {
     expect(await prisma.solicitation.findUniqueOrThrow({ where: { id: legacy.get('new-tool')! } }))
       .toMatchObject({ executionUnit: null, directTooling: false });
-    expect(await status(legacy.get('new-tool')!, 'PCP_FERRAMENTARIA')).toBe('READY');
-    expect(await status(legacy.get('new-tool')!, 'FERRAMENTARIA')).toBe('PENDING');
+    expect(await status(legacy.get('new-tool')!, 'PCP_FERRAMENTARIA')).toBe('PENDING');
+    expect(await status(legacy.get('new-tool')!, 'FERRAMENTARIA')).toBe('READY');
     expect(await status(legacy.get('working-tool')!, 'PCP_FERRAMENTARIA')).toBe('DONE');
     const working = (await stages(legacy.get('working-tool')!)).find((stage) => stage.stage === 'FERRAMENTARIA')!;
     expect(working.status).toBe('IN_PROGRESS');
