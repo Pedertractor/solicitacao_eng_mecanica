@@ -40,7 +40,7 @@ export function MainLayout() {
   return (
     <PlatformPageShell className={themed ? 'pederflow-workspace' : undefined}>
       <SidebarProvider defaultOpen={false} className='min-h-svh w-full'>
-        <AppSidebar branded={themed} />
+        <AppSidebar branded platformTheme='pederflow' />
         <SidebarInset className='min-w-0 bg-transparent'>
           <header
             className={cn(

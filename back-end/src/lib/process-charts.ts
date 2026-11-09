@@ -1,4 +1,5 @@
 import { $Enums } from '../generated/prisma/client.js';
+import type { KairoIndicatorActivity } from '../integrations/kairo-client.js';
 
 export type ChartPeriod = 'year' | 'month' | 'week';
 
@@ -132,9 +133,9 @@ function compareBuckets(a: ProcessChartBucket, b: ProcessChartBucket) {
   return a.label.localeCompare(b.label, 'pt-BR');
 }
 
-function bucketsFrom(
-  rows: ProcessChartSource[],
-  keyOf: (row: ProcessChartSource) => { key: string; label: string },
+function bucketsFrom<T>(
+  rows: T[],
+  keyOf: (row: T) => { key: string; label: string },
 ): ProcessChartBucket[] {
   const counts = new Map<string, ProcessChartBucket>();
 
@@ -149,6 +150,24 @@ function bucketsFrom(
   }
 
   return [...counts.values()].sort(compareBuckets);
+}
+
+export function buildKairoProcessCharts(rows: KairoIndicatorActivity[]) {
+  return {
+    byClient: bucketsFrom(rows, row => row.client
+      ? { key: row.client.id, label: toChartCase(row.client.name) }
+      : { key: 'none', label: 'Sem cliente' }),
+    byActivityType: bucketsFrom(rows, row => row.tag
+      ? { key: row.tag.name, label: ACTIVITY_TYPE_LABELS[row.tag.name] ?? row.tag.name }
+      : { key: 'none', label: 'Sem tipo' }).sort((a, b) => {
+        const aOrder = ACTIVITY_TYPE_ORDER.indexOf(a.key);
+        const bOrder = ACTIVITY_TYPE_ORDER.indexOf(b.key);
+        return (aOrder === -1 ? Infinity : aOrder) - (bOrder === -1 ? Infinity : bOrder) || compareBuckets(a, b);
+      }),
+    byResponsible: bucketsFrom(rows, row => row.assignedTo
+      ? { key: row.assignedTo.id, label: shortPersonName(row.assignedTo.name) }
+      : { key: 'none', label: 'Sem responsável' }),
+  };
 }
 
 export function buildProcessCharts(rows: ProcessChartSource[]) {

@@ -4,6 +4,22 @@ import { KairoClient } from './kairo-client.js';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('Kairo request bodies', () => {
+  it('requests indicator activities with encoded team and period', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ dados: { activities: [] } }) });
+    vi.stubGlobal('fetch', fetch);
+    await new KairoClient('qa-key').getIndicatorActivities('team/one', new Date('2026-11-01T03:00:00Z'), new Date('2026-12-01T03:00:00Z'));
+    const url = new URL(fetch.mock.calls[0]![0]);
+    expect(url.pathname).toBe('/api/integrations/v1/teams/team%2Fone/indicator-activities');
+    expect(url.searchParams.get('start')).toBe('2026-11-01T03:00:00.000Z');
+    expect(url.searchParams.get('end')).toBe('2026-12-01T03:00:00.000Z');
+  });
+  it('reports Kairo connection failures as service unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+    await expect(new KairoClient('qa-key').listTeams()).rejects.toMatchObject({
+      statusCode: 503,
+      message: expect.stringContaining('Não foi possível conectar ao Kairo'),
+    });
+  });
   it.each(['cancelActivity', 'cancelProject', 'deleteActivity', 'deleteProject'] as const)(
     '%s sends no JSON content type when there is no body', async (method) => {
       const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ dados: {} }) });

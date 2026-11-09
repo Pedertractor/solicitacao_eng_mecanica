@@ -150,6 +150,7 @@ function SidebarProvider({
 }
 
 function Sidebar({
+  platformTheme,
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
@@ -157,6 +158,7 @@ function Sidebar({
   children,
   ...props
 }: React.ComponentProps<"div"> & {
+  platformTheme?: 'pederflow'
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
@@ -167,6 +169,7 @@ function Sidebar({
     return (
       <div
         data-slot="sidebar"
+        data-platform-theme={platformTheme}
         className={cn(
           "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
           className
@@ -185,6 +188,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
+          data-platform-theme={platformTheme}
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
           style={
             {
@@ -207,6 +211,7 @@ function Sidebar({
     <div
       className="group peer hidden text-sidebar-foreground md:block"
       data-state={state}
+      data-platform-theme={platformTheme}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
