@@ -507,12 +507,28 @@ export function ProcessChartsPage() {
       <div>
         <h1>Indicadores</h1>
         <p className='text-muted-foreground'>
-          Pedidos de Desenvolvimento de Processos enviados ao time do Kairo.
+          Atividades do time no Kairo, por cliente, tipo e responsável atribuído.
         </p>
       </div>
 
       {statusQuery.isLoading ? (
         <Skeleton className='h-16 w-full max-w-md' />
+      ) : statusQuery.isError ? (
+        <p role='alert' className='text-sm text-muted-foreground'>
+          Não foi possível consultar a integração com o Kairo. Tente novamente.
+        </p>
+      ) : teamsQuery.isError ? (
+        <div role='alert' className='space-y-2 text-sm text-muted-foreground'>
+          <p>Não foi possível carregar os times do Kairo. Verifique a disponibilidade do serviço.</p>
+          <button
+            type='button'
+            className='rounded-md border border-border px-3 py-1 hover:bg-muted disabled:opacity-40'
+            disabled={teamsQuery.isFetching}
+            onClick={() => void teamsQuery.refetch()}
+          >
+            Tentar novamente
+          </button>
+        </div>
       ) : !linked ? (
         <p className='text-sm text-muted-foreground'>
           Vincule sua chave de API do Kairo em Integrações para listar os times.

@@ -618,6 +618,9 @@ function WorkflowActionsCard({
             ? workflow.requiresTooling ? 'Engenharia e Ferramentaria trabalham em paralelo. O chamado encerra quando ambas as etapas forem concluídas ou recusadas.' : 'A Engenharia avaliará a necessidade de envolver a Ferramentaria antes de concluir sua etapa.'
             : item.directTooling
             ? 'Comercial → PCP → Ferramentaria'
+            : workflow.requiresTooling && (workflow.stages.find((stage) => stage.stage === 'FERRAMENTARIA')?.order ?? Infinity)
+              < (workflow.stages.find((stage) => stage.stage === 'PCP_FERRAMENTARIA')?.order ?? -1)
+            ? 'Engenharia em paralelo com Ferramentaria → PCP · Ferramentaria → PCP · Amostra. Qualidade · PPAP disponível desde a criação. Amostra após a conclusão de todas as frentes.'
             : workflow.stages.some((stage) => stage.stage === 'QUALIDADE')
             ? 'Qualidade · PPAP disponível desde a criação, em paralelo às demais frentes. Amostra após a conclusão de todos os pré-requisitos.'
             : workflow.stages.some((stage) => stage.stage.startsWith('PCP_'))

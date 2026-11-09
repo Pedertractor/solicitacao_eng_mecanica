@@ -3,6 +3,8 @@ import { SolicitationPrismaRepository } from '../../repositories/prisma/solicita
 import { prisma } from '../../lib/prisma.js';
 import { app } from '../../app.js';
 import { UserService } from '../../services/user-service.js';
+import { KairoCredentialService } from '../../services/kairo-credential-service.js';
+import { KairoClient } from '../../integrations/kairo-client.js';
 import type { UserDepartment, UserRole } from '../../generated/prisma/enums.js';
 
 const userReader = vi.spyOn(prisma.user, 'findUnique');
@@ -46,14 +48,37 @@ describe('department authorization through HTTP routes', () => {
 
 describe('Commercial indicators HTTP access', () => {
   it.each([['ADMIN', 'COMERCIAL', 200], ['USER', 'COMERCIAL', 403], ['ADMIN', 'PCP', 403]] as const)('returns %s / %s indicators with status %s', async (role, department, status) => {
-    const rows = vi.spyOn(SolicitationPrismaRepository.prototype, 'findProcessChartRows').mockResolvedValue([]);
+    const rows = vi.spyOn(SolicitationPrismaRepository.prototype, 'findProcessChartRows');
+    const credentials = vi.spyOn(KairoCredentialService.prototype, 'getClientForUser').mockResolvedValue(new KairoClient('test'));
+    const activities = vi.spyOn(KairoClient.prototype, 'getIndicatorActivities').mockResolvedValue({ activities: [] });
     try {
       const response = await app.inject({ method: 'GET', url: '/api/solicitations/process-charts?teamId=test&period=month', headers: headers(role, department) });
       expect(response.statusCode).toBe(status);
       if (status === 200) {
         expect(response.json()).toMatchObject({ teamId: 'test', period: 'month', byClient: [] });
-        expect(rows).toHaveBeenCalledOnce();
-      } else expect(rows).not.toHaveBeenCalled();
-    } finally { rows.mockRestore(); }
+        expect(activities).toHaveBeenCalledOnce();
+        expect(credentials).toHaveBeenCalledWith('actor');
+      } else expect(activities).not.toHaveBeenCalled();
+      expect(rows).not.toHaveBeenCalled();
+    } finally { rows.mockRestore(); credentials.mockRestore(); activities.mockRestore(); }
+  });
+
+  it('uses Kairo activities and the selected São Paulo period for engineering indicators', async () => {
+    const credentials = vi.spyOn(KairoCredentialService.prototype, 'getClientForUser').mockResolvedValue(new KairoClient('test'));
+    const activities = vi.spyOn(KairoClient.prototype, 'getIndicatorActivities').mockResolvedValue({ activities: [{
+      client: { id: 'client', name: 'CLIENTE KAIRO' },
+      tag: { id: 'tag', name: 'Alteração Interna' },
+      assignedTo: { id: 'engineer', name: 'Maria Silva' },
+    }] });
+    try {
+      const response = await app.inject({ method: 'GET', url: '/api/solicitations/process-charts?teamId=engineering&period=month&anchor=2026-11-09', headers: headers('ADMIN', 'DESENVOLVIMENTO_PROCESSOS') });
+      expect(response.statusCode).toBe(200);
+      expect(activities).toHaveBeenCalledWith('engineering', new Date('2026-11-01T03:00:00Z'), new Date('2026-12-01T03:00:00Z'));
+      expect(response.json()).toMatchObject({
+        byClient: [{ key: 'client', label: 'Cliente Kairo', count: 1 }],
+        byActivityType: [{ key: 'Alteração Interna', label: 'Alteração Interna', count: 1 }],
+        byResponsible: [{ key: 'engineer', label: 'Maria S.', count: 1 }],
+      });
+    } finally { credentials.mockRestore(); activities.mockRestore(); }
   });
 });

@@ -16,7 +16,7 @@ export function ComercialWorkflowOptions({ value, onChange }: {
         <div className='grid gap-1'>
           <Label htmlFor='requiresTooling' className='cursor-pointer'>Requer ferramentaria</Label>
           <p className='text-xs text-muted-foreground'>
-            {simulation ? 'Inclusão disponível para a Engenharia durante o atendimento.' : 'Adiciona PCP e Ferramentaria ao fluxo, em paralelo à Engenharia.'}
+            {simulation ? 'Inclusão disponível para a Engenharia durante o atendimento.' : 'Ferramentaria disponível desde a criação, em paralelo à Engenharia. Depois, dois cadastros no PCP: Ferramentaria e Amostra.'}
           </p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 /* Route-scoped tokens also reach dialogs, popovers and the mobile sidebar portals. */
-:root[data-platform-theme='pederflow'] {
+:root[data-platform-theme='pederflow'],
+[data-slot='sidebar'][data-platform-theme='pederflow'] {
   --background: 0 0% 100%;
   --foreground: 205 38% 23%;
   --card: 0 0% 100%;
@@ -142,6 +143,7 @@
 [data-platform-theme='pederflow'] [data-slot='table-body'] [data-slot='table-row'][data-state='selected'] { background: #eaf5fd; }
 
 /* Sidebar styles apply to its mobile portal as well as the desktop rail. */
+[data-slot='sidebar'][data-platform-theme='pederflow'] { font-family: 'Segoe UI', Arial, sans-serif; }
 [data-platform-theme='pederflow'] [data-slot='sidebar-header'] { min-height: 80px; justify-content: center; padding: 14px 10px; border-bottom: 1px solid #e5edf3; }
 [data-platform-theme='pederflow'] [data-slot='sidebar-footer'] { padding: 12px 8px; border-top: 1px solid #e5edf3; }
 [data-platform-theme='pederflow'] [data-slot='sidebar-group-label'] { margin: 10px 0 8px; color: #8295a2; font-size: 9px; font-weight: 500; letter-spacing: 1.3px; text-transform: uppercase; }
@@ -154,11 +156,11 @@
 .pederflow-sidebar-brand .pederflow-brand-mark { width: 32px; height: 32px; }
 .pederflow-sidebar-brand .pederflow-brand-name { font-size: 23px; }
 .pederflow-sidebar-brand .pederflow-brand-caption { max-width: 146px; overflow: hidden; margin-top: 6px; font-size: 8px; letter-spacing: .1px; text-overflow: ellipsis; white-space: nowrap; }
-[data-platform-theme='pederflow'] [data-collapsible='icon'] [data-slot='sidebar-header'] { padding-right: 8px; padding-left: 8px; }
-[data-platform-theme='pederflow'] [data-collapsible='icon'] .pederflow-sidebar-brand .pederflow-brand-name,
-[data-platform-theme='pederflow'] [data-collapsible='icon'] .pederflow-sidebar-brand + svg { display: none; }
-[data-platform-theme='pederflow'] [data-collapsible='icon'] .pederflow-sidebar-brand .pederflow-brand { display: flex; width: 32px; justify-content: center; }
-[data-platform-theme='pederflow'] [data-collapsible='icon'] [data-slot='sidebar-menu-button'] { border-radius: 8px; }
+:is([data-platform-theme='pederflow'] [data-collapsible='icon'], [data-platform-theme='pederflow'][data-collapsible='icon']) [data-slot='sidebar-header'] { padding-right: 8px; padding-left: 8px; }
+:is([data-platform-theme='pederflow'] [data-collapsible='icon'], [data-platform-theme='pederflow'][data-collapsible='icon']) .pederflow-sidebar-brand .pederflow-brand-name,
+:is([data-platform-theme='pederflow'] [data-collapsible='icon'], [data-platform-theme='pederflow'][data-collapsible='icon']) .pederflow-sidebar-brand + svg { display: none; }
+:is([data-platform-theme='pederflow'] [data-collapsible='icon'], [data-platform-theme='pederflow'][data-collapsible='icon']) .pederflow-sidebar-brand .pederflow-brand { display: flex; width: 32px; justify-content: center; }
+:is([data-platform-theme='pederflow'] [data-collapsible='icon'], [data-platform-theme='pederflow'][data-collapsible='icon']) [data-slot='sidebar-menu-button'] { border-radius: 8px; }
 
 /* Portals inherit the route palette from the document root. */
 [data-platform-theme='pederflow'] [data-slot='dialog-content'],

@@ -29,7 +29,7 @@ import { SolicitationPrismaRepository } from '../repositories/prisma/solicitatio
 import { KairoCredentialService } from './kairo-credential-service.js';
 import { UserService } from './user-service.js';
 import {
-  buildProcessCharts,
+  buildKairoProcessCharts,
   calendarDateInSaoPaulo,
   periodRange,
   type ChartPeriod,
@@ -327,17 +327,13 @@ export class SolicitationService {
     }
 
     const range = periodRange(input.period, anchor ?? new Date());
-    const repo = new SolicitationPrismaRepository(prisma);
-    const rows = await repo.findProcessChartRows({
-      teamId: input.teamId,
-      start: range.start,
-      end: range.end,
-    });
+    const client = await new KairoCredentialService().getClientForUser(actor.id);
+    const { activities } = await client.getIndicatorActivities(input.teamId, range.start, range.end);
 
     return {
       period: input.period,
       teamId: input.teamId,
-      ...buildProcessCharts(rows),
+      ...buildKairoProcessCharts(activities),
     };
   }
 

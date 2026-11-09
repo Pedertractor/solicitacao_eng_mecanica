@@ -24,6 +24,12 @@ export type KairoTeam = {
   active: boolean;
 };
 
+export type KairoIndicatorActivity = {
+  client: { id: string; name: string } | null;
+  tag: { id: string; name: string } | null;
+  assignedTo: { id: string; name: string } | null;
+};
+
 export type KairoTag = {
   id: string;
   teamId: string;
@@ -82,14 +88,23 @@ async function kairoFetch<T>(
   apiKey: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(`${requireBaseUrl()}${path}`, {
-    ...init,
-    headers: {
-      ...(init?.body != null ? { 'Content-Type': 'application/json' } : {}),
-      Authorization: `Bearer ${apiKey}`,
-      ...(init?.headers ?? {}),
-    },
-  });
+  const url = `${requireBaseUrl()}${path}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers: {
+        ...(init?.body != null ? { 'Content-Type': 'application/json' } : {}),
+        Authorization: `Bearer ${apiKey}`,
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new HttpError(
+      'Não foi possível conectar ao Kairo. Verifique se o serviço está disponível e tente novamente.',
+      503,
+    );
+  }
 
   const body = (await response.json().catch(() => null)) as
     | KairoSuccess<T>
@@ -127,6 +142,14 @@ export class KairoClient {
   async listTeams() {
     return kairoFetch<{ teams: KairoTeam[] }>(
       '/integrations/v1/teams',
+      this.apiKey,
+    );
+  }
+
+  async getIndicatorActivities(teamId: string, start: Date, end: Date) {
+    const query = new URLSearchParams({ start: start.toISOString(), end: end.toISOString() });
+    return kairoFetch<{ activities: KairoIndicatorActivity[] }>(
+      `/integrations/v1/teams/${encodeURIComponent(teamId)}/indicator-activities?${query}`,
       this.apiKey,
     );
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildProcessCharts,
+  buildKairoProcessCharts,
   calendarDateInSaoPaulo,
   periodRange,
   shortPersonName,
@@ -8,6 +9,17 @@ import {
 } from './process-charts.js';
 
 describe('process charts', () => {
+  it('counts Kairo assignments by identity even when abbreviated names match', () => {
+    const charts = buildKairoProcessCharts([
+      { client: null, tag: null, assignedTo: { id: 'one', name: 'Maria Silva' } },
+      { client: null, tag: null, assignedTo: { id: 'two', name: 'Maria Souza' } },
+      { client: null, tag: null, assignedTo: null },
+    ]);
+    expect(charts.byClient).toEqual([{ key: 'none', label: 'Sem cliente', count: 3 }]);
+    expect(charts.byActivityType).toEqual([{ key: 'none', label: 'Sem tipo', count: 3 }]);
+    expect(charts.byResponsible).toHaveLength(3);
+    expect(charts.byResponsible).toContainEqual({ key: 'none', label: 'Sem responsável', count: 1 });
+  });
   it('formats client and person labels like the dashboard', () => {
     expect(toChartCase('CNH - PIRACICABA')).toBe('Cnh - Piracicaba');
     expect(toChartCase('PRAMAC GERADORES')).toBe('Pramac Geradores');
