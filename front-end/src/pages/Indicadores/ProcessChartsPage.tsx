@@ -319,7 +319,7 @@ function ChartFrame({
       )}
     >
       <h2 className='mb-3 text-center text-sm font-bold sm:text-base'>{title}</h2>
-      <div className='min-h-0 flex-1'>{children}</div>
+      <div className='flex min-h-0 flex-1 flex-col'>{children}</div>
     </section>
   );
 }
@@ -336,8 +336,8 @@ function ClientChart({ items }: { items: ProcessChartBucket[] }) {
   if (items.length === 0) return <EmptyChart />;
 
   return (
-    <div style={{ height: Math.max(220, items.length * 34) }}>
-      <ResponsiveContainer width='100%' height='100%'>
+    <div className='relative flex-1' style={{ minHeight: Math.max(220, items.length * 34) }}>
+      <ResponsiveContainer width='100%' height='100%' style={{ position: 'absolute', inset: 0 }}>
         <BarChart
           data={items}
           layout='vertical'
@@ -422,7 +422,11 @@ function ActivityTypeChart({ items }: { items: ProcessChartBucket[] }) {
   );
 }
 
-function ResponsibleChart({ items }: { items: ProcessChartBucket[] }) {
+function ResponsibleChart({ items, color = RESPONSIBLE_COLOR, maxBarSize = 72 }: {
+  items: ProcessChartBucket[];
+  color?: string;
+  maxBarSize?: number;
+}) {
   if (items.length === 0) return <EmptyChart />;
 
   return (
@@ -442,9 +446,9 @@ function ResponsibleChart({ items }: { items: ProcessChartBucket[] }) {
           <YAxis hide />
           <Bar
             dataKey='count'
-            fill={RESPONSIBLE_COLOR}
+            fill={color}
             isAnimationActive={false}
-            maxBarSize={72}
+            maxBarSize={maxBarSize}
             radius={[6, 6, 0, 0]}
           >
             <LabelList
@@ -501,13 +505,28 @@ export function ProcessChartsPage() {
   });
 
   const linked = statusQuery.data?.linked === true;
+  const isCuttingTeam = teams.find((team) => team.id === teamId)?.name.trim().toLocaleLowerCase('pt-BR') === 'corte';
+  const cuttingMonthQuery = useQuery({
+    queryKey: ['process-charts', teamId, 'month', anchorDate],
+    queryFn: () => solicitationApi.processCharts(teamId, 'month', anchorDate),
+    enabled: isCuttingTeam,
+  });
+  const cuttingYearQuery = useQuery({
+    queryKey: ['process-charts', teamId, 'year', anchorDate],
+    queryFn: () => solicitationApi.processCharts(teamId, 'year', anchorDate),
+    enabled: isCuttingTeam,
+  });
+  const cuttingActivityTypes = [...(chartsQuery.data?.byActivityType ?? [])]
+    .sort((a, b) => a.count - b.count || a.label.localeCompare(b.label, 'pt-BR'));
+  const cuttingMonthTotal = cuttingMonthQuery.data?.byActivityType.reduce((total, item) => total + item.count, 0) ?? 0;
+  const cuttingYearTotal = cuttingYearQuery.data?.byActivityType.reduce((total, item) => total + item.count, 0) ?? 0;
 
   return (
     <div className='space-y-4'>
       <div>
         <h1>Indicadores</h1>
         <p className='text-muted-foreground'>
-          Atividades do time no Kairo, por cliente, tipo e responsável atribuído.
+          Atividades do time finalizadas no período no Kairo, por cliente, tipo e responsável atribuído.
         </p>
       </div>
 
@@ -665,13 +684,34 @@ export function ProcessChartsPage() {
             </p>
           ) : (
             <div className='grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.15fr)]'>
-              <ChartFrame title='Pedidos por Cliente' className='lg:row-span-2'>
-                <ClientChart items={chartsQuery.data.byClient} />
+              <ChartFrame title={isCuttingTeam ? 'Contagem de Atividades' : 'Pedidos por Cliente'} className='lg:row-span-2'>
+                <ClientChart items={isCuttingTeam ? cuttingActivityTypes : chartsQuery.data.byClient} />
               </ChartFrame>
-              <ChartFrame title='Tipos de Pedidos por Ano/Mês/Semana'>
-                <ActivityTypeChart items={chartsQuery.data.byActivityType} />
+              <ChartFrame title={isCuttingTeam ? 'Atividades por Ano/Mês' : 'Tipos de Pedidos por Ano/Mês/Semana'}>
+                {isCuttingTeam ? (
+                  cuttingMonthQuery.isError || cuttingYearQuery.isError ? (
+                    <p role='alert' className='p-6 text-sm text-neutral-700'>
+                      Não foi possível carregar os totais do mês e do ano.
+                    </p>
+                  ) : !cuttingMonthQuery.data || !cuttingYearQuery.data ? (
+                    <Skeleton className='h-64' />
+                  ) : (
+                    <div>
+                      <p className='text-center text-xs text-neutral-600'>
+                        {periodLabel('month', anchor)}
+                      </p>
+                      <ResponsibleChart
+                        items={[{ key: 'total', label: `Total em ${anchor.getFullYear()}: ${cuttingYearTotal}`, count: cuttingMonthTotal }]}
+                        color='#168ef4'
+                        maxBarSize={144}
+                      />
+                    </div>
+                  )
+                ) : (
+                  <ActivityTypeChart items={chartsQuery.data.byActivityType} />
+                )}
               </ChartFrame>
-              <ChartFrame title='Responsável por Pedido'>
+              <ChartFrame title={isCuttingTeam ? 'Atividades por Responsável' : 'Responsável por Pedido'}>
                 <ResponsibleChart items={chartsQuery.data.byResponsible} />
               </ChartFrame>
             </div>
