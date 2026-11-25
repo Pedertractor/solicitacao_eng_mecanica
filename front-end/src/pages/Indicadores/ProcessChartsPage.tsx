@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { addDays, format, startOfWeek } from 'date-fns';
+import { addDays, format, getISOWeek, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
@@ -516,10 +516,18 @@ export function ProcessChartsPage() {
     queryFn: () => solicitationApi.processCharts(teamId, 'year', anchorDate),
     enabled: isCuttingTeam,
   });
+  const showCuttingWeek = isCuttingTeam && period !== 'year';
+  const cuttingWeekQuery = useQuery({
+    queryKey: ['process-charts', teamId, 'week', anchorDate],
+    queryFn: () => solicitationApi.processCharts(teamId, 'week', anchorDate),
+    enabled: showCuttingWeek,
+  });
+  const cuttingWeekLabel = `W${String(getISOWeek(anchor)).padStart(2, '0')}`;
   const cuttingActivityTypes = [...(chartsQuery.data?.byActivityType ?? [])]
     .sort((a, b) => a.count - b.count || a.label.localeCompare(b.label, 'pt-BR'));
   const cuttingMonthTotal = cuttingMonthQuery.data?.byActivityType.reduce((total, item) => total + item.count, 0) ?? 0;
   const cuttingYearTotal = cuttingYearQuery.data?.byActivityType.reduce((total, item) => total + item.count, 0) ?? 0;
+  const cuttingWeekTotal = cuttingWeekQuery.data?.byActivityType.reduce((total, item) => total + item.count, 0) ?? 0;
 
   return (
     <div className='space-y-4'>
@@ -689,22 +697,28 @@ export function ProcessChartsPage() {
               </ChartFrame>
               <ChartFrame title={isCuttingTeam ? 'Atividades por Ano/Mês' : 'Tipos de Pedidos por Ano/Mês/Semana'}>
                 {isCuttingTeam ? (
-                  cuttingMonthQuery.isError || cuttingYearQuery.isError ? (
+                  cuttingMonthQuery.isError || cuttingYearQuery.isError || (showCuttingWeek && cuttingWeekQuery.isError) ? (
                     <p role='alert' className='p-6 text-sm text-neutral-700'>
-                      Não foi possível carregar os totais do mês e do ano.
+                      Não foi possível carregar os totais do período.
                     </p>
-                  ) : !cuttingMonthQuery.data || !cuttingYearQuery.data ? (
+                  ) : !cuttingMonthQuery.data || !cuttingYearQuery.data || (showCuttingWeek && !cuttingWeekQuery.data) ? (
                     <Skeleton className='h-64' />
                   ) : (
                     <div>
                       <p className='text-center text-xs text-neutral-600'>
                         {periodLabel('month', anchor)}
+                        {showCuttingWeek ? ` · ${cuttingWeekLabel}` : null}
                       </p>
                       <ResponsibleChart
                         items={[{ key: 'total', label: `Total em ${anchor.getFullYear()}: ${cuttingYearTotal}`, count: cuttingMonthTotal }]}
                         color='#168ef4'
                         maxBarSize={144}
                       />
+                      {showCuttingWeek ? (
+                        <p className='text-center text-xs text-neutral-700'>
+                          Total da {cuttingWeekLabel}: {cuttingWeekTotal}
+                        </p>
+                      ) : null}
                     </div>
                   )
                 ) : (
