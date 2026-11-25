@@ -194,10 +194,6 @@ export function isProcessEngineeringLead(
   return role === 'ADMIN' && department === 'DESENVOLVIMENTO_PROCESSOS';
 }
 
-export function canAccessSettings(role: UserRole): boolean {
-  return role === 'SUPER_ADMIN';
-}
-
 export function canAccessOfTracking(
   role: UserRole,
   _department?: UserDepartment | null,

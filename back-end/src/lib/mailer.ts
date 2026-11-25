@@ -22,13 +22,10 @@ export async function sendMail(input: {
   to: string;
   subject: string;
   html: string;
-  cc?: string[];
 }): Promise<void> {
-  const cc = input.cc?.filter((email) => email.trim().length > 0);
   await getTransporter().sendMail({
     from: `"Solicitação Pedertractor" <${env.EMAIL_AUTOMACAO}>`,
     to: input.to,
-    ...(cc && cc.length > 0 ? { cc } : {}),
     subject: input.subject,
     html: input.html,
   });
