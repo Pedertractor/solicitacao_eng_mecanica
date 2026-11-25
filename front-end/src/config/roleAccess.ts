@@ -8,7 +8,6 @@ import {
   canAccessOfTracking,
   canAccessProductionTracking,
   canAccessProcessCharts,
-  canAccessSettings,
   canAccessSolicitations,
   canAccessUsersArea,
   canAccessWorkflow,
@@ -54,7 +53,6 @@ const PROTECTED_PATH_PATTERNS: RegExp[] = [
   /^\/amostras-prototipos(\/.*)?$/,
   /^\/rastreio(\/.*)?$/,
   /^\/usuarios(\/.*)?$/,
-  /^\/configuracoes(\/.*)?$/,
   /^\/perfil(\/.*)?$/,
 ];
 
@@ -144,13 +142,6 @@ export function canRoleAccessPath(
     normalized.startsWith(`${ROUTES.USUARIOS}/`)
   ) {
     return canAccessUsersArea(role, department);
-  }
-
-  if (
-    normalized === ROUTES.CONFIGURACOES ||
-    normalized.startsWith(`${ROUTES.CONFIGURACOES}/`)
-  ) {
-    return canAccessSettings(role);
   }
 
   if (

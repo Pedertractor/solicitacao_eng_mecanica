@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronsUpDown, LogOut, Settings, Unplug, UserRound } from 'lucide-react';
+import { ChevronsUpDown, LogOut, Unplug, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { IntegrationsDialog } from '@/components/IntegrationsDialog';
@@ -18,7 +18,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { canAccessSettings } from '@/config/permissions';
 import { useAuth } from '@/contexts/useAuth';
 import { ROUTES } from '@/routes/constants';
 
@@ -33,11 +32,9 @@ export function NavUser({
   };
 }) {
   const { isMobile } = useSidebar();
-  const { logout, user: authUser } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
-  const showSettings =
-    authUser?.role != null && canAccessSettings(authUser.role);
 
   const handleLogout = () => {
     logout();
@@ -95,14 +92,6 @@ export function NavUser({
               <Unplug />
               Integrações
             </DropdownMenuItem>
-            {showSettings && (
-              <DropdownMenuItem
-                onClick={() => navigate(ROUTES.CONFIGURACOES)}
-              >
-                <Settings />
-                Configurações
-              </DropdownMenuItem>
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />

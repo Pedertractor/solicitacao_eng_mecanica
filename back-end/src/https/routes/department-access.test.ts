@@ -27,8 +27,6 @@ describe('department authorization through HTTP routes', () => {
     expect(register.statusCode).toBe(403);
     const users = await app.inject({ method: 'GET', url: '/api/users', headers: auth });
     expect(users.statusCode).toBe(403);
-    const settings = await app.inject({ method: 'GET', url: '/api/settings/email-cc', headers: auth });
-    expect(settings.statusCode).toBe(403);
   });
   it.each([['USER', 'PCP'], ['USER', 'COMERCIAL'], ['ADMIN', 'COMERCIAL'], ['ADMIN', 'FERRAMENTARIA']] as const)('blocks PCP actions for %s / %s despite super admin token claims', async (role, department) => {
     const response = await app.inject({ method: 'POST', url: '/api/solicitations/00000000-0000-4000-8000-000000000001/workflow/pcp/PCP_AMOSTRA/start', headers: headers(role, department) });

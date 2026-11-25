@@ -51,7 +51,6 @@ describe('PCP role', () => {
     expect(canManageSampleStage('ADMIN', 'PCP')).toBe(false);
     expect(canManageSolicitations('ADMIN', 'PCP')).toBe(false);
     expect(canRoleAccessPath('ADMIN', '/usuarios', 'PCP')).toBe(false);
-    expect(canRoleAccessPath('ADMIN', '/configuracoes', 'PCP')).toBe(false);
   });
 });
 
@@ -169,7 +168,6 @@ describe('department-based PCP and Commercial access', () => {
     expect(canManagePcpStage('USER', department)).toBe(false);
     expect(canAccessWorkflow('ADMIN', department)).toBe(true);
     expect(canRoleAccessPath('ADMIN', '/usuarios', department)).toBe(false);
-    expect(canRoleAccessPath('ADMIN', '/configuracoes', department)).toBe(false);
     expect(assignableRoles('ADMIN', department)).toEqual([]);
     expect(canManageSolicitations('ADMIN', department)).toBe(false);
     expect(assignableDepartments('ADMIN', 'DESENVOLVIMENTO_PROCESSOS', 'ADMIN')).toContain(department);

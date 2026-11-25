@@ -14,7 +14,6 @@ import { PublicSolicitationPage } from '@/pages/Solicitacao/PublicSolicitationPa
 import { PublicSolicitationTrackPage } from '@/pages/Solicitacao/PublicSolicitationTrackPage';
 import { SolicitationListPage } from '@/pages/Solicitacao/SolicitationListPage';
 import { SolicitationDetailPage } from '@/pages/Solicitacao/SolicitationDetailPage';
-import { SettingsPage } from '@/pages/Configuracoes/SettingsPage';
 import { ProfilePage } from '@/pages/Perfil/ProfilePage';
 import { WorkflowPage } from '@/pages/Workflow/WorkflowPage';
 import { ProductionTrackingPage } from '@/pages/Workflow/ProductionTrackingPage';
@@ -92,7 +91,6 @@ const appRoutes: RouteObject[] = [
                 ],
               },
               { path: ROUTES.USUARIOS_NOVO, element: <NewUserPage /> },
-              { path: ROUTES.CONFIGURACOES, element: <SettingsPage /> },
               { path: ROUTES.PERFIL, element: <ProfilePage /> },
               {
                 path: ROUTES.NOT_FOUND,

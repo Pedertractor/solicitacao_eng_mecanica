@@ -29,7 +29,6 @@ function breadcrumbLabel(pathname: string): string {
   if (pathname.startsWith(ROUTES.USUARIOS_NOVO)) return 'Novo usuário';
   if (pathname.startsWith(ROUTES.USUARIOS)) return 'Usuários';
   if (pathname.startsWith(ROUTES.PERFIL)) return 'Perfil';
-  if (pathname.startsWith(ROUTES.CONFIGURACOES)) return 'Configurações';
   return 'Pederflow';
 }
 
